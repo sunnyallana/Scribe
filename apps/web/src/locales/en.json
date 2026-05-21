@@ -91,6 +91,41 @@
     "unknownAuthor": "Unknown author"
   },
 
+  "command": {
+    "title": "Command palette",
+    "placeholder": "Type a command or filename…",
+    "empty": "No matches.",
+    "groupActions": "Actions",
+    "groupPanels": "Panels",
+    "groupFiles": "Files",
+    "compile": "Compile",
+    "aiAssist": "AI assist…",
+    "snapshotNow": "Snapshot now",
+    "toggleOutline": "Toggle outline",
+    "toggleReview": "Toggle reviews",
+    "toggleHistory": "Toggle version history",
+    "toggleBibliography": "Toggle bibliography",
+    "toggleAIChat": "Toggle AI chat",
+    "toggleMath": "Toggle math symbols"
+  },
+
+  "outline": {
+    "title": "Outline",
+    "empty": "No \\section, \\subsection, or \\chapter found in this file."
+  },
+
+  "bibliography": {
+    "title": "Bibliography",
+    "searchPlaceholder": "Filter by key, author, title…",
+    "empty": "No entries yet. Add one to get started.",
+    "noMatch": "No entries match \"{{query}}\".",
+    "noBibFile": "This project has no .bib file. Upload one to manage citations.",
+    "cite": "Insert \\cite{{{key}}} at cursor",
+    "add": "Add entry",
+    "save": "Save",
+    "added": "Entry saved"
+  },
+
   "history": {
     "title": "Version history",
     "empty": "No snapshots yet.",
@@ -111,6 +146,7 @@
     "noPdf": "Run a compile to see the PDF.",
     "openTexFile": "Open a .tex file from the file tree to start editing.",
     "nonTexFile": "{{path}} isn't editable here. Pick a .tex file.",
+    "nonTextFile": "{{path}} is a binary file (image or PDF) and can't be edited as text.",
     "noFileSelected": "No file selected",
     "logTitle": "Compile log",
     "empty": "Logs will appear here after compile.",
@@ -121,6 +157,8 @@
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "pdfCanvas": "PDF preview",
+    "inverseSyncHint": "Double-click to jump to source",
+    "inverseSyncMiss": "Couldn't find a source location for that spot.",
     "status": {
       "queued": "Queued",
       "running": "Running",
@@ -179,20 +217,88 @@
       "cv": "CV",
       "letter": "Letter"
     },
+    "templateDescriptions": {
+      "blank": "Empty main.tex. Start from scratch.",
+      "article": "Standard article class with amsmath, hyperref, and a title block.",
+      "report": "Multi-chapter report class with a table of contents.",
+      "beamer": "Slide deck using the Metropolis theme — one frame per slide.",
+      "cv": "moderncv classic style with sections for experience and skills.",
+      "letter": "Business letter with signature and recipient blocks."
+    },
+    "gallerySearch": "Search templates…",
+    "galleryCategory": {
+      "all": "All",
+      "general": "General",
+      "academic": "Academic",
+      "presentation": "Slides",
+      "personal": "Personal"
+    },
     "files": "Files",
     "noFiles": "No files yet",
     "uploadFile": "Upload",
     "newFile": "New file",
     "fileDeleted": "Deleted {{path}}",
     "fileUploaded": "Uploaded {{path}}",
+    "zipUploading": "Unpacking ZIP ({{count}} files)…",
+    "zipUploaded": "Unpacked ZIP: {{count}} files added.",
+    "zipUploadedPartial": "{{ok}} files added, {{failed}} failed.",
+    "zipParseFailed": "Couldn't read that ZIP archive.",
+    "zipEmpty": "ZIP archive contained no files to import.",
     "deleteFileConfirm": "Delete {{path}}?",
     "editorPlaceholder": "The editor lands in Phase 2. Phase 1 wires up files, projects, and collaborators.",
     "projectSettings": "Project settings",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar",
+    "downloadZip": "Download as ZIP",
+    "downloadStarted": "Download started",
+    "newFile": "New file",
+    "newFolder": "New folder",
+    "renameFile": "Rename",
+    "renameFolder": "Rename folder",
+    "openFile": "Open",
+    "downloadFile": "Download file",
+    "fileCreated": "Created {{path}}",
+    "folderCreated": "Folder created",
+    "fileRenamed": "Renamed to {{path}}",
+    "fileMoved": "Moved to {{path}}",
+    "folderRenamed": "Renamed to {{path}}",
+    "folderDeleted": "Deleted {{path}}",
+    "deleteFolderConfirm": "Delete folder {{path}} and {{count}} files inside? This cannot be undone.",
+    "newFilePrompt": "File name (e.g. chapter1.tex)",
+    "newFolderPrompt": "Folder name (e.g. chapters)",
+    "renameFilePrompt": "New path",
+    "renameFolderPrompt": "New folder path",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "savedAt": "Saved at {{time}}",
+    "unsaved": "Unsaved",
+    "wordCount": "{{count}} words",
     "members": "Members",
     "danger": "Danger zone",
     "deleteProject": "Delete project",
     "deleteProjectConfirm": "Permanently delete this project? This cannot be undone.",
     "deleteProjectInProgress": "Deleting…"
+  },
+
+  "mentions": {
+    "popoverLabel": "Project members",
+    "unknown": "Unknown user"
+  },
+
+  "math": {
+    "title": "Math symbols",
+    "searchPlaceholder": "Filter by name, symbol, or LaTeX…",
+    "empty": "No symbols match your search."
+  },
+
+  "status": {
+    "lineCol": "Ln {{line}}, Col {{column}}",
+    "saving": "Saving…",
+    "savedAgo": "Saved {{when}}",
+    "unsaved": "Unsaved",
+    "collab": "Collaboration status",
+    "connected": "Online",
+    "disconnected": "Offline"
   },
 
   "members": {
@@ -230,6 +336,30 @@
   "settings": {
     "title": "Settings",
     "comingSoon": "Full settings UI lands in Phase 5.",
+    "profile": {
+      "title": "Profile",
+      "description": "Your name and avatar, visible to collaborators.",
+      "email": "Email",
+      "emailHint": "Change your email via the auth provider.",
+      "displayName": "Display name",
+      "displayNamePlaceholder": "How collaborators will see you",
+      "avatarUrl": "Avatar URL",
+      "saved": "Profile saved"
+    },
+    "editor": {
+      "title": "Editor",
+      "description": "Font, ruler, autocomplete, and other editing preferences.",
+      "fontSize": "Font size",
+      "rulerColumn": "Ruler column",
+      "rulerColumnHint": "0 disables the right-margin ruler.",
+      "autocomplete": "Autocomplete",
+      "autocompleteDesc": "Suggest LaTeX commands, snippets, and labels as you type.",
+      "ghostText": "Ghost-text completion",
+      "ghostTextDesc": "Inline AI suggestions after a brief pause. Tab to accept, Esc to dismiss.",
+      "vimMode": "Vim mode",
+      "vimModeDesc": "Modal editing with hjkl, :w, etc. (Coming in a follow-up.)",
+      "resetDefaults": "Reset to defaults"
+    },
     "ai": {
       "title": "AI",
       "description": "Connect an AI provider to enable in-editor assistance.",
@@ -252,5 +382,14 @@
   "errors": {
     "generic": "Something went wrong. Please try again.",
     "network": "Couldn't reach the server."
+  },
+
+  "error": {
+    "title": "Something broke",
+    "subtitle": "An unexpected error happened. Details below.",
+    "reload": "Reload",
+    "toDashboard": "Go to dashboard",
+    "showStack": "Show stack trace",
+    "hideStack": "Hide stack trace"
   }
 }

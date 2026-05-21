@@ -80,7 +80,7 @@ export function VersionHistory({ projectId, onClose }: VersionHistoryProps) {
   }, [versionPayloadQuery.data, diffFile]);
 
   return (
-    <div className="flex h-full w-96 flex-col border-l bg-background">
+    <div className="flex h-full w-full flex-col bg-background">
       <div className="flex items-center justify-between border-b px-3 py-2">
         <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <History className="h-3.5 w-3.5" aria-hidden="true" />

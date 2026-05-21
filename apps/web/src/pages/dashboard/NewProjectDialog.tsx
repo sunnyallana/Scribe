@@ -3,7 +3,6 @@ import {
   type CreateProjectInput,
   createProjectInputSchema,
   type Project,
-  type ProjectTemplate,
 } from '@scribe/shared';
 import {
   Button,
@@ -15,11 +14,6 @@ import {
   DialogTitle,
   Input,
   Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
 } from '@scribe/ui';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
@@ -28,21 +22,13 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { TemplateGallery } from '../../components/TemplateGallery/TemplateGallery';
 import { api, type ApiError } from '../../lib/api';
 
 interface NewProjectDialogProps {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }
-
-const TEMPLATES: readonly ProjectTemplate[] = [
-  'blank',
-  'article',
-  'report',
-  'beamer',
-  'cv',
-  'letter',
-];
 
 export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) {
   const { t } = useTranslation();
@@ -75,7 +61,7 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
         onOpenChange(next);
       }}
     >
-      <DialogContent>
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t('project.newTitle')}</DialogTitle>
           <DialogDescription>{t('project.newDescription')}</DialogDescription>
@@ -107,23 +93,12 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="template">{t('project.template')}</Label>
+            <Label>{t('project.template')}</Label>
             <Controller
               control={form.control}
               name="template"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger id="template">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TEMPLATES.map((tpl) => (
-                      <SelectItem key={tpl} value={tpl}>
-                        {t(`project.templates.${tpl}`)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <TemplateGallery selected={field.value} onSelect={field.onChange} />
               )}
             />
           </div>

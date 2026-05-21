@@ -1,4 +1,4 @@
-import { type Comment, type ProjectFile, type ProjectId } from '@scribe/shared';
+import { type Comment, type ProjectFile, type ProjectId, type ProjectMember } from '@scribe/shared';
 import { Avatar, AvatarFallback, Button, Skeleton } from '@scribe/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Loader2, MessageSquarePlus, Trash2, X } from 'lucide-react';
@@ -7,6 +7,9 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 import { api, type ApiError } from '../../lib/api';
+
+import { MentionTextarea } from './MentionTextarea';
+import { parseBody } from './mentions';
 
 interface ReviewPanelProps {
   readonly projectId: ProjectId;
@@ -72,6 +75,12 @@ export function ReviewPanel({
     queryFn: () => api.comments.list(projectId),
   });
 
+  const membersQuery = useQuery<readonly ProjectMember[], ApiError>({
+    queryKey: ['members', projectId],
+    queryFn: () => api.members.list(projectId),
+  });
+  const members = membersQuery.data ?? [];
+
   const createMutation = useMutation<Comment, ApiError, { body: string; parentId?: string }>({
     mutationFn: ({ body, parentId }) =>
       api.comments.create(projectId, {
@@ -108,7 +117,7 @@ export function ReviewPanel({
   const threads = groupIntoThreads(commentsQuery.data ?? []);
 
   return (
-    <div className="flex h-full w-80 flex-col border-l bg-background">
+    <div className="flex h-full w-full flex-col bg-background">
       <div className="flex items-center justify-between border-b px-3 py-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {t('review.title')}
@@ -178,14 +187,12 @@ export function ReviewPanel({
               ) : null}
               {replyTo === thread.root.id ? (
                 <div className="mt-2 ml-3 border-l pl-3">
-                  <textarea
-                    className="w-full rounded-md border bg-background p-2 text-xs"
+                  <MentionTextarea
                     rows={2}
                     placeholder={t('review.replyPlaceholder')}
                     value={draft}
-                    onChange={(e) => {
-                      setDraft(e.target.value);
-                    }}
+                    onChange={setDraft}
+                    members={members}
                   />
                   <div className="mt-1 flex gap-2">
                     <Button
@@ -218,8 +225,7 @@ export function ReviewPanel({
       <div className="border-t p-3">
         {replyTo === null ? (
           <>
-            <textarea
-              className="w-full rounded-md border bg-background p-2 text-xs"
+            <MentionTextarea
               rows={3}
               placeholder={
                 selectedFile !== null
@@ -230,9 +236,8 @@ export function ReviewPanel({
                   : t('review.newCommentGeneric')
               }
               value={draft}
-              onChange={(e) => {
-                setDraft(e.target.value);
-              }}
+              onChange={setDraft}
+              members={members}
               disabled={createMutation.isPending}
             />
             <Button
@@ -300,7 +305,21 @@ function CommentCard({ comment, isRoot, onJumpTo, onReply, onResolve, onDelete }
             </button>
           </div>
         </div>
-        <p className="whitespace-pre-wrap text-xs">{comment.body}</p>
+        <p className="whitespace-pre-wrap text-xs">
+          {parseBody(comment.body).map((tok, idx) =>
+            tok.kind === 'mention' ? (
+              <span
+                key={`m-${idx.toString()}`}
+                className="rounded bg-primary/15 px-1 font-medium text-primary"
+                title={tok.userId}
+              >
+                @{tok.displayName}
+              </span>
+            ) : (
+              <span key={`t-${idx.toString()}`}>{tok.value}</span>
+            ),
+          )}
+        </p>
         <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
           <span>{new Date(comment.createdAt).toLocaleString()}</span>
           {isRoot && comment.anchorLine !== null && onJumpTo !== undefined && comment.fileId !== null ? (

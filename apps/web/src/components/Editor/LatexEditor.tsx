@@ -14,7 +14,7 @@ import type { CompileLogEntry } from '@scribe/compiler-client';
 export interface LatexEditorImperativeHandle {
   insertAtCursor: (text: string) => void;
   getSelection: () => string;
-  gotoLine: (line: number) => void;
+  gotoLine: (line: number, options?: { readonly flash?: boolean }) => void;
   focus: () => void;
 }
 
@@ -60,7 +60,7 @@ export const LatexEditor = forwardRef<LatexEditorImperativeHandle, LatexEditorPr
       () => ({
         insertAtCursor: (text) => { handleRef.current?.insertAtCursor(text); },
         getSelection: () => handleRef.current?.getSelection() ?? '',
-        gotoLine: (line) => { handleRef.current?.gotoLine(line); },
+        gotoLine: (line, options) => { handleRef.current?.gotoLine(line, options); },
         focus: () => { handleRef.current?.view.focus(); },
       }),
       [],
