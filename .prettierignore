@@ -1,0 +1,14 @@
+node_modules
+dist
+build
+out
+.turbo
+.vite
+.next
+coverage
+pnpm-lock.yaml
+*.tsbuildinfo
+*.generated.ts
+**/db.generated.ts
+apps/desktop/src-tauri/target
+apps/desktop/src-tauri/gen
