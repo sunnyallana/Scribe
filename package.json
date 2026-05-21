@@ -1,0 +1,44 @@
+{
+  "name": "scribe",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Self-hostable collaborative LaTeX editor — open alternative to Overleaf.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "packageManager": "pnpm@11.1.3",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "clean": "turbo run clean && rimraf node_modules",
+    "gen:db": "supabase gen types typescript --local > packages/shared/src/types/db.ts",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:reset": "supabase db reset"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.10.0",
+    "eslint": "^9.17.0",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react": "^7.37.4",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "globals": "^15.14.0",
+    "pg": "^8.21.0",
+    "playwright-core": "^1.60.0",
+    "prettier": "^3.4.2",
+    "rimraf": "^6.0.1",
+    "supabase": "^2.6.8",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0"
+  }
+}

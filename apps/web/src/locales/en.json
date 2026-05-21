@@ -1,0 +1,256 @@
+{
+  "appName": "Scribe",
+  "appTagline": "Collaborative LaTeX editing for everyone",
+  "phase0Banner": "Phase 0: foundation only. Features land in subsequent phases — see PLAN.md.",
+
+  "theme": {
+    "label": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "highContrast": "High contrast",
+    "system": "System"
+  },
+
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "loading": "Loading",
+    "back": "Back",
+    "continue": "Continue",
+    "create": "Create",
+    "rename": "Rename",
+    "upload": "Upload",
+    "search": "Search",
+    "close": "Close",
+    "tryAgain": "Try again",
+    "comingSoon": "Coming soon",
+    "openProject": "Open project"
+  },
+
+  "collab": {
+    "presenceLabel": "Connected collaborators"
+  },
+
+  "ai": {
+    "palette": {
+      "title": "AI assist",
+      "description": "Pick an action. The current selection is used as input.",
+      "optionLabel": "Detail",
+      "run": "Run",
+      "cancel": "Stop",
+      "insert": "Insert into editor",
+      "waiting": "Waiting for response…"
+    },
+    "chat": {
+      "title": "AI chat",
+      "empty": "Ask anything about your document. Cmd+Enter to send.",
+      "placeholder": "Ask the assistant…",
+      "hint": "Cmd+Enter to send",
+      "send": "Send",
+      "you": "You",
+      "assistant": "Assistant",
+      "insert": "Insert into editor"
+    },
+    "cmd": {
+      "improve": "Improve writing",
+      "improveDesc": "Tighten and polish the selected passage.",
+      "grammar": "Fix grammar",
+      "grammarDesc": "Correct grammar, spelling, and punctuation.",
+      "summarize": "Summarize",
+      "summarizeDesc": "One-paragraph summary suitable for an abstract.",
+      "expand": "Expand section",
+      "expandDesc": "Add 1–2 supporting paragraphs in matching tone.",
+      "complete": "Complete sentence",
+      "completeDesc": "Finish the current sentence and one follow-up.",
+      "translate": "Translate",
+      "translateDesc": "Translate the selection.",
+      "translateTarget": "Target language",
+      "equation": "Generate equation",
+      "equationDesc": "Produce a single LaTeX equation from a description.",
+      "equationDescLabel": "What should the equation express?",
+      "caption": "Generate caption",
+      "captionDesc": "Single-line caption for the figure/table at hand.",
+      "bib": "Suggest citations",
+      "bibDesc": "Propose BibTeX entries for the passage."
+    }
+  },
+
+  "review": {
+    "title": "Reviews",
+    "empty": "No comments yet. Add one to start a thread.",
+    "addComment": "Add comment",
+    "newCommentGeneric": "Leave a comment…",
+    "newCommentOnLine": "Comment on {{file}}:{{line}}",
+    "reply": "Reply",
+    "replyPlaceholder": "Reply…",
+    "resolve": "Resolve",
+    "reopen": "Reopen",
+    "deleteConfirm": "Delete this comment?",
+    "jumpToLine": "L{{line}}",
+    "unknownAuthor": "Unknown author"
+  },
+
+  "history": {
+    "title": "Version history",
+    "empty": "No snapshots yet.",
+    "snapshotNow": "Snapshot now",
+    "snapshotCreated": "Snapshot saved ({{count}} files)",
+    "fileCount": "{{count}} files",
+    "filesInVersion": "files in this version",
+    "restore": "Restore",
+    "restoreConfirm": "Restore this version? Current file contents will be overwritten.",
+    "restored": "Project restored",
+    "selectFile": "Pick a file to view its contents."
+  },
+
+  "compile": {
+    "runButton": "Compile",
+    "running": "Compiling…",
+    "saved": "Saved",
+    "noPdf": "Run a compile to see the PDF.",
+    "openTexFile": "Open a .tex file from the file tree to start editing.",
+    "nonTexFile": "{{path}} isn't editable here. Pick a .tex file.",
+    "noFileSelected": "No file selected",
+    "logTitle": "Compile log",
+    "empty": "Logs will appear here after compile.",
+    "noIssues": "No errors or warnings.",
+    "idle": "Idle",
+    "prevPage": "Previous page",
+    "nextPage": "Next page",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "pdfCanvas": "PDF preview",
+    "status": {
+      "queued": "Queued",
+      "running": "Running",
+      "success": "Success",
+      "error": "Failed",
+      "cancelled": "Cancelled"
+    }
+  },
+
+  "auth": {
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "signUp": "Sign up",
+    "signedInAs": "Signed in as {{email}}",
+    "email": "Email",
+    "password": "Password",
+    "displayName": "Display name",
+    "displayNameHint": "How collaborators will see you",
+    "newToScribe": "New to Scribe?",
+    "alreadyHaveAccount": "Already have an account?",
+    "forgotPassword": "Forgot password?",
+    "useMagicLink": "Email me a magic link instead",
+    "useEmailPassword": "Use email and password",
+    "magicLinkSent": "Check your email for a sign-in link.",
+    "signupCheckEmail": "Check your email for a confirmation link to finish signing up.",
+    "passwordResetSent": "If an account exists, we sent you a reset link.",
+    "orContinueWith": "Or continue with",
+    "google": "Google",
+    "github": "GitHub",
+    "verifyingSession": "Verifying your session…",
+    "callbackError": "Couldn't complete sign-in. {{message}}"
+  },
+
+  "dashboard": {
+    "title": "Your projects",
+    "subtitle": "Create, open, and manage your LaTeX projects.",
+    "newProject": "New project",
+    "emptyTitle": "No projects yet",
+    "emptyDescription": "Create your first project to get started.",
+    "loadError": "Couldn't load your projects."
+  },
+
+  "project": {
+    "newTitle": "Create a project",
+    "newDescription": "Give it a name and pick a starting template.",
+    "nameLabel": "Name",
+    "descriptionLabel": "Description",
+    "namePlaceholder": "My paper",
+    "descriptionPlaceholder": "Optional description",
+    "template": "Template",
+    "templates": {
+      "blank": "Blank",
+      "article": "Article",
+      "report": "Report",
+      "beamer": "Beamer slides",
+      "cv": "CV",
+      "letter": "Letter"
+    },
+    "files": "Files",
+    "noFiles": "No files yet",
+    "uploadFile": "Upload",
+    "newFile": "New file",
+    "fileDeleted": "Deleted {{path}}",
+    "fileUploaded": "Uploaded {{path}}",
+    "deleteFileConfirm": "Delete {{path}}?",
+    "editorPlaceholder": "The editor lands in Phase 2. Phase 1 wires up files, projects, and collaborators.",
+    "projectSettings": "Project settings",
+    "members": "Members",
+    "danger": "Danger zone",
+    "deleteProject": "Delete project",
+    "deleteProjectConfirm": "Permanently delete this project? This cannot be undone.",
+    "deleteProjectInProgress": "Deleting…"
+  },
+
+  "members": {
+    "title": "Members",
+    "subtitle": "Invite collaborators and manage their access.",
+    "invitePlaceholder": "colleague@example.com",
+    "inviteButton": "Send invite",
+    "inviteSent": "Invite sent to {{email}}",
+    "pending": "Pending",
+    "you": "You",
+    "remove": "Remove",
+    "role": "Role",
+    "roles": {
+      "owner": "Owner",
+      "editor": "Editor",
+      "commenter": "Commenter",
+      "viewer": "Viewer"
+    },
+    "removeConfirm": "Remove this member?"
+  },
+
+  "invite": {
+    "loading": "Loading invitation…",
+    "title": "You've been invited",
+    "description": "{{inviter}} invited you to collaborate on {{project}} as {{role}}.",
+    "accept": "Accept invitation",
+    "signInToAccept": "Sign in to accept",
+    "signUpToAccept": "Sign up to accept",
+    "wrongEmail": "This invitation is for {{email}}. Sign in with that email.",
+    "expired": "This invitation has expired.",
+    "notFound": "Invitation not found.",
+    "alreadyAccepted": "You've already accepted this invitation."
+  },
+
+  "settings": {
+    "title": "Settings",
+    "comingSoon": "Full settings UI lands in Phase 5.",
+    "ai": {
+      "title": "AI",
+      "description": "Connect an AI provider to enable in-editor assistance.",
+      "provider": "Provider",
+      "model": "Model",
+      "modelHint": "Default: {{defaultModel}}. Override only if you know what you want.",
+      "baseUrl": "Base URL",
+      "baseUrlRequired": "Base URL is required for local providers.",
+      "apiKey": "API key",
+      "apiKeyEmpty": "Paste your provider key. It is encrypted at rest.",
+      "apiKeyOnFile": "A key is already saved. Type a new one to replace it.",
+      "keyOnFile": "saved",
+      "testConnection": "Test connection",
+      "saved": "AI settings saved",
+      "pingOk": "Connected ({{latency}}ms)",
+      "pingFailed": "Connection failed"
+    }
+  },
+
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "network": "Couldn't reach the server."
+  }
+}

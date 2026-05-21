@@ -1,0 +1,8 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+  - 'server'
+allowBuilds:
+  esbuild: true
+ignoredBuiltDependencies:
+  - msgpackr-extract
