@@ -3,6 +3,7 @@ export * from './providers/ThemeProvider.js';
 export * from './components/Avatar.js';
 export * from './components/Button.js';
 export * from './components/Card.js';
+export * from './components/ContextMenu.js';
 export * from './components/Dialog.js';
 export * from './components/Input.js';
 export * from './components/Label.js';

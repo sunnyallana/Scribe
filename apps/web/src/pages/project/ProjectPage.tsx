@@ -1,12 +1,15 @@
 import { type Project, type ProjectFile, projectIdSchema } from '@scribe/shared';
 import { Button, Sheet, SheetContent, SheetTrigger } from '@scribe/ui';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, Settings as SettingsIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ChevronsLeft, ChevronsRight, Download, Loader2, Settings as SettingsIcon } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+import { type ImperativePanelHandle, Panel, PanelGroup } from 'react-resizable-panels';
 
+import { Splitter } from '../../components/Layout/Splitter';
 import { api, type ApiError } from '../../lib/api';
+import { supabase } from '../../lib/supabase';
 
 import { FileTree } from './FileTree';
 import { ProjectSettingsSheet } from './ProjectSettingsSheet';
@@ -18,6 +21,8 @@ export function ProjectPage() {
   const projectId = rawId !== undefined ? projectIdSchema.parse(rawId) : null;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedFileId, setSelectedFileId] = useState<ProjectFile['id'] | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const sidebarRef = useRef<ImperativePanelHandle>(null);
 
   const {
     data: project,
@@ -41,7 +46,6 @@ export function ProjectPage() {
     },
   });
 
-  // Auto-select main.tex (or first .tex file) when the file list loads.
   useEffect(() => {
     if (selectedFileId !== null) return;
     const files = filesQuery.data ?? [];
@@ -52,6 +56,39 @@ export function ProjectPage() {
       files[0];
     if (mainFile !== undefined) setSelectedFileId(mainFile.id);
   }, [filesQuery.data, project?.mainFile, selectedFileId]);
+
+  function toggleSidebar() {
+    const panel = sidebarRef.current;
+    if (panel === null) return;
+    if (panel.isCollapsed()) {
+      panel.expand();
+    } else {
+      panel.collapse();
+    }
+  }
+
+  async function downloadZip() {
+    if (projectId === null) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? '';
+      const resp = await fetch(api.files.zipUrl(projectId), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status.toString()}`);
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${project?.name ?? 'project'}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // eslint-disable-next-line no-alert
+      window.alert(msg);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -73,53 +110,102 @@ export function ProjectPage() {
   const selectedFile = files.find((f) => f.id === selectedFileId) ?? null;
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)]">
-      <aside className="flex w-64 flex-col border-r bg-muted/30">
-        <div className="flex items-center justify-between border-b p-3">
-          <h2 className="truncate text-sm font-semibold" title={project.name}>
-            {project.name}
-          </h2>
-          <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
-            <SheetTrigger asChild>
+    <div className="h-[calc(100vh-3.5rem)]">
+      <PanelGroup
+        direction="horizontal"
+        autoSaveId="scribe:project-layout"
+        className="h-full"
+      >
+        <Panel
+          ref={sidebarRef}
+          defaultSize={18}
+          minSize={12}
+          maxSize={35}
+          collapsible
+          collapsedSize={0}
+          onCollapse={() => { setSidebarCollapsed(true); }}
+          onExpand={() => { setSidebarCollapsed(false); }}
+        >
+          <aside className="flex h-full flex-col border-r bg-muted/30">
+            <div className="flex items-center justify-between gap-2 border-b p-3">
+              <h2 className="truncate text-sm font-semibold" title={project.name}>
+                {project.name}
+              </h2>
+              <div className="flex items-center">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => { void downloadZip(); }}
+                  aria-label={t('project.downloadZip')}
+                  title={t('project.downloadZip')}
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+                <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
+                  <SheetTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={t('project.projectSettings')}
+                      className="h-7 w-7"
+                    >
+                      <SettingsIcon className="h-4 w-4" />
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent className="w-full sm:max-w-md">
+                    <ProjectSettingsSheet
+                      project={project}
+                      onClosed={() => { setSettingsOpen(false); }}
+                    />
+                  </SheetContent>
+                </Sheet>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={toggleSidebar}
+                  aria-label={t('project.collapseSidebar')}
+                  title={t('project.collapseSidebar')}
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto p-2">
+              <FileTree
+                projectId={projectId}
+                files={files}
+                selectedFileId={selectedFileId}
+                onSelect={(file) => { setSelectedFileId(file.id); }}
+              />
+            </div>
+          </aside>
+        </Panel>
+        <Splitter orientation="vertical" />
+        <Panel>
+          <div className="relative h-full">
+            {sidebarCollapsed ? (
               <Button
                 variant="ghost"
                 size="icon"
-                aria-label={t('project.projectSettings')}
-                className="h-7 w-7"
+                className="absolute left-1 top-1 z-20 h-7 w-7"
+                onClick={toggleSidebar}
+                aria-label={t('project.expandSidebar')}
+                title={t('project.expandSidebar')}
               >
-                <SettingsIcon className="h-4 w-4" />
+                <ChevronsRight className="h-4 w-4" />
               </Button>
-            </SheetTrigger>
-            <SheetContent className="w-full sm:max-w-md">
-              <ProjectSettingsSheet
-                project={project}
-                onClosed={() => {
-                  setSettingsOpen(false);
-                }}
-              />
-            </SheetContent>
-          </Sheet>
-        </div>
-        <div className="flex-1 overflow-auto p-2">
-          <FileTree
-            projectId={projectId}
-            selectedFileId={selectedFileId}
-            onSelect={(file) => {
-              setSelectedFileId(file.id);
-            }}
-          />
-        </div>
-      </aside>
-      <section className="flex-1 overflow-hidden">
-        <ProjectWorkspace
-          project={project}
-          files={files}
-          selectedFile={selectedFile}
-          onSelectFile={(file) => {
-            setSelectedFileId(file.id);
-          }}
-        />
-      </section>
+            ) : null}
+            <ProjectWorkspace
+              project={project}
+              files={files}
+              selectedFile={selectedFile}
+              onSelectFile={(file) => { setSelectedFileId(file.id); }}
+            />
+          </div>
+        </Panel>
+      </PanelGroup>
     </div>
   );
 }

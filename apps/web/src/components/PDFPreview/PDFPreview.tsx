@@ -20,15 +20,24 @@ interface PDFPreviewProps {
     readonly width?: number;
     readonly height?: number;
   } | null;
+  /** Called when the user double-clicks on PDF text. Page is 1-based, x/y in PDF points. */
+  readonly onInverseSync?: (page: number, x: number, y: number) => void;
 }
 
 const ZOOM_LEVELS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 const DEFAULT_ZOOM_INDEX = 2;
 
-export function PDFPreview({ url, compiling, highlight }: PDFPreviewProps) {
+/** Page height in PDF points (1/72 in), unaffected by viewport scale. */
+function pdfPageHeight(viewport: pdfjs.PageViewport): number {
+  const view = viewport.viewBox;
+  return (view[3] ?? 0) - (view[1] ?? 0);
+}
+
+export function PDFPreview({ url, compiling, highlight, onInverseSync }: PDFPreviewProps) {
   const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const textLayerRef = useRef<HTMLDivElement>(null);
   const [pageCount, setPageCount] = useState(0);
   const [pageNumber, setPageNumber] = useState(1);
   const [zoomIndex, setZoomIndex] = useState<number>(DEFAULT_ZOOM_INDEX);
@@ -36,6 +45,11 @@ export function PDFPreview({ url, compiling, highlight }: PDFPreviewProps) {
   const [error, setError] = useState<string | null>(null);
   const docRef = useRef<pdfjs.PDFDocumentProxy | null>(null);
   const renderTaskRef = useRef<pdfjs.RenderTask | null>(null);
+  const viewportRef = useRef<pdfjs.PageViewport | null>(null);
+  const clickMarkerRef = useRef<HTMLDivElement>(null);
+  // Increments whenever a new doc finishes loading so the render effect
+  // below re-fires even when pageNumber/zoom haven't changed.
+  const [docVersion, setDocVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,6 +72,7 @@ export function PDFPreview({ url, compiling, highlight }: PDFPreviewProps) {
         docRef.current = doc;
         setPageCount(doc.numPages);
         setPageNumber((prev) => Math.min(prev, doc.numPages));
+        setDocVersion((v) => v + 1);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Failed to load PDF');
@@ -83,22 +98,29 @@ export function PDFPreview({ url, compiling, highlight }: PDFPreviewProps) {
         const page = await doc.getPage(pageNumber);
         if (cancelled) return;
         const scale = ZOOM_LEVELS[zoomIndex] ?? 1;
-        const viewport = page.getViewport({ scale });
+        // Render at the device pixel ratio for crisp text on HiDPI screens,
+        // but display at the logical (CSS) size so layout stays the same.
+        const dpr = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1;
+        const renderViewport = page.getViewport({ scale: scale * dpr });
+        const layoutViewport = page.getViewport({ scale });
+        viewportRef.current = layoutViewport;
         const ctx = canvas.getContext('2d');
         if (ctx === null) return;
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        canvas.style.width = `${viewport.width.toString()}px`;
-        canvas.style.height = `${viewport.height.toString()}px`;
-        const task = page.render({ canvasContext: ctx, viewport });
+        canvas.width = renderViewport.width;
+        canvas.height = renderViewport.height;
+        canvas.style.width = `${layoutViewport.width.toString()}px`;
+        canvas.style.height = `${layoutViewport.height.toString()}px`;
+        const task = page.render({ canvasContext: ctx, viewport: renderViewport });
         renderTaskRef.current = task;
         await task.promise;
 
         if (highlight?.page === pageNumber) {
-          drawHighlight(viewport, highlight);
+          drawHighlight(layoutViewport, highlight);
         } else {
           clearHighlight();
         }
+
+        await renderTextLayer(page, layoutViewport);
       } catch (err) {
         if (
           err instanceof Error &&
@@ -112,7 +134,7 @@ export function PDFPreview({ url, compiling, highlight }: PDFPreviewProps) {
     return () => {
       cancelled = true;
     };
-  }, [pageNumber, zoomIndex, highlight]);
+  }, [pageNumber, zoomIndex, highlight, docVersion]);
 
   function drawHighlight(
     viewport: pdfjs.PageViewport,
@@ -120,10 +142,11 @@ export function PDFPreview({ url, compiling, highlight }: PDFPreviewProps) {
   ): void {
     const overlay = overlayRef.current;
     if (overlay === null) return;
-    // SyncTeX gives top-left in PDF units; pdf.js's viewport.convertToViewportPoint
-    // accepts (x, y) and returns viewport coords. The types from pdfjs-dist
-    // declare it as `any[]`; we know it's a [x, y] tuple of numbers.
-    const point: number[] = viewport.convertToViewportPoint(h.x, h.y) as number[];
+    // SyncTeX `v` is top-down from page origin (TeX convention); pdf.js
+    // expects pdf-y in bottom-up convention for convertToViewportPoint.
+    const pageHeight = pdfPageHeight(viewport);
+    const pdfYBottomUp = pageHeight - h.y;
+    const point: number[] = viewport.convertToViewportPoint(h.x, pdfYBottomUp) as number[];
     const px = point[0] ?? 0;
     const py = point[1] ?? 0;
     const w = (h.width ?? 200) * viewport.scale;
@@ -138,6 +161,82 @@ export function PDFPreview({ url, compiling, highlight }: PDFPreviewProps) {
   function clearHighlight(): void {
     const overlay = overlayRef.current;
     if (overlay !== null) overlay.style.display = 'none';
+  }
+
+  async function renderTextLayer(
+    page: pdfjs.PDFPageProxy,
+    viewport: pdfjs.PageViewport,
+  ): Promise<void> {
+    const container = textLayerRef.current;
+    if (container === null) return;
+    container.replaceChildren();
+    // pdf.js >=4 uses `setLayerDimensions` internally, which writes
+    // `width: calc(var(--scale-factor) * Wpx)`. Without this variable the
+    // text layer collapses to 0×0 and text spans pile up at the origin.
+    container.style.setProperty('--scale-factor', viewport.scale.toString());
+    const textContent = await page.getTextContent();
+    // pdf.js >=4 exposes a `TextLayer` class; older builds expose `renderTextLayer`.
+    // Use whichever is present so we don't break across versions.
+    const pdfjsAny = pdfjs as unknown as {
+      readonly TextLayer?: new (opts: {
+        readonly textContentSource: unknown;
+        readonly container: HTMLElement;
+        readonly viewport: pdfjs.PageViewport;
+      }) => { render: () => Promise<void> };
+      readonly renderTextLayer?: (opts: {
+        readonly textContentSource: unknown;
+        readonly container: HTMLElement;
+        readonly viewport: pdfjs.PageViewport;
+      }) => { promise: Promise<void> };
+    };
+    if (typeof pdfjsAny.TextLayer === 'function') {
+      const tl = new pdfjsAny.TextLayer({
+        textContentSource: textContent,
+        container,
+        viewport,
+      });
+      await tl.render();
+    } else if (typeof pdfjsAny.renderTextLayer === 'function') {
+      await pdfjsAny.renderTextLayer({
+        textContentSource: textContent,
+        container,
+        viewport,
+      }).promise;
+    }
+  }
+
+  function flashClickMarker(viewportX: number, viewportY: number): void {
+    const marker = clickMarkerRef.current;
+    if (marker === null) return;
+    marker.style.left = `${(viewportX - 12).toString()}px`;
+    marker.style.top = `${(viewportY - 12).toString()}px`;
+    marker.style.opacity = '1';
+    marker.style.transform = 'scale(1)';
+    // Trigger a CSS transition out.
+    window.setTimeout(() => {
+      marker.style.opacity = '0';
+      marker.style.transform = 'scale(2.5)';
+    }, 30);
+  }
+
+  function handleTextLayerDoubleClick(e: React.MouseEvent<HTMLDivElement>): void {
+    if (onInverseSync === undefined) return;
+    const viewport = viewportRef.current;
+    const container = textLayerRef.current;
+    if (viewport === null || container === null) return;
+    const rect = container.getBoundingClientRect();
+    const vx = e.clientX - rect.left;
+    const vy = e.clientY - rect.top;
+    flashClickMarker(vx, vy);
+    // pdf.js types declare this as any[]; it's actually a [x, y] tuple of numbers.
+    const pdfPoint: number[] = viewport.convertToPdfPoint(vx, vy) as number[];
+    const pdfX = pdfPoint[0] ?? 0;
+    const pdfYBottomUp = pdfPoint[1] ?? 0;
+    // SyncTeX `v` is measured top-down from page origin; pdf.js's PDF
+    // coords are bottom-up. Flip y before handing it to lookupInverse.
+    const pageHeight = pdfPageHeight(viewport);
+    const pdfYTopDown = pageHeight - pdfYBottomUp;
+    onInverseSync(pageNumber, pdfX, pdfYTopDown);
   }
 
   if (url === null && !compiling) {
@@ -210,6 +309,22 @@ export function PDFPreview({ url, compiling, highlight }: PDFPreviewProps) {
           <div className="relative mx-auto inline-block shadow-md">
             <canvas ref={canvasRef} aria-label={t('compile.pdfCanvas')} />
             <div
+              ref={textLayerRef}
+              onDoubleClick={handleTextLayerDoubleClick}
+              title={t('compile.inverseSyncHint')}
+              className="pdf-text-layer"
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                overflow: 'hidden',
+                opacity: 0.999,
+                lineHeight: 1,
+                userSelect: 'text',
+                cursor: 'text',
+              }}
+            />
+            <div
               ref={overlayRef}
               aria-hidden="true"
               style={{
@@ -219,6 +334,24 @@ export function PDFPreview({ url, compiling, highlight }: PDFPreviewProps) {
                 backgroundColor: 'rgba(255, 220, 0, 0.4)',
                 border: '1px solid rgba(255, 180, 0, 0.8)',
                 transition: 'opacity 200ms',
+              }}
+            />
+            <div
+              ref={clickMarkerRef}
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                width: 24,
+                height: 24,
+                borderRadius: 9999,
+                pointerEvents: 'none',
+                opacity: 0,
+                backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                border: '2px solid rgba(59, 130, 246, 0.9)',
+                transition: 'opacity 400ms ease-out, transform 400ms ease-out',
+                transform: 'scale(1)',
+                transformOrigin: 'center center',
+                zIndex: 5,
               }}
             />
           </div>

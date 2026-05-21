@@ -91,12 +91,18 @@ export const api = {
   files: {
     list: (projectId: ProjectId): Promise<ProjectFile[]> =>
       fetchJson(`/api/projects/${projectId}/files`),
+    create: (projectId: ProjectId, path: string, content?: string): Promise<ProjectFile> =>
+      fetchJson(`/api/projects/${projectId}/files`, {
+        method: 'POST',
+        body: JSON.stringify({ path, ...(content !== undefined ? { content } : {}) }),
+      }),
     upload: async (projectId: ProjectId, path: string, file: File): Promise<ProjectFile> => {
       const formData = new FormData();
       formData.append('path', path);
       formData.append('file', file, file.name);
       return fetchJson(`/api/projects/${projectId}/files`, { method: 'POST', body: formData });
     },
+    zipUrl: (projectId: ProjectId): string => `${API_URL}/api/projects/${projectId}/download`,
     rename: (
       projectId: ProjectId,
       fileId: FileId,

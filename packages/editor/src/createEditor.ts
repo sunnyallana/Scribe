@@ -17,6 +17,7 @@ import { yCollab, yUndoManagerKeymap } from 'y-codemirror.next';
 
 import { type AutocompleteSources, createLatexAutocomplete, extractLabels } from './autocomplete.js';
 import { autoCloseEnv } from './extensions/auto-close-env.js';
+import { flashLineExtension, flashLineOnView } from './extensions/flash-line.js';
 import { ruler } from './extensions/ruler.js';
 import { wordCountExtension } from './extensions/word-count.js';
 import { latexLanguageSupport } from './latex-language.js';
@@ -63,8 +64,9 @@ export interface ScribeEditorHandle {
   setReadOnly(readOnly: boolean): void;
   /** Refresh the autocomplete sources without rebuilding the editor. */
   setAutocompleteSources(sources: AutocompleteSources): void;
-  /** Move the cursor to the given 1-based line. */
-  gotoLine(line: number): void;
+  /** Move the cursor to the given 1-based line. When `flash` is true, briefly
+   *  highlight the line so the user can see where the jump landed. */
+  gotoLine(line: number, options?: { readonly flash?: boolean }): void;
   /** Replace the current selection (or insert at cursor if empty). */
   insertAtCursor(text: string): void;
   /** Return the currently selected text (empty string if no selection). */
@@ -143,6 +145,7 @@ export function createScribeEditor(opts: ScribeEditorOptions): ScribeEditorHandl
     autocompleteCompartment.of(createLatexAutocomplete(autocompleteSources)),
     autoCloseEnv(),
     wordCountExtension(),
+    flashLineExtension(),
     lintGutter(),
     latexTheme(theme),
     readOnlyCompartment.of(EditorState.readOnly.of(readOnly)),
@@ -198,7 +201,7 @@ export function createScribeEditor(opts: ScribeEditorOptions): ScribeEditorHandl
         effects: autocompleteCompartment.reconfigure(createLatexAutocomplete(autocompleteSources)),
       });
     },
-    gotoLine(line) {
+    gotoLine(line, options) {
       const safeLine = Math.min(Math.max(line, 1), view.state.doc.lines);
       const lineInfo = view.state.doc.line(safeLine);
       view.dispatch({
@@ -207,6 +210,9 @@ export function createScribeEditor(opts: ScribeEditorOptions): ScribeEditorHandl
         effects: EditorView.scrollIntoView(lineInfo.from, { y: 'center' }),
       });
       view.focus();
+      if (options?.flash === true) {
+        flashLineOnView(view, safeLine);
+      }
     },
     insertAtCursor(text) {
       const range = view.state.selection.main;

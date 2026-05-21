@@ -172,6 +172,39 @@ export function lookupForward(
   };
 }
 
+export interface SyncTeXSourceLocation {
+  readonly filename: string;
+  readonly line: number;
+}
+
+/**
+ * Look up (file, line) for a PDF coordinate. `x` and `y` are in PDF points
+ * (1pt, origin top-left). Picks the record closest to the click.
+ */
+export function lookupInverse(
+  index: SyncTeXIndex,
+  page: number,
+  x: number,
+  y: number,
+): SyncTeXSourceLocation | null {
+  const targetH = x * SP_PER_PT - index.xOffset;
+  const targetV = y * SP_PER_PT - index.yOffset;
+  let best: { record: SyncTeXRecord; dist: number } | null = null;
+  for (const record of index.records) {
+    if (record.page !== page) continue;
+    const dh = record.h - targetH;
+    const dv = record.v - targetV;
+    const dist = Math.sqrt(dh * dh + dv * dv);
+    if (best === null || dist < best.dist) {
+      best = { record, dist };
+    }
+  }
+  if (best === null) return null;
+  const filename = index.files.get(best.record.fileId);
+  if (filename === undefined) return null;
+  return { filename, line: best.record.line };
+}
+
 function resolveFileId(index: SyncTeXIndex, filename: string): number | undefined {
   const direct = index.fileIdsByName.get(filename);
   if (direct !== undefined) return direct;

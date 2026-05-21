@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { lookupForward, parseSyncTeX } from './synctex.js';
+import { lookupForward, lookupInverse, parseSyncTeX } from './synctex.js';
 
 const SAMPLE = `SyncTeX Version:1
 Input:1:./main.tex
@@ -53,5 +53,22 @@ describe('parseSyncTeX', () => {
     const idx = parseSyncTeX(SAMPLE);
     const pos = lookupForward(idx, 'main.tex', 999);
     expect(pos?.page).toBe(2);
+  });
+});
+
+describe('lookupInverse', () => {
+  it('picks the nearest record on the requested page', () => {
+    const idx = parseSyncTeX(SAMPLE);
+    // Page 1 has records at line 3 (h=1000, v=2000), line 5 (h=1500, v=2500),
+    // line 10 (h=2000, v=3000). Convert h=1100sp to pt: 1100/65536 ≈ 0.01678
+    const loc = lookupInverse(idx, 1, 1100 / 65536, 2050 / 65536);
+    expect(loc).not.toBeNull();
+    expect(loc?.line).toBe(3);
+    expect(loc?.filename).toBe('./main.tex');
+  });
+
+  it('returns null when no record on that page', () => {
+    const idx = parseSyncTeX(SAMPLE);
+    expect(lookupInverse(idx, 99, 0, 0)).toBeNull();
   });
 });

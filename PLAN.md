@@ -870,10 +870,24 @@ That should be one focused session. Phase 1 begins next.
 > connection); `AICommandPalette` (Ctrl+Shift+A) with 9 actions over the current
 > selection; `AIChat` right-side panel with multi-turn history and per-message
 > "Insert into editor"; `ghost-completion` extension for the editor (Tab to
-> accept, Esc to dismiss, abort-on-edit). All four pipeline gates pass.
+> accept, Esc to dismiss, abort-on-edit).
+> **Phase 5: complete (minus stretch goals).** Hand-written BibTeX parser in
+> `@scribe/shared/utils/bibtex.ts` (handles nested braces, quoted values,
+> @comment / @string / @preamble), wired into the editor's `\cite{...}`
+> autocomplete by way of the workspace. `BibliographyPanel` (searchable, add
+> entry that appends to the project's `.bib` file). `TEMPLATE_METADATA` exposed
+> as a public shared record; `TemplateGallery` card grid with search + category
+> filter, swapped into `NewProjectDialog` to replace the bare select. Settings
+> turned into a tabbed page (Profile / Editor / AI): profile updates display
+> name and avatar via Supabase `updateUser` + `public.users` mirror; editor
+> prefs (font size, ruler column, autocomplete/ghost-text/vim toggles) persist
+> via the existing zustand store. Stretch goals deferred per Section 11: GitHub
+> sync integration stub, Notifications backend, billing/Plan tab, auto-rendered
+> template thumbnails, "save existing project as template" route, Google/GitHub
+> OAuth provider config (requires external app creation). All four pipeline
+> gates pass.
 >
-> **Next action:** execute Phase 5 — Polish (bibliography, templates, broader
-> settings UI).
+> **Next action:** execute Phase 6 — Tauri desktop wrapper + offline sync.
 
 ### Things explicitly *not* in scope yet, to keep momentum
 The spec is maximalist; the following are intentionally deferred past v1.0:

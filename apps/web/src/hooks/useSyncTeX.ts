@@ -1,4 +1,11 @@
-import { lookupForward, parseSyncTeX, type SyncTeXIndex, type SyncTeXPosition } from '@scribe/compiler-client';
+import {
+  lookupForward,
+  lookupInverse,
+  parseSyncTeX,
+  type SyncTeXIndex,
+  type SyncTeXPosition,
+  type SyncTeXSourceLocation,
+} from '@scribe/compiler-client';
 import { useEffect, useRef, useState } from 'react';
 
 interface SyncTeXState {
@@ -72,4 +79,14 @@ export function lookup(
 ): SyncTeXPosition | null {
   if (index === null) return null;
   return lookupForward(index, filename, line);
+}
+
+export function lookupReverse(
+  index: SyncTeXIndex | null,
+  page: number,
+  x: number,
+  y: number,
+): SyncTeXSourceLocation | null {
+  if (index === null) return null;
+  return lookupInverse(index, page, x, y);
 }
