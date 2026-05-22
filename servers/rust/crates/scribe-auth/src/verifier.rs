@@ -8,6 +8,7 @@ use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
 use thiserror::Error;
 use tracing::debug;
 
+use crate::cache::VerifiedTokenCache;
 use crate::jwks::{JwksCache, JwksError};
 use crate::user::{AuthRole, AuthUser, Claims};
 use scribe_shared::UserId;
@@ -36,6 +37,7 @@ pub struct TokenVerifier {
 struct Inner {
     hs_secret: Option<DecodingKey>,
     jwks: Option<JwksCache>,
+    cache: VerifiedTokenCache,
 }
 
 impl TokenVerifier {
@@ -45,13 +47,23 @@ impl TokenVerifier {
     pub fn new(hs_secret: Option<&str>, jwks_url: Option<&str>) -> Self {
         let hs_secret = hs_secret.map(|s| DecodingKey::from_secret(s.as_bytes()));
         let jwks = jwks_url.map(JwksCache::new);
-        Self { inner: Arc::new(Inner { hs_secret, jwks }) }
+        Self {
+            inner: Arc::new(Inner { hs_secret, jwks, cache: VerifiedTokenCache::new() }),
+        }
     }
 
     pub async fn verify(&self, token: &str) -> Result<AuthUser, VerifyError> {
+        // Fast path: a recently-verified token short-circuits the full
+        // crypto + (potentially) JWKS round-trip. Bench-critical on the
+        // hot path — a single warm client sends the same JWT for the
+        // full life of an access token (~1 hour).
+        if let Some(user) = self.inner.cache.get(token) {
+            return Ok(user);
+        }
+
         let header = decode_header(token)?;
         let alg = header.alg;
-        debug!(?alg, "verifying token");
+        debug!(?alg, "verifying token (cache miss)");
 
         let claims = match alg {
             Algorithm::HS256 => self.verify_hs256(token)?,
@@ -64,12 +76,15 @@ impl TokenVerifier {
 
         let sub = claims.sub.ok_or(VerifyError::MissingSub)?;
         let role = claims.role.as_deref().map(AuthRole::from_claim).unwrap_or(AuthRole::Other);
-        Ok(AuthUser {
+        let exp = claims.exp;
+        let user = AuthUser {
             id: UserId::new(sub),
             email: claims.email.clone(),
             role,
             token: token.to_string(),
-        })
+        };
+        self.inner.cache.insert(token, user.clone(), exp);
+        Ok(user)
     }
 
     fn verify_hs256(&self, token: &str) -> Result<Claims, VerifyError> {

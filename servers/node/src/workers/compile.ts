@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { config as loadDotenv } from 'dotenv';
-loadDotenv({ path: ['../.env', '.env'], quiet: true });
+loadDotenv({ path: ['../../.env', '../.env', '.env'], quiet: true });
 
 import { parseCompileLog, type CompileLogEntry } from '@scribe/compiler-client';
 import { type CompileLogStreamMessage, type ProjectId } from '@scribe/shared';

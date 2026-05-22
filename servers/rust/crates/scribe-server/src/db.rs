@@ -24,31 +24,66 @@ pub struct Db {
 }
 
 impl Db {
+    /// Spawn a background task that snapshots pool occupancy into
+    /// Prometheus gauges every `interval`. The gauges expose
+    /// `sqlx_pool_connections{state="size|idle|busy"}` so Grafana can
+    /// alert on pool exhaustion (busy >= max for sustained periods)
+    /// long before users see latency spikes from the acquire_timeout.
+    pub fn spawn_metrics_exporter(&self, interval: Duration) -> tokio::task::JoinHandle<()> {
+        let pool = self.pool.clone();
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(interval);
+            // First tick fires immediately; skip so we have at least one
+            // real sample (sqlx reports 0 until connections are created).
+            ticker.tick().await;
+            loop {
+                ticker.tick().await;
+                let size = pool.size() as f64;
+                let idle = pool.num_idle() as f64;
+                let busy = (size - idle).max(0.0);
+                metrics::gauge!("sqlx_pool_connections", "state" => "size").set(size);
+                metrics::gauge!("sqlx_pool_connections", "state" => "idle").set(idle);
+                metrics::gauge!("sqlx_pool_connections", "state" => "busy").set(busy);
+            }
+        })
+    }
+}
+
+impl Db {
     /// Connect using the given DATABASE_URL. Tuned for the workload we
     /// expect: many short-lived requests, plus a few long-lived Yjs
     /// sessions that hold connections only briefly to flush updates.
     pub async fn connect(database_url: &str) -> ApiResult<Self> {
-        // PgBouncer transaction mode (Supabase's port-6543 pooler) reuses
-        // backend connections across multiple frontend sessions, so sqlx's
-        // per-connection prepared-statement cache collides with itself.
-        // Disabling the cache makes every query unprepared and is the
-        // recommended fix for transaction-pooled deployments. The cost is
-        // ~one extra round trip per query, which is dominated by network
-        // latency anyway.
+        // Statement cache is fine on the SESSION pooler (port 5432) — each
+        // frontend session keeps its own backend connection, so prepared-
+        // statement names don't collide. If you connect through Supabase's
+        // TRANSACTION pooler on 6543, prepared statements collide across
+        // sessions; either switch to 5432 or chain `.statement_cache_capacity(0)`
+        // onto the options below at the cost of ~one extra round-trip per query.
         let options = PgConnectOptions::from_str(database_url)
-            .map_err(|err| ApiError::new(ErrorCode::Internal, format!("db url: {err}")))?
-            .statement_cache_capacity(0);
+            .map_err(|err| ApiError::new(ErrorCode::Internal, format!("db url: {err}")))?;
 
         let pool = PgPoolOptions::new()
-            .max_connections(20)
-            .min_connections(2)
-            .acquire_timeout(Duration::from_secs(5))
-            .idle_timeout(Some(Duration::from_secs(300)))
-            .test_before_acquire(true)
+            // Cap matches Supabase's per-IP session-pooler limit on the
+            // free/starter tier; bump on paid tiers.
+            .max_connections(15)
+            // Warm a small portion of the pool at startup so the first
+            // few concurrent requests skip TLS+auth handshakes; the
+            // rest are created lazily on demand. Initializing all 15
+            // at once trips the pooler's per-source rate limit.
+            .min_connections(4)
+            .acquire_timeout(Duration::from_secs(10))
+            .idle_timeout(Some(Duration::from_secs(600)))
+            .max_lifetime(Some(Duration::from_secs(30 * 60)))
+            // `test_before_acquire(true)` would do a `SELECT 1` ping
+            // before every checkout — brutal on a hosted pooler with
+            // ~200ms RTT. We rely on sqlx's automatic re-acquire on
+            // broken-pipe instead.
+            .test_before_acquire(false)
             .connect_with(options)
             .await
             .map_err(|err| ApiError::new(ErrorCode::Internal, format!("db connect: {err}")))?;
-        info!("postgres pool ready ({} max conns, statement cache disabled for pgbouncer)", 20);
+        info!("postgres pool ready ({} max conns)", 20);
         Ok(Self { pool })
     }
 

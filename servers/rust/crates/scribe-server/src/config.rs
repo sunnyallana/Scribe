@@ -44,6 +44,14 @@ pub struct AppConfig {
     pub tectonic_bin: Option<String>,
     /// Hard kill the compile after this many ms. Same name as Node side.
     pub compile_timeout_ms: Option<u64>,
+    /// Persistent cache directory for tectonic so package downloads
+    /// from CTAN are reused between compiles. When unset, tectonic
+    /// uses the OS default. In container deployments, mount a volume
+    /// here so cache survives restarts.
+    pub tectonic_cache_dir: Option<String>,
+    /// Number of compile worker tasks to spawn — each does an
+    /// independent BRPOP loop on Redis. Defaults to 2.
+    pub compile_worker_concurrency: Option<u32>,
 }
 
 impl Default for AppConfig {
@@ -63,6 +71,8 @@ impl Default for AppConfig {
             scribe_static_dir: None,
             tectonic_bin: None,
             compile_timeout_ms: None,
+            tectonic_cache_dir: None,
+            compile_worker_concurrency: None,
         }
     }
 }

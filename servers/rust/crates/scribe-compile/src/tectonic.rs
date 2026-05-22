@@ -30,6 +30,12 @@ pub struct TectonicConfig {
     pub binary: String,
     /// Hard kill after this. Matches the Node `COMPILE_TIMEOUT_MS` default.
     pub timeout: Duration,
+    /// Persistent cache directory. When set, tectonic reuses its
+    /// downloaded-package cache between compiles — a fresh project's
+    /// first compile drops from 5–30 s (CTAN fetches) to 1–2 s.
+    /// Falls back to tectonic's default (`XDG_CACHE_HOME` on Unix,
+    /// `%LOCALAPPDATA%` on Windows) when None.
+    pub cache_dir: Option<std::path::PathBuf>,
 }
 
 impl Default for TectonicConfig {
@@ -37,6 +43,7 @@ impl Default for TectonicConfig {
         Self {
             binary: "tectonic".to_string(),
             timeout: Duration::from_secs(120),
+            cache_dir: None,
         }
     }
 }
@@ -55,6 +62,16 @@ pub async fn run_tectonic(
         .arg(workdir.as_os_str())
         .arg(main_file)
         .kill_on_drop(true);
+
+    // Point tectonic at a persistent cache so package downloads from
+    // CTAN are reused between compiles. tectonic respects
+    // `TECTONIC_CACHE_DIR` (and falls back to platform defaults).
+    if let Some(dir) = config.cache_dir.as_deref() {
+        cmd.env("TECTONIC_CACHE_DIR", dir);
+        // On Unix tectonic uses XDG; mirror it so the same flag works
+        // there too without surprises.
+        cmd.env("XDG_CACHE_HOME", dir);
+    }
 
     // Capture both streams; we feed them through the log parser AND
     // upload the combined text as compile.log.

@@ -85,6 +85,11 @@ export const api = {
       fetchJson('/api/projects', { method: 'POST', body: JSON.stringify(input) }),
     update: (id: ProjectId, input: UpdateProjectInput): Promise<Project> =>
       fetchJson(`/api/projects/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+    duplicate: (id: ProjectId, name?: string): Promise<Project> =>
+      fetchJson(`/api/projects/${id}/duplicate`, {
+        method: 'POST',
+        body: JSON.stringify(name !== undefined ? { name } : {}),
+      }),
     remove: (id: ProjectId): Promise<void> =>
       fetchJson(`/api/projects/${id}`, { method: 'DELETE' }),
   },

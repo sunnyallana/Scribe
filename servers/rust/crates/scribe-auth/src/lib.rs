@@ -13,6 +13,7 @@
 //! header. JWKS keys are cached in-memory for one hour and refreshed on
 //! a cache miss (rotation).
 
+mod cache;
 mod jwks;
 mod middleware;
 mod user;

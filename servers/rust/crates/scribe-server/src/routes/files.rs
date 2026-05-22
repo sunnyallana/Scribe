@@ -8,7 +8,7 @@
 
 use axum::{
     extract::{FromRequest, Multipart, Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     middleware::from_fn,
     response::{IntoResponse, Response},
     routing::get,
@@ -17,7 +17,7 @@ use axum::{
 use scribe_auth::{require_auth, Authenticated};
 use scribe_shared::{
     infer_file_type, ApiError, ApiResult, CreateFileInput, ErrorCode, FileContentInput, FileId,
-    FileType, ProjectFile, ProjectId, RenameFileInput,
+    FileType, ProjectFile, ProjectId, RenameFileInput, UserId,
 };
 use serde::Serialize; // used by ContentBody, WriteContentResponse, UrlBody
 use serde_json::json;
@@ -25,6 +25,33 @@ use uuid::Uuid;
 
 use crate::services::FileService;
 use crate::state::AppState;
+
+/// Cache key for a project's file list. **Project-first** key layout so
+/// `invalidate_prefix("files:list:{project}:")` wipes every user's
+/// cached view at once when any file in the project is created /
+/// renamed / removed. Per-user suffix prevents a no-access user from
+/// reading a member's cached value.
+fn files_list_cache_key(project: ProjectId, user: UserId) -> String {
+    format!("files:list:{project}:{user}")
+}
+fn files_list_invalidate_prefix(project: ProjectId) -> String {
+    format!("files:list:{project}:")
+}
+
+/// Cache key for a single file's content. **File-first** key layout so
+/// `invalidate_prefix("files:content:{project}:{file}:")` clears every
+/// user's copy when the file's content changes.
+fn file_content_cache_key(project: ProjectId, file: FileId, user: UserId) -> String {
+    format!("files:content:{project}:{file}:{user}")
+}
+fn file_content_invalidate_prefix(project: ProjectId, file: FileId) -> String {
+    format!("files:content:{project}:{file}:")
+}
+fn file_content_project_prefix(project: ProjectId) -> String {
+    // Wipes every file under a project — used by create/rename/remove
+    // where any cached list view is now stale.
+    format!("files:content:{project}:")
+}
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -51,9 +78,22 @@ async fn list(
     State(state): State<AppState>,
     Authenticated(user): Authenticated,
     Path(project_id): Path<Uuid>,
-) -> ApiResult<Json<Vec<ProjectFile>>> {
-    let service = files_service(&state)?;
-    Ok(Json(service.list(user.id, ProjectId::new(project_id)).await?))
+    headers: HeaderMap,
+) -> Response {
+    let cache = state.response_cache().clone();
+    let key = files_list_cache_key(ProjectId::new(project_id), user.id);
+    let service = match files_service(&state) {
+        Ok(s) => s,
+        Err(err) => return err.into_response(),
+    };
+    cache
+        .cached_json::<Vec<ProjectFile>, _, _>(&key, &headers, None, move || async move {
+            service
+                .list(user.id, ProjectId::new(project_id))
+                .await
+                .map_err(IntoResponse::into_response)
+        })
+        .await
 }
 
 /// Dispatch on Content-Type. We accept JSON (for the in-app flow) and
@@ -108,7 +148,9 @@ async fn create_from_json(
     input: CreateFileInput,
 ) -> ApiResult<Json<ProjectFile>> {
     let service = files_service(&state)?;
-    Ok(Json(service.create(user.id, ProjectId::new(project_id), input).await?))
+    let created = service.create(user.id, ProjectId::new(project_id), input).await?;
+    invalidate_list_and_all_content(&state, ProjectId::new(project_id)).await;
+    Ok(Json(created))
 }
 
 async fn create_from_multipart(
@@ -170,7 +212,9 @@ async fn create_from_multipart(
     };
 
     let service = files_service(&state)?;
-    Ok(Json(service.create(user.id, ProjectId::new(project_id), input).await?))
+    let created = service.create(user.id, ProjectId::new(project_id), input).await?;
+    invalidate_list_and_all_content(&state, ProjectId::new(project_id)).await;
+    Ok(Json(created))
 }
 
 async fn rename(
@@ -183,6 +227,7 @@ async fn rename(
     let updated = service
         .rename(user.id, ProjectId::new(project_id), FileId::new(file_id), input)
         .await?;
+    invalidate_list_and_file(&state, ProjectId::new(project_id), FileId::new(file_id)).await;
     Ok(Json(updated))
 }
 
@@ -195,7 +240,27 @@ async fn remove(
     service
         .remove(user.id, ProjectId::new(project_id), FileId::new(file_id))
         .await?;
+    invalidate_list_and_file(&state, ProjectId::new(project_id), FileId::new(file_id)).await;
     Ok(Json(json!({ "ok": true })))
+}
+
+/// Invalidate the project's file list (any user) + every cached file
+/// content under it. Called from create/rename/remove because those
+/// change the list shape and may invalidate previously-cached paths.
+async fn invalidate_list_and_all_content(state: &AppState, project: ProjectId) {
+    let cache = state.response_cache();
+    let list = files_list_invalidate_prefix(project);
+    let content = file_content_project_prefix(project);
+    tokio::join!(cache.invalidate_prefix(&list), cache.invalidate_prefix(&content));
+}
+
+/// Narrower: only invalidates one file's content + the project list.
+/// Used by writes that target a single file body.
+async fn invalidate_list_and_file(state: &AppState, project: ProjectId, file: FileId) {
+    let cache = state.response_cache();
+    let list = files_list_invalidate_prefix(project);
+    let content = file_content_invalidate_prefix(project, file);
+    tokio::join!(cache.invalidate_prefix(&list), cache.invalidate_prefix(&content));
 }
 
 #[derive(Serialize)]
@@ -207,12 +272,23 @@ async fn read_content(
     State(state): State<AppState>,
     Authenticated(user): Authenticated,
     Path((project_id, file_id)): Path<(Uuid, Uuid)>,
-) -> ApiResult<Json<ContentBody>> {
-    let service = files_service(&state)?;
-    let content = service
-        .read_content(user.id, ProjectId::new(project_id), FileId::new(file_id))
-        .await?;
-    Ok(Json(ContentBody { content }))
+    headers: HeaderMap,
+) -> Response {
+    let cache = state.response_cache().clone();
+    let key = file_content_cache_key(ProjectId::new(project_id), FileId::new(file_id), user.id);
+    let service = match files_service(&state) {
+        Ok(s) => s,
+        Err(err) => return err.into_response(),
+    };
+    cache
+        .cached_json::<ContentBody, _, _>(&key, &headers, None, move || async move {
+            let content = service
+                .read_content(user.id, ProjectId::new(project_id), FileId::new(file_id))
+                .await
+                .map_err(IntoResponse::into_response)?;
+            Ok::<_, Response>(ContentBody { content })
+        })
+        .await
 }
 
 #[derive(Serialize)]
@@ -237,6 +313,10 @@ async fn write_content(
             input.content,
         )
         .await?;
+    // Content changed → every user's cached copy of this file is stale.
+    // List shape didn't change (still the same file), but size_bytes did,
+    // so the list response body would also be stale.
+    invalidate_list_and_file(&state, ProjectId::new(project_id), FileId::new(file_id)).await;
     Ok(Json(WriteContentResponse {
         path: file.path,
         size_bytes: file.size_bytes,

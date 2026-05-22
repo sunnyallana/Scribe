@@ -69,8 +69,20 @@ impl SupabaseStorage {
             .map_err(|err| ApiError::internal(format!("invalid service role key: {err}")))?;
         auth.set_sensitive(true);
 
+        // Keep the connection pool warm so concurrent download/upload
+        // bursts (e.g. 23 project files × HTTPS RTT) multiplex over a
+        // single HTTP/2 connection instead of reopening one per call.
+        // Without these defaults reqwest tears down idle connections
+        // aggressively, which the worker pays for as ~250 ms reconnect
+        // cost per request on a cold pool.
         let http = Client::builder()
             .timeout(Duration::from_secs(30))
+            .pool_idle_timeout(Duration::from_secs(300))
+            .pool_max_idle_per_host(32)
+            .tcp_keepalive(Duration::from_secs(60))
+            .http2_keep_alive_interval(Duration::from_secs(30))
+            .http2_keep_alive_timeout(Duration::from_secs(10))
+            .http2_keep_alive_while_idle(true)
             .build()
             .map_err(|err| ApiError::internal(format!("storage http build: {err}")))?;
 

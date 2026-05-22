@@ -170,6 +170,75 @@ impl ProjectService {
         row.map(row_to_project).ok_or_else(|| ApiError::not_found("Project not found"))
     }
 
+    /// Deep-copy a project: new project row owned by the caller, all of
+    /// the source's files copied (storage objects + DB rows). The caller
+    /// must be able to read the source (owner, public, or accepted
+    /// member). The new project's name defaults to "Source name (copy)"
+    /// unless `new_name` is provided.
+    pub async fn duplicate(
+        &self,
+        user: UserId,
+        source_id: ProjectId,
+        new_name: Option<String>,
+    ) -> ApiResult<Project> {
+        let source = self.get_for_user(user, source_id).await?;
+        let name = new_name
+            .map(|n| n.trim().to_string())
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| format!("{} (copy)", source.name));
+
+        // Insert the new project row. Carry over template, compiler,
+        // main_file, description; the caller is the new owner.
+        let row = sqlx::query(
+            r#"
+            insert into public.projects
+                (name, description, owner_id, template, compiler, main_file)
+            values ($1, $2, $3, $4, $5, $6)
+            returning id, name, description, owner_id, template, compiler,
+                      main_file, is_public, archived_at, created_at, updated_at
+            "#,
+        )
+        .bind(&name)
+        .bind(source.description.as_deref())
+        .bind(user.into_inner())
+        .bind(&source.template)
+        .bind(source.compiler.as_str())
+        .bind(&source.main_file)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(internal)?;
+        let new_project = row_to_project(row);
+
+        // Copy every file. Simple read+write per file — no native Supabase
+        // server-side copy primitive on the trait yet, but duplicate is
+        // rare and concurrent file ops cap N × RTT to max(RTT) via the
+        // HTTP/2 pool.
+        let source_files = self.files.list(user, source_id).await?;
+        let copy_futures = source_files.into_iter().map(|f| {
+            let files = self.files.clone();
+            let new_project_id = new_project.id;
+            async move {
+                let content = files.read_content(user, source_id, f.id).await?;
+                let input = CreateFileInput {
+                    path: f.path,
+                    file_type: Some(f.file_type),
+                    content: Some(content),
+                };
+                files.create(user, new_project_id, input).await?;
+                Ok::<_, ApiError>(())
+            }
+        });
+        if let Err(err) = futures::future::try_join_all(copy_futures).await {
+            // Roll back the new project so we don't leave a half-copied
+            // shell. Best-effort cleanup of storage happens via the file
+            // service's create/delete pairing.
+            let _ = self.delete_raw(new_project.id).await;
+            return Err(err);
+        }
+
+        Ok(new_project)
+    }
+
     pub async fn remove(&self, user: UserId, id: ProjectId) -> ApiResult<()> {
         let affected = sqlx::query(
             "delete from public.projects where id = $1 and owner_id = $2",

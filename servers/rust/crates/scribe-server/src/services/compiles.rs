@@ -36,40 +36,46 @@ impl CompileService {
         project: ProjectId,
         input: CreateCompileJobInput,
     ) -> ApiResult<CompileJob> {
-        assert_member(&self.pool, user, project).await?;
-
-        // Look up the project's compiler + default main_file.
-        let proj_row = sqlx::query(
-            "select compiler, main_file from public.projects where id = $1",
-        )
-        .bind(project.into_inner())
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(internal)?;
-        let proj_row = proj_row.ok_or_else(|| ApiError::not_found("Project not found"))?;
-        let engine_str: String = proj_row.get("compiler");
-        let engine = CompilerEngine::parse(&engine_str).unwrap_or_default();
-        let default_main: String = proj_row.get("main_file");
-        let main_file = input.main_file.unwrap_or(default_main);
-
-        // Insert the row first so we have a job ID to put on the queue.
+        // Single round-trip: membership check + project lookup + insert,
+        // all in one CTE. If the user has no access (or the project
+        // doesn't exist), the `proj` CTE is empty so the INSERT inserts
+        // zero rows and the outer SELECT returns no rows — we map that
+        // to NotFound. Cuts ~500 ms off the enqueue path vs three
+        // sequential round-trips to Supabase (AU pooler RTT ≈ 250 ms).
         let row = sqlx::query(
             r#"
-            insert into public.compile_jobs
-                (project_id, triggered_by, status, engine, main_file)
-            values ($1, $2, 'queued', $3, $4)
-            returning id, project_id, triggered_by, status, engine, main_file,
-                      exit_code, pdf_key, log_key, synctex_key, error_message,
-                      entries, duration_ms, enqueued_at, started_at, completed_at
+            with proj as (
+                select id, compiler, main_file
+                from public.projects p
+                where p.id = $1
+                  and (
+                    p.owner_id = $2
+                    or exists (
+                        select 1 from public.project_members m
+                        where m.project_id = p.id and m.user_id = $2
+                          and m.invite_accepted_at is not null
+                    )
+                  )
+            ),
+            ins as (
+                insert into public.compile_jobs
+                    (project_id, triggered_by, status, engine, main_file)
+                select proj.id, $2, 'queued', proj.compiler, coalesce($3, proj.main_file)
+                from proj
+                returning id, project_id, triggered_by, status, engine, main_file,
+                          exit_code, pdf_key, log_key, synctex_key, error_message,
+                          entries, duration_ms, enqueued_at, started_at, completed_at
+            )
+            select * from ins
             "#,
         )
         .bind(project.into_inner())
         .bind(user.into_inner())
-        .bind(engine.as_str())
-        .bind(&main_file)
-        .fetch_one(&self.pool)
+        .bind(input.main_file.as_deref())
+        .fetch_optional(&self.pool)
         .await
-        .map_err(internal)?;
+        .map_err(internal)?
+        .ok_or_else(|| ApiError::not_found("Project not found"))?;
         let job = row_to_job(row);
 
         // Push onto Redis; if that fails, mark the row errored so the

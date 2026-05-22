@@ -7,7 +7,7 @@ WORKDIR /app
 RUN cargo install cargo-chef --locked
 
 FROM chef AS planner
-COPY rust-server /app
+COPY servers/rust /app
 RUN cargo chef prepare --recipe-path recipe.json
 
 # -------- 2. Build deps from the recipe (cache hit on every code-only change) --------
@@ -21,7 +21,7 @@ RUN cargo chef cook --release --recipe-path recipe.json
 FROM chef AS builder
 COPY --from=deps /app/target target
 COPY --from=deps /usr/local/cargo /usr/local/cargo
-COPY rust-server /app
+COPY servers/rust /app
 RUN cargo build --release --bin scribe-server
 # Strip is already enabled via Cargo.toml release profile.
 

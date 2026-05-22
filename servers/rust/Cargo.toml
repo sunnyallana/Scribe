@@ -25,7 +25,7 @@ redis = { version = "0.27", features = ["tokio-comp", "aio"] }
 tokio = { version = "1.40", features = ["full"] }
 axum = { version = "0.7", features = ["ws", "macros", "multipart"] }
 tower = "0.5"
-tower-http = { version = "0.6", features = ["trace", "cors", "compression-gzip", "limit", "fs"] }
+tower-http = { version = "0.6", features = ["trace", "cors", "compression-gzip", "compression-br", "limit", "fs", "timeout"] }
 hyper = { version = "1", features = ["full"] }
 
 # Serialization
@@ -48,8 +48,10 @@ chrono = { version = "0.4", features = ["serde"] }
 # Auth
 jsonwebtoken = "9"
 
-# HTTP client
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream", "multipart"] }
+# HTTP client. Enable `gzip` + `brotli` so Supabase Storage responses
+# with Content-Encoding land decompressed in our buffers — without it
+# we'd see raw gzip bytes and fail to decode the body as UTF-8.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream", "multipart", "gzip", "brotli", "http2"] }
 url = "2"
 
 # CRDT — yrs 0.17 line matches what y-sync 0.4 (latest) pins.

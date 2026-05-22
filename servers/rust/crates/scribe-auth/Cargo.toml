@@ -21,6 +21,8 @@ tracing.workspace = true
 parking_lot.workspace = true
 url.workspace = true
 uuid.workspace = true
+dashmap.workspace = true
+sha2 = "0.10"
 
 [dev-dependencies]
 chrono.workspace = true

@@ -370,7 +370,7 @@ importers:
         specifier: ^13.6.20
         version: 13.6.30
 
-  server:
+  servers/node:
     dependencies:
       '@fastify/cors':
         specifier: ^10.0.2
@@ -392,13 +392,13 @@ importers:
         version: 11.2.0
       '@scribe/ai':
         specifier: workspace:*
-        version: link:../packages/ai
+        version: link:../../packages/ai
       '@scribe/compiler-client':
         specifier: workspace:*
-        version: link:../packages/compiler-client
+        version: link:../../packages/compiler-client
       '@scribe/shared':
         specifier: workspace:*
-        version: link:../packages/shared
+        version: link:../../packages/shared
       '@supabase/supabase-js':
         specifier: ^2.47.10
         version: 2.106.0
