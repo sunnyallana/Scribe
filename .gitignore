@@ -63,3 +63,8 @@ supabase/.temp/
 # Temporary
 tmp/
 *.tmp
+
+# Rust
+rust-server/target/
+**/*.rs.bk
+**/Cargo.lock.bak

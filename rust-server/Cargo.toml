@@ -1,0 +1,83 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/scribe-server",
+    "crates/scribe-shared",
+    "crates/scribe-auth",
+    "crates/scribe-storage",
+    "crates/scribe-yjs",
+    "crates/scribe-compile",
+    "crates/scribe-ai",
+]
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.80"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/scribe/scribe"
+publish = false
+
+[workspace.dependencies]
+# Redis (queue + pub/sub)
+redis = { version = "0.27", features = ["tokio-comp", "aio"] }
+
+# Core async + HTTP
+tokio = { version = "1.40", features = ["full"] }
+axum = { version = "0.7", features = ["ws", "macros", "multipart"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["trace", "cors", "compression-gzip", "limit", "fs"] }
+hyper = { version = "1", features = ["full"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Errors + logging
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Database
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json", "macros"] }
+
+# IDs + time
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Auth
+jsonwebtoken = "9"
+
+# HTTP client
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream", "multipart"] }
+url = "2"
+
+# CRDT — yrs 0.17 line matches what y-sync 0.4 (latest) pins.
+yrs = "0.17"
+y-sync = "0.4"
+
+# Storage / archive
+bytes = "1"
+
+# Crypto
+aes-gcm = "0.10"
+base64 = "0.22"
+
+# Config
+figment = { version = "0.10", features = ["toml", "env"] }
+dotenvy = "0.15"
+
+# Concurrency primitives
+parking_lot = "0.12"
+dashmap = "6"
+futures = "0.3"
+async-trait = "0.1"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+
+[profile.dev.package."*"]
+opt-level = 2
