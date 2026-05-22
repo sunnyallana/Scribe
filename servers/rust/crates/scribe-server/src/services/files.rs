@@ -159,8 +159,12 @@ impl FileService {
         assert_member(&self.pool, user, project).await?;
         let key = self.fetch_storage_key(project, file).await?;
         let bytes = self.storage.download(PROJECT_FILES_BUCKET, &key).await?;
-        String::from_utf8(bytes.to_vec())
-            .map_err(|err| ApiError::new(ErrorCode::Internal, format!("utf-8: {err}")))
+        // Files in this bucket are almost always text (.tex/.bib/etc).
+        // Binary files (images, PDFs) can occasionally land here via
+        // the multipart upload path; rather than 500ing on invalid
+        // UTF-8, decode lossily — matches the Node server's
+        // `await blob.text()` behavior.
+        Ok(String::from_utf8_lossy(&bytes).into_owned())
     }
 
     pub async fn write_content(

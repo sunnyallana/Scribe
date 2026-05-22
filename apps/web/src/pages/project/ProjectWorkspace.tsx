@@ -13,6 +13,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BookText,
   CameraIcon,
+  ChevronsRight,
   Command,
   FileText,
   History,
@@ -57,6 +58,8 @@ interface ProjectWorkspaceProps {
   readonly files: readonly ProjectFile[];
   readonly selectedFile: ProjectFile | null;
   readonly onSelectFile: (file: ProjectFile) => void;
+  readonly sidebarCollapsed?: boolean;
+  readonly onExpandSidebar?: () => void;
 }
 
 const SAVE_DEBOUNCE_MS = 2000;
@@ -103,6 +106,8 @@ export function ProjectWorkspace({
   files,
   selectedFile,
   onSelectFile,
+  sidebarCollapsed = false,
+  onExpandSidebar,
 }: ProjectWorkspaceProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -497,8 +502,20 @@ export function ProjectWorkspace({
 
   const editorPanel = (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between gap-2 border-b bg-background px-3 py-2">
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="flex items-center justify-between gap-2 border-b bg-background px-3 py-1.5">
+        <div className="flex min-w-0 items-center gap-2">
+          {sidebarCollapsed && onExpandSidebar !== undefined ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0"
+              onClick={onExpandSidebar}
+              aria-label={t('project.expandSidebar')}
+              title={t('project.expandSidebar')}
+            >
+              <ChevronsRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          ) : null}
           <span className="truncate text-sm font-medium">
             {selectedFile?.path ?? t('compile.noFileSelected')}
           </span>

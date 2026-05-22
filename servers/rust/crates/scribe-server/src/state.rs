@@ -9,6 +9,7 @@ use scribe_storage::SupabaseStorage;
 
 use crate::config::AppConfig;
 use crate::db::Db;
+use crate::response_cache::ResponseCache;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -28,6 +29,10 @@ pub struct AppStateInner {
     /// AES-256-GCM box for wrapping user API keys. `None` when
     /// AI_KEY_ENCRYPTION_KEY isn't set; /api/ai routes 503 in that case.
     pub ai_crypto: Option<Arc<CryptoBox>>,
+    /// Redis-backed HTTP response cache for hot read endpoints.
+    /// Always present; a disabled instance is returned when REDIS_URL
+    /// is missing so handlers don't need to special-case it.
+    pub response_cache: ResponseCache,
 }
 
 impl AppState {
@@ -37,6 +42,7 @@ impl AppState {
         storage: Option<Arc<SupabaseStorage>>,
         compile_queue: Option<Arc<CompileQueue>>,
         ai_crypto: Option<Arc<CryptoBox>>,
+        response_cache: ResponseCache,
     ) -> Self {
         Self {
             inner: Arc::new(AppStateInner {
@@ -45,8 +51,14 @@ impl AppState {
                 storage,
                 compile_queue,
                 ai_crypto,
+                response_cache,
             }),
         }
+    }
+
+    #[inline]
+    pub fn response_cache(&self) -> &ResponseCache {
+        &self.inner.response_cache
     }
 
     #[inline]

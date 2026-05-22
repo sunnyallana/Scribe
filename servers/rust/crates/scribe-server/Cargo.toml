@@ -48,3 +48,20 @@ chrono.workspace = true
 bytes.workspace = true
 base64.workspace = true
 futures.workspace = true
+redis.workspace = true
+sha2 = "0.10"
+dashmap.workspace = true
+# Drop-in faster allocator. Wins ~15–25% on Windows heap workloads vs
+# the default. Linked statically so no separate runtime to deploy.
+mimalloc = { version = "0.1", default-features = false }
+# In-process L1 cache layer. Sits in front of Redis so warm-hot reads
+# never even cross localhost. Concurrent, lock-free reads.
+moka = { version = "0.12", features = ["future"] }
+# Prometheus / OpenTelemetry observability.
+metrics = "0.24"
+metrics-exporter-prometheus = { version = "0.16", default-features = false }
+opentelemetry = "0.27"
+opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.27", features = ["grpc-tonic", "metrics", "trace"] }
+tracing-opentelemetry = "0.28"
+parking_lot.workspace = true

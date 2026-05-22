@@ -4,6 +4,12 @@
 //! For now only `/api/health` is implemented — every other route lives as
 //! a stub module under `routes/` and will be filled in incrementally.
 
+/// Process-wide allocator. mimalloc is consistently 15–25% faster than
+/// the system allocator on this server's hot path (lots of small JSON
+/// allocations), so we install it before any other code runs.
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -19,9 +25,13 @@ use tracing::{info, warn};
 
 mod config;
 mod db;
+mod metrics;
+mod rate_limit;
+mod response_cache;
 mod routes;
 mod services;
 mod state;
+mod telemetry;
 
 use config::AppConfig;
 use db::Db;
@@ -29,7 +39,11 @@ use state::AppState;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    init_tracing();
+    // Telemetry must come up before anything that emits spans.
+    let _telemetry = telemetry::init();
+    // Metrics recorder is global — set it before anyone fires a
+    // `metrics::counter!()` macro.
+    let metrics_handle = metrics::install_recorder();
     // .env is optional in production (env vars come from the runtime); we
     // load it best-effort for local development.
     let _ = dotenvy::dotenv();
@@ -39,7 +53,13 @@ async fn main() -> anyhow::Result<()> {
 
     let db = match config.database_url.as_deref() {
         Some(url) if !url.is_empty() => match Db::connect(url).await {
-            Ok(db) => Some(db),
+            Ok(db) => {
+                // Background pool-occupancy exporter for Prometheus.
+                // Cheap (gauge writes only); 5s is a reasonable scrape-aligned
+                // cadence — slower than scrape_interval would lose sub-tick spikes.
+                db.spawn_metrics_exporter(std::time::Duration::from_secs(5));
+                Some(db)
+            }
             Err(err) => {
                 warn!("DB connect failed: {err}. Starting without DB; only /api/health will work.");
                 None
@@ -92,12 +112,29 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
+    // The response cache piggy-backs on Redis. Handed out disabled when
+    // REDIS_URL isn't set so handlers don't have to branch.
+    let response_cache = match config.redis_url.as_deref().filter(|u| !u.is_empty()) {
+        Some(url) => match redis::Client::open(url) {
+            Ok(client) => {
+                info!("response cache enabled (redis)");
+                response_cache::ResponseCache::new(Some(Arc::new(client)))
+            }
+            Err(err) => {
+                warn!(?err, "response cache disabled: invalid REDIS_URL");
+                response_cache::ResponseCache::disabled()
+            }
+        },
+        None => response_cache::ResponseCache::disabled(),
+    };
+
     let state = AppState::new(
         config.clone(),
         db,
         storage,
         compile_queue.clone(),
         ai_crypto,
+        response_cache,
     );
 
     let verifier = Arc::new(TokenVerifier::new(
@@ -127,15 +164,24 @@ async fn main() -> anyhow::Result<()> {
         if let Some(ms) = config.compile_timeout_ms {
             worker_cfg.tectonic.timeout = std::time::Duration::from_millis(ms);
         }
-        info!("compile worker using tectonic: {}", worker_cfg.tectonic.binary);
+        if let Some(dir) = config.tectonic_cache_dir.as_deref().filter(|s| !s.is_empty()) {
+            worker_cfg.tectonic.cache_dir = Some(std::path::PathBuf::from(dir));
+        }
+        info!(
+            "compile worker using tectonic: {} (cache: {:?})",
+            worker_cfg.tectonic.binary, worker_cfg.tectonic.cache_dir
+        );
         let worker = Worker {
             queue: (*queue).clone(),
             db: db.pool().clone(),
             storage,
             config: Arc::new(worker_cfg),
+            project_locks: Arc::new(dashmap::DashMap::new()),
+            file_state: Arc::new(dashmap::DashMap::new()),  // inner Arc<DashMap<..>> created lazily on first compile per project
         };
-        worker.spawn(worker_shutdown.clone());
-        info!("compile worker enabled");
+        let concurrency = config.compile_worker_concurrency.unwrap_or(2);
+        worker.spawn_n(concurrency, worker_shutdown.clone());
+        info!("compile workers enabled (concurrency={concurrency})");
     } else {
         warn!("compile worker disabled (need DB + storage + REDIS_URL)");
     }
@@ -143,7 +189,7 @@ async fn main() -> anyhow::Result<()> {
     let static_dir = config.scribe_static_dir.clone();
     let cors_origin = config.cors_origin.clone();
 
-    let mut app = build_router(static_dir.as_deref(), cors_origin.as_deref())
+    let mut app = build_router(static_dir.as_deref(), cors_origin.as_deref(), metrics_handle)
         .with_state(state)
         .layer(axum::Extension(verifier));
     if let Some(reg) = yjs_registry {
@@ -157,20 +203,76 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(bind)
         .await
         .with_context(|| format!("binding {bind}"))?;
-    axum::serve(listener, app.into_make_service())
-        .await
-        .context("axum serve")?;
+
+    // Graceful shutdown: on Ctrl-C (and on Unix, SIGTERM), drain
+    // in-flight requests for up to ~10s, signal the compile worker,
+    // then exit cleanly so connections aren't aborted mid-write.
+    let shutdown = {
+        let worker_shutdown = worker_shutdown.clone();
+        async move {
+            wait_for_shutdown_signal().await;
+            info!("shutdown signal received; draining");
+            worker_shutdown.notify_waiters();
+        }
+    };
+
+    // `into_make_service_with_connect_info` wires the peer SocketAddr
+    // into request extensions so the per-IP rate limiter can read it
+    // without depending on a proxy header.
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown)
+    .await
+    .context("axum serve")?;
+    info!("scribe-server stopped cleanly");
     Ok(())
 }
 
-fn build_router(static_dir: Option<&str>, cors_origin: Option<&str>) -> Router<AppState> {
+/// Block until the process gets Ctrl-C (Windows) or SIGINT/SIGTERM (Unix).
+async fn wait_for_shutdown_signal() {
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+    #[cfg(unix)]
+    let term = async {
+        use tokio::signal::unix::{signal, SignalKind};
+        if let Ok(mut s) = signal(SignalKind::terminate()) {
+            s.recv().await;
+        }
+    };
+    #[cfg(not(unix))]
+    let term = std::future::pending::<()>();
+    tokio::select! { _ = ctrl_c => {}, _ = term => {} }
+}
+
+fn build_router(
+    static_dir: Option<&str>,
+    cors_origin: Option<&str>,
+    metrics_handle: metrics_exporter_prometheus::PrometheusHandle,
+) -> Router<AppState> {
+    use std::time::Duration;
+
     use axum::http::{header, HeaderValue, Method};
+    use axum::middleware::from_fn;
+    use tower_http::compression::CompressionLayer;
     use tower_http::cors::CorsLayer;
+    use tower_http::limit::RequestBodyLimitLayer;
     use tower_http::services::{ServeDir, ServeFile};
+    use tower_http::timeout::TimeoutLayer;
     use tower_http::trace::TraceLayer;
 
-    let api = Router::new()
+    // Routes that orchestrators / scrapers poll heavily. They bypass
+    // both rate-limit buckets so a busy probe never causes restarts.
+    let infra = Router::new()
         .merge(routes::health::router())
+        .merge(metrics::router(metrics_handle));
+
+    // Everything user-facing. Per-user token bucket runs after auth has
+    // populated the `AuthUser` extension (unauthenticated calls just
+    // skip it and rely on the outer IP bucket).
+    let api = Router::new()
         .merge(routes::whoami::router())
         .merge(routes::projects::router())
         .merge(routes::files::router())
@@ -180,7 +282,14 @@ fn build_router(static_dir: Option<&str>, cors_origin: Option<&str>) -> Router<A
         .merge(routes::versions::router())
         .merge(routes::yjs::router())
         .merge(routes::compiles::router())
-        .merge(routes::ai::router());
+        .merge(routes::ai::router())
+        .layer(from_fn(rate_limit::per_user));
+
+    let api = infra.merge(api).layer(from_fn(rate_limit::per_ip))
+        // Record per-route RED metrics on every request. Layered after
+        // the route table so it sees the `MatchedPath` extension and
+        // can bucket by route template (low cardinality).
+        .layer(from_fn(metrics::track_http));
 
     // Static SPA. Matches anything not handled by an /api/* route above.
     // 404s within the static dir fall back to index.html so client-side
@@ -217,12 +326,23 @@ fn build_router(static_dir: Option<&str>, cors_origin: Option<&str>) -> Router<A
         None => with_spa,
     };
 
-    with_cors.layer(TraceLayer::new_for_http())
+    // Production-grade plumbing in a deliberate order (outer → inner):
+    //   * Trace        — observability span around every request.
+    //   * Timeout      — 30s ceiling on any HTTP handler. WebSocket and
+    //                    SSE routes are exempt because tower's timeout
+    //                    fires per-request rather than per-frame.
+    //   * Compression  — gzip large JSON payloads on the wire. Cheap
+    //                    CPU vs the network savings, especially over
+    //                    high-latency links.
+    //   * BodyLimit    — reject pathological large bodies before they
+    //                    eat memory; multipart uploads have their own
+    //                    cap inside the files route.
+    with_cors
+        // br > gzip on ratio (~20% smaller on JSON); both are negotiated
+        // via Accept-Encoding so old clients still get gzip.
+        .layer(CompressionLayer::new().br(true).gzip(true))
+        .layer(RequestBodyLimitLayer::new(64 * 1024 * 1024))
+        .layer(TimeoutLayer::new(Duration::from_secs(30)))
+        .layer(TraceLayer::new_for_http())
 }
 
-fn init_tracing() {
-    use tracing_subscriber::{fmt, EnvFilter};
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info,scribe_server=debug"));
-    fmt().with_env_filter(filter).with_target(false).compact().init();
-}

@@ -65,6 +65,6 @@ tmp/
 *.tmp
 
 # Rust
-rust-server/target/
+servers/rust/target/
 **/*.rs.bk
 **/Cargo.lock.bak
