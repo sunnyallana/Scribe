@@ -1,0 +1,14 @@
+//! HTTP routes. Each submodule exposes a `router()` returning a
+//! `Router<AppState>` to compose into the main app.
+
+pub mod ai;
+pub mod comments;
+pub mod compiles;
+pub mod files;
+pub mod health;
+pub mod invites;
+pub mod members;
+pub mod projects;
+pub mod versions;
+pub mod whoami;
+pub mod yjs;
