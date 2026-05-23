@@ -98,5 +98,6 @@ pub async fn assert_can_write(pool: &PgPool, user: UserId, project: ProjectId) -
 }
 
 fn internal(err: sqlx::Error) -> ApiError {
-    ApiError::new(ErrorCode::Internal, format!("db: {err}"))
+    tracing::error!(?err, "database error in membership service");
+    ApiError::new(ErrorCode::Internal, "Database error")
 }

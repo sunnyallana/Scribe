@@ -24,13 +24,14 @@ import {
   Sigma,
   Sparkles,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Panel, PanelGroup } from 'react-resizable-panels';
 import { toast } from 'sonner';
 
 import { log } from '../../lib/debug';
 
+import { ErrorBoundary } from '../../components/ErrorBoundary/ErrorBoundary';
 import { Splitter } from '../../components/Layout/Splitter';
 
 import { AIChat } from '../../components/AIChat/AIChat';
@@ -42,7 +43,10 @@ import { MathPalette } from '../../components/MathPalette/MathPalette';
 import { OutlinePanel } from '../../components/Outline/OutlinePanel';
 import { LatexEditor, type LatexEditorImperativeHandle } from '../../components/Editor/LatexEditor';
 import { PresenceAvatars } from '../../components/Editor/PresenceAvatars';
-import { PDFPreview } from '../../components/PDFPreview/PDFPreview';
+// PDFPreview pulls in `pdfjs-dist` (~150 KB minified, plus a worker
+// bundle). Lazy so the editor's first paint doesn't wait on it; the
+// preview only appears after the user compiles anyway.
+const PDFPreview = lazy(() => import('../../components/PDFPreview/PDFPreview').then((m) => ({ default: m.PDFPreview })));
 import { StatusBar, type CompileStatusKind } from '../../components/StatusBar/StatusBar';
 import { ReviewPanel } from '../../components/ReviewPanel/ReviewPanel';
 import { VersionHistory } from '../../components/VersionHistory/VersionHistory';
@@ -50,7 +54,7 @@ import { useCompileSession } from '../../hooks/useCompileSession';
 import { lookup, lookupReverse, useSyncTeX } from '../../hooks/useSyncTeX';
 import { useYjsDoc } from '../../hooks/useYjsDoc';
 import { api, type ApiError } from '../../lib/api';
-import { API_URL } from '../../lib/supabase';
+import { API_URL, getAccessTokenSync } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/auth';
 import { useSettings } from '../../stores/settings';
 
@@ -215,6 +219,12 @@ export function ProjectWorkspace({
       if (selectedFile === null) throw new Error('no file selected');
       return api.files.readContent(projectId, selectedFile.id);
     },
+    // File content rarely changes outside of our own writes (which
+    // invalidate the query via writeMutation.onSuccess). Treating
+    // the cached body as fresh for 30 s saves a round-trip on every
+    // tab-switch / window refocus without risking serious staleness
+    // — the Yjs WS still pushes live edits regardless.
+    staleTime: 30_000,
   });
 
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
@@ -423,25 +433,25 @@ export function ProjectWorkspace({
     const onUnload = () => {
       const live = editorRef.current?.getContent() ?? '';
       if (live.length === 0) return;
+      // `supabase.auth.getSession()` is async and can't be awaited
+      // here — the page is dying. `getAccessTokenSync()` reads from a
+      // cache kept in sync via `supabase.auth.onAuthStateChange` in
+      // `lib/supabase.ts`. Robust to Supabase changing its storage
+      // schema, which our old `localStorage` scan was not.
+      const accessToken = getAccessTokenSync();
+      if (accessToken === null) return;
       const url = `${API_URL}/api/projects/${projectId}/files/${fileId}/content`;
       try {
-        // Pull the auth token from the persisted Supabase session in
-        // localStorage. We can't await `supabase.auth.getSession()` in
-        // unload handlers — the page is about to be killed.
-        const sbKey = Object.keys(localStorage).find((k) => k.startsWith('sb-') && k.endsWith('-auth-token'));
-        const session = sbKey !== undefined ? JSON.parse(localStorage.getItem(sbKey) ?? 'null') : null;
-        const accessToken: string | undefined = session?.access_token;
-        if (accessToken === undefined) return;
-        const blob = new Blob([JSON.stringify({ content: live })], { type: 'application/json' });
-        // `sendBeacon` doesn't let us set Authorization headers, so we
-        // append it as a query param fallback. Server already accepts
-        // `?token=` on the YJS route — extend the file route the same
-        // way OR just rely on a normal fetch with `keepalive: true`,
-        // which is supported in all evergreen browsers.
+        const body = JSON.stringify({ content: live });
+        // `fetch(..., { keepalive: true })` is supported in every
+        // evergreen browser and is the documented mechanism for "send
+        // this last request before unload". Unlike `sendBeacon` it
+        // accepts Authorization headers, so we don't need a fallback
+        // path that smuggles the token into a query param.
         void fetch(url, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-          body: blob,
+          body,
           keepalive: true,
         });
         log.save('beforeunload flush', { fileId, bytes: live.length });
@@ -624,15 +634,30 @@ export function ProjectWorkspace({
     return cmds;
   }, [files, handleCompile, onSelectFile, t]);
 
-  const wordCount = useMemo(() => {
-    if (editorContent === '') return 0;
-    return editorContent
-      .replace(/%.*$/gm, '')
-      .replace(/\\[a-zA-Z@]+\*?(\{[^}]*\})?/g, ' ')
-      .replace(/\$[^$\n]*\$/g, ' ')
-      .trim()
-      .split(/\s+/)
-      .filter((w) => w.length > 0).length;
+  // Debounced word count. The previous version recomputed via
+  // `useMemo` on every `editorContent` change — that's every
+  // keystroke, with three regex passes over the entire document. A
+  // 50 KB file did ~5-20 ms of regex work per keystroke on the main
+  // thread, visibly stuttering on slow machines. Compute only when
+  // the user pauses for 400 ms; show the last computed value in
+  // between (good enough for an indicator).
+  const [wordCount, setWordCount] = useState(0);
+  useEffect(() => {
+    if (editorContent === '') {
+      setWordCount(0);
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      const count = editorContent
+        .replace(/%.*$/gm, '')
+        .replace(/\\[a-zA-Z@]+\*?(\{[^}]*\})?/g, ' ')
+        .replace(/\$[^$\n]*\$/g, ' ')
+        .trim()
+        .split(/\s+/)
+        .filter((w) => w.length > 0).length;
+      setWordCount(count);
+    }, 400);
+    return () => { window.clearTimeout(handle); };
   }, [editorContent]);
 
   const saveStatusLabel = (() => {
@@ -819,12 +844,14 @@ export function ProjectWorkspace({
   const previewPanel = (
     <PanelGroup direction="vertical" autoSaveId="scribe:preview-stack" className="h-full">
       <Panel defaultSize={70} minSize={20}>
-        <PDFPreview
-          url={compileSession.pdfUrl}
-          compiling={compileSession.compiling}
-          highlight={highlight}
-          onInverseSync={handleInverseSync}
-        />
+        <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading PDF viewer…</div>}>
+          <PDFPreview
+            url={compileSession.pdfUrl}
+            compiling={compileSession.compiling}
+            highlight={highlight}
+            onInverseSync={handleInverseSync}
+          />
+        </Suspense>
       </Panel>
       <Splitter orientation="horizontal" />
       <Panel defaultSize={30} minSize={10}>
@@ -846,9 +873,13 @@ export function ProjectWorkspace({
   return (
     <div className="flex h-full flex-col">
       <PanelGroup direction="horizontal" autoSaveId="scribe:workspace" className="min-h-0 flex-1">
-        <Panel defaultSize={50} minSize={20}>{editorPanel}</Panel>
+        <Panel defaultSize={50} minSize={20}>
+          <ErrorBoundary scope="editor">{editorPanel}</ErrorBoundary>
+        </Panel>
         <Splitter orientation="vertical" />
-        <Panel defaultSize={50} minSize={20}>{previewPanel}</Panel>
+        <Panel defaultSize={50} minSize={20}>
+          <ErrorBoundary scope="preview">{previewPanel}</ErrorBoundary>
+        </Panel>
         {rightPanel !== null ? (
           <>
             <Splitter orientation="vertical" />

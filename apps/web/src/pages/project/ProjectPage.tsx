@@ -6,9 +6,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { type ImperativePanelHandle, Panel, PanelGroup } from 'react-resizable-panels';
+import { toast } from 'sonner';
 
 import { Splitter } from '../../components/Layout/Splitter';
 import { api, type ApiError } from '../../lib/api';
+import { log } from '../../lib/debug';
 import { supabase } from '../../lib/supabase';
 import { useProjectChrome } from '../../stores/projectChrome';
 
@@ -98,9 +100,13 @@ export function ProjectPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
+      // Was previously `window.alert` which is jarring and breaks
+      // tests. Toast keeps the UX consistent with every other failure
+      // path, and the underlying error goes to the categorised logger
+      // for bug-report copy-paste.
       const msg = e instanceof Error ? e.message : String(e);
-      // eslint-disable-next-line no-alert
-      window.alert(msg);
+      log.api.error('zip download failed', e);
+      toast.error(`Couldn't download project ZIP: ${msg}`);
     }
   }
 

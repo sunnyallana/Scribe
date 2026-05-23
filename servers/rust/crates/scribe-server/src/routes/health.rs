@@ -127,10 +127,9 @@ async fn ready(State(state): State<AppState>) -> Response {
     let redis_check = async {
         match state.inner.compile_queue.as_ref() {
             None => CheckResult::Skipped { reason: "REDIS_URL not set" },
-            Some(_queue) => {
+            Some(queue) => {
                 // The queue's subscriber() will round-trip a CLIENT
                 // GETNAME on connect; success = redis reachable.
-                let queue = state.inner.compile_queue.as_ref().unwrap();
                 match timeout(per_check, queue.subscriber()).await {
                     Ok(Ok(_)) => CheckResult::Ok,
                     Ok(Err(err)) => CheckResult::Failed { error: err.to_string() },

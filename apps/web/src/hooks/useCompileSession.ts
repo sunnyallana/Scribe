@@ -9,6 +9,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api, ApiError } from '../lib/api';
+import { log } from '../lib/debug';
 import { API_URL, supabase } from '../lib/supabase';
 
 export interface CompileSessionState {
@@ -70,8 +71,35 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
         pdfUrl: pdf.status === 'fulfilled' ? pdf.value.url : s.pdfUrl,
         synctexUrl: synctex.status === 'fulfilled' ? synctex.value.url : null,
       }));
-    } catch {
-      // best-effort
+      if (pdf.status === 'rejected') {
+        log.compile.warn('artifact-url fetch failed (pdf)', pdf.reason);
+      }
+      if (synctex.status === 'rejected') {
+        // Synctex is uploaded in the background after the PDF lands, so
+        // for a short window after compile-completion the artifact-url
+        // route legitimately 404s. Demote the noise; only warn on
+        // unexpected statuses.
+        const reason = synctex.reason as unknown;
+        const isExpected404 =
+          reason instanceof ApiError && reason.status === 404;
+        if (isExpected404) {
+          // Retry once after the typical upload window; if it still
+          // fails we'll fall through silently — synctex is non-critical.
+          window.setTimeout(() => {
+            void api.compiles
+              .artifactUrl(jobId, 'synctex')
+              .then((res) => { setState((s) => ({ ...s, synctexUrl: res.url })); })
+              .catch(() => { /* still not ready; ignore */ });
+          }, 750);
+        } else {
+          log.compile.warn('artifact-url fetch failed (synctex)', reason);
+        }
+      }
+    } catch (err) {
+      // Best-effort path — both fetches errored before Promise.allSettled
+      // resolved. That's a programming error (allSettled itself doesn't
+      // reject) but log it so we'd notice if it ever happens.
+      log.compile.error('refreshArtifactUrls unexpected throw', err);
     }
   }, []);
 
@@ -103,8 +131,11 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
               void refreshArtifactUrls(jobId);
             }
           }
-        } catch {
-          // ignore malformed
+        } catch (err) {
+          // Malformed JSON from the WS shouldn't happen if the server
+          // and client are on the same protocol version. Log so we'd
+          // catch a schema drift early.
+          log.compile.warn('compile-stream WS message parse failed', err);
         }
       };
       ws.onerror = () => {

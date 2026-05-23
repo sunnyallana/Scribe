@@ -166,7 +166,6 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let state = AppState::new(
-        config.clone(),
         db,
         storage,
         compile_queue.clone(),
@@ -379,7 +378,12 @@ fn build_router(
         // via Accept-Encoding so old clients still get gzip.
         .layer(CompressionLayer::new().br(true).gzip(true))
         .layer(RequestBodyLimitLayer::new(64 * 1024 * 1024))
-        .layer(TimeoutLayer::new(Duration::from_secs(30)))
+        // `with_status_code` returns 504 on timeout rather than the
+        // deprecated overload which returns a generic error.
+        .layer(TimeoutLayer::with_status_code(
+            axum::http::StatusCode::GATEWAY_TIMEOUT,
+            Duration::from_secs(30),
+        ))
         .layer(TraceLayer::new_for_http())
 }
 
