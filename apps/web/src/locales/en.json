@@ -126,6 +126,7 @@
     "toggleReview": "Toggle reviews",
     "toggleHistory": "Toggle version history",
     "toggleBibliography": "Toggle bibliography",
+    "toggleCitations": "Toggle citation search",
     "toggleAIChat": "Toggle AI chat",
     "toggleMath": "Toggle math symbols"
   },
@@ -458,5 +459,53 @@
     "toDashboard": "Go to dashboard",
     "showStack": "Show stack trace",
     "hideStack": "Hide stack trace"
+  },
+
+  "tabs": {
+    "label": "Open files",
+    "closeFile": "Close {{path}}"
+  },
+
+  "citations": {
+    "title": "Citation search",
+    "placeholder": "Title, author, DOI, or arXiv id…",
+    "search": "Search",
+    "sources": "Searches CrossRef + arXiv. Hit Enter to query.",
+    "tryDoiOrTitle": "Try a paper title, author name, or DOI.",
+    "noResults": "No matches found.",
+    "searchFailed": "Search failed: {{reason}}",
+    "addToBib": "Append BibTeX entry to .bib file",
+    "appendedBib": "Added {{key}} → {{path}}",
+    "createdBib": "Created {{path}} with {{key}}",
+    "addFailed": "Couldn't add citation",
+    "insertCite": "Insert \\cite{{{key}}} at cursor"
+  },
+
+  "share": {
+    "title": "Share via link",
+    "description": "Anyone with this link can join {{project}} as {{role}}.",
+    "activeCount": "{{count}} active",
+    "createLink": "Create link",
+    "copyLink": "Copy link",
+    "linkCopied": "Link copied to clipboard",
+    "linkAutoCopied": "Share link copied to clipboard",
+    "revoke": "Revoke",
+    "revoked": "Link revoked",
+    "revokedLabel": "revoked",
+    "expiredLabel": "expired",
+    "expiresOn": "expires {{date}}",
+    "revokeConfirm": "Revoke this link? Anyone who has it will lose access.",
+    "loading": "Loading…",
+    "notFound": "This share link doesn't exist.",
+    "invalid": "This link is no longer valid.",
+    "signUpToJoin": "Sign up to join",
+    "signInToJoin": "Sign in to join",
+    "join": "Join project",
+    "expiry": {
+      "never": "Never expires",
+      "24h": "24 hours",
+      "7d": "7 days",
+      "30d": "30 days"
+    }
   }
 }

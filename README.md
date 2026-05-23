@@ -21,11 +21,13 @@ An open alternative to Overleaf — one binary, real-time multi-user, AI-assiste
 ## What it is
 
 Scribe is a collaborative LaTeX editor that runs entirely on infrastructure you control.
-Write papers side-by-side with co-authors in real time, with the same low-latency
-multi-cursor feel as Google Docs; compile to PDF with Tectonic (single binary, auto-fetched
-CTAN packages) or your existing TeX Live; export to Markdown or Word via Pandoc; and call
-out to any AI provider — OpenAI, Anthropic, Gemini, Ollama, or any OpenAI-compatible
-endpoint — for inline assistance.
+Write papers side-by-side with co-authors in real time — same low-latency multi-cursor
+feel as Google Docs, plus peer-to-peer voice chat when you need to discuss a tricky
+section. Compile to PDF with Tectonic (single binary, auto-fetched CTAN packages) or your
+existing TeX Live; search CrossRef + arXiv and drop citations straight into your `.bib`;
+share a read-only project URL with anyone signed in; export to Markdown or Word via
+Pandoc; and call out to any AI provider — OpenAI, Anthropic, Gemini, Ollama, or any
+OpenAI-compatible endpoint — for inline assistance.
 
 The whole stack is two processes: a Rust API (Axum + Tokio + sqlx) and a Vite-built React
 SPA. State lives in Supabase Postgres + Storage + Redis. There is no Java, no PHP, no
@@ -38,13 +40,25 @@ and a Postgres connection string.
 - **Real-time multi-author editing** with coloured cursors and live presence avatars,
   backed by a Yjs CRDT — conflict-free even if two people type into the same line at the
   same time.
+- **Real-time voice chat** between collaborators via WebRTC peer-to-peer mesh — Opus at
+  48 kbps, browser-native echo-cancel / noise-suppression, per-peer mute and master
+  speaker mute. Active-speaker indicator pulses the call icon. Server never touches the
+  audio bytes — media is DTLS-SRTP between peers.
+- **Multi-file editor tabs** above the editor — Ctrl/Cmd+W to close, middle-click close,
+  scrollable strip restored from the last session per project.
 - **Three-tier roles**: owner / editor / viewer. Viewers can compile and read but never
   write; editors get full access; owners get destructive ops.
 - **Live PDF preview** with continuous scroll, virtualised rendering for large docs,
   SyncTeX click-to-source, quick-jump page input, and a switchable paged mode for
-  documents over 50 pages.
+  documents over 50 pages. The last rendered PDF + zoom + split position are restored on
+  refresh, so reload never costs you a recompile.
 - **Bibliography panel** parses every `.bib` file in the project, auto-completes
   `\cite{...}` against keys, and surfaces author/title/year for each entry.
+- **Citation search** against CrossRef + arXiv from inside the app — one-click
+  "Add to .bib" appends a formatted BibTeX entry to the project's bib file (or creates
+  `references.bib` if there isn't one yet).
+- **Shareable project links** — owners issue a read-only or comment-only URL with optional
+  expiry that any signed-in user can redeem to join the project, no email needed.
 - **Version snapshots** of the whole project, restorable in one click.
 - **AI assist** as inline rewrites, chat, and slash-command rephrasing — provider chosen
   per user, key encrypted at rest with AES-256-GCM, never leaves the server.
@@ -52,6 +66,9 @@ and a Postgres connection string.
   click copyable links.
 - **Export**: download the rendered PDF, ship the source as a `.zip`, or convert with
   Pandoc to Markdown / DOCX directly from the project menu.
+- **Multi-language UI**: English, French, Spanish, German, and Urdu (with RTL support).
+  Every string flows through `react-i18next` — adding a language is a translation file
+  drop.
 
 ### For self-hosters
 - **One binary** for the backend (`cargo run -p scribe-server`) — no Node runtime, no
@@ -102,6 +119,7 @@ and a Postgres connection string.
             │  scribe-server (Rust / Axum / Tokio)                          │
             │  • REST routes (projects, files, members, AI, exports, ...)   │
             │  • Yjs hub (per-doc fan-out, read-only enforcement)           │
+            │  • Voice signaling hub (WebRTC SDP + ICE fan-out — no media)  │
             │  • Compile queue producer                                     │
             │  • Response cache: Moka L1 → Redis L2 → circuit breaker       │
             └────────────┬─────────────┬─────────────┬────────────────────┘
@@ -250,8 +268,13 @@ Scribe/
 | 3 | Realtime collab + presence + version history + comments | done |
 | 4 | AI assistance (six providers, encrypted keys) | done |
 | 5 | Bibliography, templates, settings UI, exports | done |
+| 5.5 | Voice chat · multi-file tabs · citation lookup · shareable links · i18n | done |
 | 6 | Tauri desktop app + offline sync | in progress |
 | 7 | Docker self-hosting recipe + `CONTRIBUTING.md` | in progress |
+
+Post-v1 Overleaf-parity backlog (track-changes, project-wide find/replace, equation
+hover preview, chktex linting, GitHub sync, community templates, notification inbox) is
+tracked in `PLAN.md` §12.
 
 ## License
 

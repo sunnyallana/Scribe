@@ -29,6 +29,7 @@ import {
   MessageSquare,
   MoreHorizontal,
   Play,
+  Search,
   Sigma,
   Sparkles,
 } from 'lucide-react';
@@ -46,10 +47,12 @@ import { Splitter } from '../../components/Layout/Splitter';
 import { AIChat } from '../../components/AIChat/AIChat';
 import { AICommandPalette } from '../../components/AICommandPalette/AICommandPalette';
 import { BibliographyPanel } from '../../components/Bibliography/BibliographyPanel';
+import { CitationLookup } from '../../components/Citations/CitationLookup';
 import { CommandPalette, type CommandItem } from '../../components/CommandPalette/CommandPalette';
 import { MathPalette } from '../../components/MathPalette/MathPalette';
 import { ImageViewer } from '../../components/ImageViewer/ImageViewer';
 import { OutlinePanel } from '../../components/Outline/OutlinePanel';
+import { EditorTabs } from '../../components/Editor/EditorTabs';
 import { LatexEditor, type LatexEditorImperativeHandle } from '../../components/Editor/LatexEditor';
 import { PresenceAvatars } from '../../components/Editor/PresenceAvatars';
 import { VoiceControls } from '../../components/Voice/VoiceControls';
@@ -74,6 +77,9 @@ interface ProjectWorkspaceProps {
   readonly files: readonly ProjectFile[];
   readonly selectedFile: ProjectFile | null;
   readonly onSelectFile: (file: ProjectFile) => void;
+  /** Ordered list of files currently open as editor tabs. */
+  readonly openFiles: readonly ProjectFile[];
+  readonly onCloseFile: (file: ProjectFile) => void;
   readonly sidebarCollapsed?: boolean;
   readonly onExpandSidebar?: () => void;
 }
@@ -115,7 +121,7 @@ function isViewableImage(file: ProjectFile): boolean {
   return VIEWABLE_IMAGE_EXT.some((ext) => lower.endsWith(ext));
 }
 
-type RightPanelId = 'outline' | 'review' | 'history' | 'bibliography' | 'ai-chat' | 'math' | null;
+type RightPanelId = 'outline' | 'review' | 'history' | 'bibliography' | 'citations' | 'ai-chat' | 'math' | null;
 
 // Right-side panel toggles in display order. Lives at module scope so
 // both the inline button row (wide layouts) and the overflow dropdown
@@ -131,6 +137,7 @@ const PANEL_TOGGLES: ReadonlyArray<{
   { id: 'review', icon: MessageSquare, labelKey: 'review.title' },
   { id: 'history', icon: History, labelKey: 'history.title' },
   { id: 'bibliography', icon: BookText, labelKey: 'bibliography.title' },
+  { id: 'citations', icon: Search, labelKey: 'citations.title' },
   { id: 'ai-chat', icon: Sparkles, labelKey: 'ai.chat.title' },
   { id: 'math', icon: Sigma, labelKey: 'math.title' },
 ];
@@ -160,6 +167,8 @@ export function ProjectWorkspace({
   files,
   selectedFile,
   onSelectFile,
+  openFiles,
+  onCloseFile,
   sidebarCollapsed = false,
   onExpandSidebar,
 }: ProjectWorkspaceProps) {
@@ -251,7 +260,10 @@ export function ProjectWorkspace({
     setChrome({ pdfUrl: compileSession.pdfUrl });
   }, [compileSession.pdfUrl, setChrome]);
 
-  // Ctrl/Cmd+Shift+A → AI palette. Ctrl/Cmd+K → global command palette.
+  // Ctrl/Cmd+Shift+A → AI palette. Ctrl/Cmd+K → global command
+  // palette. Ctrl/Cmd+W → close current tab (browsers reserve this
+  // for the window/tab on most desktop shortcuts, but as a SPA we
+  // can intercept it — same trick Overleaf / VS-Code-Web use).
   useEffect(() => {
     function handler(e: KeyboardEvent) {
       const mod = e.ctrlKey || e.metaKey;
@@ -266,11 +278,16 @@ export function ProjectWorkspace({
       } else if (mod && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
         setCmdPaletteOpen((v) => !v);
+      } else if (mod && !e.shiftKey && (e.key === 'w' || e.key === 'W')) {
+        if (selectedFile !== null) {
+          e.preventDefault();
+          onCloseFile(selectedFile);
+        }
       }
     }
     window.addEventListener('keydown', handler);
     return () => { window.removeEventListener('keydown', handler); };
-  }, [aiPaletteOpen]);
+  }, [aiPaletteOpen, selectedFile, onCloseFile]);
 
   const [aiSelection, setAISelection] = useState<string>('');
 
@@ -1009,6 +1026,13 @@ export function ProjectWorkspace({
         action: () => { toggleRightPanel('bibliography'); },
       },
       {
+        id: 'citations',
+        label: t('command.toggleCitations'),
+        group: t('command.groupPanels'),
+        icon: Search,
+        action: () => { toggleRightPanel('citations'); },
+      },
+      {
         id: 'ai-chat',
         label: t('command.toggleAIChat'),
         group: t('command.groupPanels'),
@@ -1083,6 +1107,12 @@ export function ProjectWorkspace({
 
   const editorPanel = (
     <div className="flex h-full flex-col">
+      <EditorTabs
+        tabs={openFiles}
+        activeFileId={selectedFile?.id ?? null}
+        onSelect={onSelectFile}
+        onClose={onCloseFile}
+      />
       <div className="flex items-center justify-between gap-2 border-b bg-background px-3 py-1.5">
         <div className="flex min-w-0 items-center gap-2">
           {sidebarCollapsed && onExpandSidebar !== undefined ? (
@@ -1097,9 +1127,26 @@ export function ProjectWorkspace({
               <ChevronsRight className="h-3.5 w-3.5" aria-hidden="true" />
             </Button>
           ) : null}
-          <span className="truncate text-sm font-medium">
-            {selectedFile?.path ?? t('compile.noFileSelected')}
-          </span>
+          {/* Folder path of the active file. The tab strip above
+              already shows the basename, so we render just the
+              parent directory here — keeps the breadcrumb useful for
+              nested layouts (e.g. "chapters/intro.tex") without
+              duplicating the filename. */}
+          {selectedFile !== null ? (
+            (() => {
+              const idx = selectedFile.path.lastIndexOf('/');
+              const folder = idx === -1 ? '' : selectedFile.path.slice(0, idx);
+              return folder !== '' ? (
+                <span className="truncate text-xs text-muted-foreground" title={selectedFile.path}>
+                  {folder}/
+                </span>
+              ) : null;
+            })()
+          ) : (
+            <span className="truncate text-sm font-medium">
+              {t('compile.noFileSelected')}
+            </span>
+          )}
           {editorReadOnly ? (
             <span className="rounded-sm border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
               {t('members.roles.viewer')} · {t('members.readOnly')}
@@ -1326,6 +1373,16 @@ export function ProjectWorkspace({
                   projectId={projectId}
                   files={files}
                   entries={bibEntries}
+                  onCite={(key) => {
+                    editorRef.current?.insertAtCursor(`\\cite{${key}}`);
+                  }}
+                  onClose={() => { setRightPanel(null); }}
+                />
+              ) : null}
+              {rightPanel === 'citations' ? (
+                <CitationLookup
+                  projectId={projectId}
+                  files={files}
                   onCite={(key) => {
                     editorRef.current?.insertAtCursor(`\\cite{${key}}`);
                   }}
