@@ -45,6 +45,11 @@ impl CompileService {
         let row = sqlx::query(
             r#"
             with proj as (
+                -- Any accepted member (owner, editor, viewer) can
+                -- compile — compile doesn't touch source files, it just
+                -- renders the existing tree so the caller can read the
+                -- PDF. Viewers seeing a rendered preview is the whole
+                -- point of the role.
                 select id, compiler, main_file
                 from public.projects p
                 where p.id = $1

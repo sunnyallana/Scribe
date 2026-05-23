@@ -30,13 +30,27 @@ use tracing_subscriber::EnvFilter;
 
 const SERVICE_NAME: &str = "scribe-server";
 
+// The canonical `AppEnv` lives in `crate::config`. This module just
+// reads it via `init(env, debug_logging)`.
+use crate::config::AppEnv;
+
 /// Build the tracing subscriber. Drop-in replacement for
 /// `init_tracing` — install once at startup. The returned guard must
 /// be kept alive for the lifetime of the process so spans flush on
 /// shutdown.
-pub fn init() -> TelemetryGuard {
+/// `debug_logging` comes from the feature flags; when on we bump our
+/// own crates to `debug`, otherwise leave them at `info`. `RUST_LOG`
+/// still wins if set explicitly.
+pub fn init(app_env: AppEnv, debug_logging: bool) -> TelemetryGuard {
+    let default_filter = if debug_logging {
+        "info,scribe_server=debug,scribe_compile=debug,scribe_yjs=debug,\
+         scribe_auth=debug,scribe_ai=debug,scribe_storage=debug,\
+         scribe_shared=debug,response_cache=debug"
+    } else {
+        "info,scribe_server=info"
+    };
     let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info,scribe_server=info"));
+        .unwrap_or_else(|_| EnvFilter::new(default_filter));
 
     let endpoint = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok();
     let provider = match endpoint.as_deref().filter(|e| !e.is_empty()) {
@@ -54,11 +68,13 @@ pub fn init() -> TelemetryGuard {
     };
 
     // `LOG_FORMAT=json` for production sinks (Loki/Datadog/CloudWatch),
-    // compact text for local dev. Defaults to compact so existing `cargo
-    // run` workflows keep their colored output.
-    let json_logs = std::env::var("LOG_FORMAT")
-        .map(|s| s.eq_ignore_ascii_case("json"))
-        .unwrap_or(false);
+    // compact text for local dev. Honor the explicit env var; otherwise
+    // pick the default for the active env (dev/testing → compact,
+    // production → json).
+    let json_logs = match std::env::var("LOG_FORMAT") {
+        Ok(s) if !s.is_empty() => s.eq_ignore_ascii_case("json"),
+        _ => app_env.is_prod(),
+    };
 
     // Box the fmt layer so the compact + json branches share the same
     // type-erased shape and the registry composition compiles.
@@ -101,6 +117,7 @@ pub fn init() -> TelemetryGuard {
             .init();
     }
 
+    info!(env = ?app_env, json_logs, debug_logging, "logging initialized");
     TelemetryGuard { provider }
 }
 

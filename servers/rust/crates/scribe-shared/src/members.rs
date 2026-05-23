@@ -74,6 +74,11 @@ pub struct ProjectMember {
     pub accepted_at: Option<DateTime<Utc>>,
     pub expires_at: DateTime<Utc>,
     pub pending: bool,
+    /// Present only for pending invites the caller is allowed to see —
+    /// non-null lets the UI render a "copy invite link" affordance.
+    /// Cleared once the invite is accepted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invite_token: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

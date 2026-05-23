@@ -323,7 +323,13 @@
       "commenter": "Commenter",
       "viewer": "Viewer"
     },
-    "removeConfirm": "Remove this member?"
+    "removeConfirm": "Remove this member?",
+    "readOnly": "read-only",
+    "copyLink": "Copy invite link",
+    "linkCopied": "Invite link copied to clipboard",
+    "linkAutoCopied": "Invite link copied — paste it into chat or email.",
+    "copyLinkFallback": "Copy this invite link:",
+    "roleUpdated": "Role updated"
   },
 
   "invite": {

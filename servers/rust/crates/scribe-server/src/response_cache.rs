@@ -15,6 +15,7 @@
 //! compile status) — those bypass the cache entirely.
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Duration;
 
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
@@ -27,6 +28,7 @@ use redis::{AsyncCommands, Client};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tokio::sync::broadcast;
+use tokio::time::timeout;
 use tracing::{debug, info_span, warn, Instrument};
 
 /// Default TTL on cached entries. Short enough that stale data isn't a
@@ -36,6 +38,16 @@ const DEFAULT_TTL: Duration = Duration::from_secs(60);
 
 /// Redis key prefix so cache entries are easy to inspect/flush.
 const KEY_PREFIX: &str = "scribe:cache:v1";
+
+/// Max time we'll wait to acquire a Redis connection on any single call.
+/// Tight enough that a Redis outage doesn't stall the API: an unreachable
+/// Redis fails in ~250 ms instead of the default ~30 s OS connect-timeout.
+const REDIS_OP_TIMEOUT: Duration = Duration::from_millis(250);
+
+/// After we observe a Redis failure, skip Redis entirely for this long.
+/// Stops the API from paying the per-request timeout cost every time
+/// while Redis is down. We reset on any successful op.
+const REDIS_BACKOFF_AFTER_FAIL: Duration = Duration::from_secs(5);
 
 /// Cached body + ETag pair. `Bytes` is cheap-clone (Arc internally) so
 /// the L1 and L2 layers can share the same buffer with zero copying.
@@ -56,6 +68,25 @@ pub struct ResponseCache {
     /// wait for the in-flight computation instead of stampeding the
     /// origin. Empty when no flights are running.
     in_flight: Arc<DashMap<String, broadcast::Sender<Option<(Vec<u8>, String)>>>>,
+    /// Circuit-breaker state: monotonic-millis timestamp of when Redis
+    /// became reachable again. While `now() < this`, Redis ops are
+    /// short-circuited to fall through directly to the origin.
+    /// 0 means "no current backoff". `AtomicI64` keeps it cheap to
+    /// read/write across hot paths without a Mutex.
+    redis_skip_until_ms: Arc<AtomicI64>,
+    /// Master kill-switch. `false` means `cached_json` short-circuits
+    /// straight to `compute()` (no L1/L2 read, no L1/L2 write) and
+    /// `invalidate*` are no-ops. Driven by
+    /// `AppConfig.features.cache_enabled`; the SPA-visible behavior
+    /// change is that every read sees fresh data and writes don't
+    /// even need to invalidate.
+    enabled: bool,
+    /// When false, `cached_response` emits `Cache-Control: no-store`
+    /// instead of `private, no-cache, must-revalidate`. The latter
+    /// still lets browsers store + revalidate-via-ETag; `no-store`
+    /// forbids any persistence at all. Off by default in dev so a
+    /// debugging session never gets fooled by the browser's HTTP cache.
+    client_cache_headers: bool,
 }
 
 impl ResponseCache {
@@ -63,18 +94,83 @@ impl ResponseCache {
     /// caching but keeps L1 enabled (calls fall through to compute on
     /// L1 miss).
     pub fn new(client: Option<Arc<Client>>) -> Self {
-        Self {
-            inner: client,
-            l1: build_l1(),
-            in_flight: Arc::new(DashMap::new()),
-        }
+        Self::with_flags(client, true, true)
     }
 
     pub fn disabled() -> Self {
+        Self::with_flags(None, false, false)
+    }
+
+    /// Full constructor used by main.rs to honour the feature flags.
+    /// `enabled=false` short-circuits all cache logic; `client_cache_headers=false`
+    /// flips the outgoing Cache-Control to `no-store`.
+    pub fn with_flags(
+        client: Option<Arc<Client>>,
+        enabled: bool,
+        client_cache_headers: bool,
+    ) -> Self {
         Self {
-            inner: None,
+            inner: if enabled { client } else { None },
             l1: build_l1(),
             in_flight: Arc::new(DashMap::new()),
+            redis_skip_until_ms: Arc::new(AtomicI64::new(0)),
+            enabled,
+            client_cache_headers,
+        }
+    }
+
+    /// Whether `cached_json` will actually consult any cache. Handy for
+    /// log lines that say "L1/L2 miss" vs "cache disabled".
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    /// True if the circuit breaker says Redis is currently unreachable.
+    /// Cheap atomic load — no syscall, no allocation.
+    fn redis_in_backoff(&self) -> bool {
+        let until = self.redis_skip_until_ms.load(Ordering::Relaxed);
+        until > 0 && now_ms() < until
+    }
+
+    /// Mark Redis unreachable. Called after any failed Redis op so the
+    /// next ~5s of requests skip it instead of paying the timeout.
+    fn note_redis_failure(&self) {
+        self.redis_skip_until_ms.store(
+            now_ms().saturating_add(REDIS_BACKOFF_AFTER_FAIL.as_millis() as i64),
+            Ordering::Relaxed,
+        );
+    }
+
+    /// Clear the circuit-breaker after a successful op.
+    fn note_redis_success(&self) {
+        if self.redis_skip_until_ms.load(Ordering::Relaxed) != 0 {
+            self.redis_skip_until_ms.store(0, Ordering::Relaxed);
+        }
+    }
+
+    /// Acquire a Redis connection with a hard timeout. Surfaces both
+    /// "Redis is unreachable / down" and "Redis is just slow" as a
+    /// single timeout-error path the callers can match on cheaply.
+    async fn connect(&self) -> Option<redis::aio::MultiplexedConnection> {
+        let client = self.inner.as_ref()?;
+        if self.redis_in_backoff() {
+            return None;
+        }
+        match timeout(REDIS_OP_TIMEOUT, client.get_multiplexed_async_connection()).await {
+            Ok(Ok(conn)) => {
+                self.note_redis_success();
+                Some(conn)
+            }
+            Ok(Err(err)) => {
+                debug!(?err, "redis connect failed; entering backoff");
+                self.note_redis_failure();
+                None
+            }
+            Err(_) => {
+                debug!(timeout_ms = REDIS_OP_TIMEOUT.as_millis() as u64, "redis connect timed out; entering backoff");
+                self.note_redis_failure();
+                None
+            }
         }
     }
 
@@ -112,25 +208,47 @@ impl ResponseCache {
         async {
             let full_key = format!("{KEY_PREFIX}:{key}");
 
+            // ---- Kill-switch: when disabled, every request goes
+            //      straight to the origin. L1/L2 are skipped and the
+            //      response carries `Cache-Control: no-store` so the
+            //      browser doesn't keep a copy either. Use this in dev
+            //      to rule the cache out as the cause of stale reads.
+            if !self.enabled {
+                tracing::Span::current().record("cache.outcome", "disabled");
+                return self.uncached(request_headers, compute).await;
+            }
+
             // ---- L1: in-process LRU hit. Skips Redis entirely.
             if let Some(entry) = self.l1.get(&full_key).await {
                 tracing::Span::current().record("cache.outcome", "l1_hit");
                 debug!(%full_key, "L1 hit");
-                return cached_response(&entry.body, &entry.etag, request_headers);
+                return cached_response(
+                    &entry.body,
+                    &entry.etag,
+                    request_headers,
+                    self.client_cache_headers,
+                );
             }
 
-            // ---- L2: Redis hit.
-            if let Some(client) = self.inner.as_ref() {
-                match self.read_cached(client, &full_key).await {
+            // ---- L2: Redis hit. `connect()` short-circuits when Redis
+            //      is in backoff so a dead Redis costs us ~0 ms here
+            //      instead of the per-call connect timeout.
+            if self.inner.is_some() {
+                match self.read_cached(&full_key).await {
                     Ok(Some((body, etag))) => {
                         let entry = CachedEntry { body: Bytes::from(body), etag };
                         self.l1.insert(full_key.clone(), entry.clone()).await;
                         tracing::Span::current().record("cache.outcome", "l2_hit");
                         debug!(%full_key, "L2 hit");
-                        return cached_response(&entry.body, &entry.etag, request_headers);
+                        return cached_response(
+                            &entry.body,
+                            &entry.etag,
+                            request_headers,
+                            self.client_cache_headers,
+                        );
                     }
                     Ok(None) => debug!(%full_key, "L1/L2 miss"),
-                    Err(err) => warn!(?err, "cache read failed; falling through"),
+                    Err(err) => debug!(?err, "cache read failed; falling through"),
                 }
             }
             // Outcome is finalized below (leader / follower / fallback).
@@ -181,7 +299,12 @@ impl ResponseCache {
             match rx.recv().await {
                 Ok(Some((body, etag))) => {
                     tracing::Span::current().record("cache.outcome", "follower_hit");
-                    return cached_response(&body, &etag, request_headers);
+                    return cached_response(
+                        &body,
+                        &etag,
+                        request_headers,
+                        self.client_cache_headers,
+                    );
                 }
                 Ok(None) | Err(_) => {
                     tracing::Span::current().record("cache.outcome", "follower_fallback");
@@ -233,30 +356,68 @@ impl ResponseCache {
             )
             .await;
 
-        if let Some(client) = self.inner.as_ref() {
+        if self.inner.is_some() {
             let ttl = ttl.unwrap_or(DEFAULT_TTL);
-            if let Err(err) = self.write_cached(client, &full_key, &body, &etag, ttl).await {
-                warn!(?err, %full_key, "cache write failed (non-fatal)");
+            if let Err(err) = self.write_cached(&full_key, &body, &etag, ttl).await {
+                debug!(?err, %full_key, "cache write failed (non-fatal)");
             }
         }
 
         // Hand the payload to the guard so followers (if any) get it.
         guard.payload = Some((body.clone(), etag.clone()));
-        cached_response(&body, &etag, request_headers)
+        cached_response(&body, &etag, request_headers, self.client_cache_headers)
+    }
+
+    /// Disabled-cache fast path: runs `compute()`, serializes the result
+    /// as JSON, and returns it with `Cache-Control: no-store`. Skipping
+    /// L1/L2 + single-flight makes the code dead-simple; the only cost
+    /// versus a normal cached miss is the lack of stampede protection
+    /// (which doesn't matter for a single-tenant dev box).
+    async fn uncached<T, F, Fut>(
+        &self,
+        request_headers: &HeaderMap,
+        compute: F,
+    ) -> Response
+    where
+        T: Serialize,
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = Result<T, Response>>,
+    {
+        let value = match compute().await {
+            Ok(v) => v,
+            Err(resp) => return resp,
+        };
+        let body = match serde_json::to_vec(&value) {
+            Ok(b) => b,
+            Err(err) => {
+                warn!(?err, "json serialize failed");
+                return (StatusCode::INTERNAL_SERVER_ERROR, "serialize").into_response();
+            }
+        };
+        // `client_cache_headers=false` flips the outgoing Cache-Control
+        // to `no-store`; that path is what users want while debugging.
+        let etag = strong_etag(&body);
+        cached_response(&body, &etag, request_headers, self.client_cache_headers)
     }
 
     /// Forcibly drop a cached key (both L1 and L2). Called from write
     /// handlers (POST/PATCH/DELETE) so the next read sees fresh data.
     #[tracing::instrument(name = "response_cache.invalidate", skip(self))]
     pub async fn invalidate(&self, key: &str) {
+        if !self.enabled {
+            return; // No cache to invalidate.
+        }
         let full = format!("{KEY_PREFIX}:{key}");
         self.l1.invalidate(&full).await;
-        let Some(client) = self.inner.as_ref() else { return };
-        if let Ok(mut conn) = client.get_multiplexed_async_connection().await {
-            let result: redis::RedisResult<()> = conn.del(&full).await;
-            match result {
-                Ok(_) => debug!(%full, "cache invalidated"),
-                Err(err) => warn!(?err, %full, "cache invalidate failed"),
+        let Some(mut conn) = self.connect().await else { return };
+        let result: redis::RedisResult<()> = timeout(REDIS_OP_TIMEOUT, conn.del(&full))
+            .await
+            .unwrap_or_else(|_| Err(redis::RedisError::from((redis::ErrorKind::IoError, "del timed out"))));
+        match result {
+            Ok(_) => debug!(%full, "cache invalidated"),
+            Err(err) => {
+                debug!(?err, %full, "cache invalidate failed");
+                self.note_redis_failure();
             }
         }
     }
@@ -265,38 +426,82 @@ impl ResponseCache {
     /// Use sparingly — `KEYS` is O(N) in Redis. We bound it to a single
     /// `SCAN` iteration with `MATCH` so it's cheap on our cache size.
     pub async fn invalidate_prefix(&self, prefix: &str) {
-        let Some(client) = self.inner.as_ref() else { return };
+        if !self.enabled {
+            return; // No cache to invalidate.
+        }
+        // ── L1 first ────────────────────────────────────────────────
+        // Without this, a write would only wipe the Redis copy and the
+        // next GET would hit the still-warm Moka L1, serving the
+        // pre-write body. That manifests in the SPA as "I saved but
+        // refresh shows the old content."
+        //
+        // Moka's `invalidate_entries_if` is *queued* — the eviction
+        // happens during the next maintenance pass and a read in the
+        // meantime still gets the stale value. To guarantee a fresh
+        // read on the very next request we walk the live entries,
+        // collect the matching keys, and call the per-key `invalidate`
+        // (which awaits removal). L1 is small (≤5k entries) so the
+        // O(N) scan is cheap; this only runs on writes anyway.
+        let pattern_prefix = format!("{KEY_PREFIX}:{prefix}");
+        let matching: Vec<String> = self
+            .l1
+            .iter()
+            .filter_map(|(k, _)| if k.starts_with(&pattern_prefix) { Some((*k).clone()) } else { None })
+            .collect();
+        for k in &matching {
+            self.l1.invalidate(k).await;
+        }
+        debug!(%pattern_prefix, evicted = matching.len(), "L1 prefix invalidated");
+
+        // ── L2 (Redis) ──────────────────────────────────────────────
+        let Some(mut conn) = self.connect().await else { return };
         let pattern = format!("{KEY_PREFIX}:{prefix}*");
-        let Ok(mut conn) = client.get_multiplexed_async_connection().await else { return };
-        let scan_result: redis::RedisResult<(i64, Vec<String>)> = redis::cmd("SCAN")
-            .arg(0)
-            .arg("MATCH")
-            .arg(&pattern)
-            .arg("COUNT")
-            .arg(100)
-            .query_async(&mut conn)
-            .await;
+        let mut scan_cmd = redis::cmd("SCAN");
+        scan_cmd.arg(0).arg("MATCH").arg(&pattern).arg("COUNT").arg(100);
+        let scan_fut = scan_cmd.query_async(&mut conn);
+        let scan_result: redis::RedisResult<(i64, Vec<String>)> =
+            match timeout(REDIS_OP_TIMEOUT, scan_fut).await {
+                Ok(r) => r,
+                Err(_) => {
+                    debug!(%pattern, "cache prefix scan timed out");
+                    self.note_redis_failure();
+                    return;
+                }
+            };
         match scan_result {
             Ok((_, keys)) if !keys.is_empty() => {
-                let result: redis::RedisResult<()> = conn.del(keys).await;
-                if let Err(err) = result {
-                    warn!(?err, %pattern, "cache prefix invalidate failed");
+                let del_fut = conn.del(keys);
+                let del_result: redis::RedisResult<()> =
+                    timeout(REDIS_OP_TIMEOUT, del_fut).await.unwrap_or_else(|_| {
+                        Err(redis::RedisError::from((redis::ErrorKind::IoError, "del timed out")))
+                    });
+                if let Err(err) = del_result {
+                    debug!(?err, %pattern, "cache prefix invalidate failed");
+                    self.note_redis_failure();
                 }
             }
-            _ => {}
+            Ok(_) => {}
+            Err(err) => {
+                debug!(?err, %pattern, "cache prefix scan failed");
+                self.note_redis_failure();
+            }
         }
     }
 
     async fn read_cached(
         &self,
-        client: &Client,
         key: &str,
     ) -> Result<Option<(Vec<u8>, String)>, redis::RedisError> {
         // HGETALL returns the empty map when the key is absent, which
         // we treat as a miss without surfacing an error. (HMGET via
         // tuple destructuring would error on nil-typed fields here.)
-        let mut conn = client.get_multiplexed_async_connection().await?;
-        let map: std::collections::HashMap<String, redis::Value> = conn.hgetall(key).await?;
+        let Some(mut conn) = self.connect().await else {
+            return Err(redis::RedisError::from((redis::ErrorKind::IoError, "redis unavailable")));
+        };
+        let map: std::collections::HashMap<String, redis::Value> =
+            timeout(REDIS_OP_TIMEOUT, conn.hgetall(key))
+                .await
+                .map_err(|_| redis::RedisError::from((redis::ErrorKind::IoError, "hgetall timed out")))??;
         if map.is_empty() {
             return Ok(None);
         }
@@ -316,13 +521,14 @@ impl ResponseCache {
 
     async fn write_cached(
         &self,
-        client: &Client,
         key: &str,
         body: &[u8],
         etag: &str,
         ttl: Duration,
     ) -> Result<(), redis::RedisError> {
-        let mut conn = client.get_multiplexed_async_connection().await?;
+        let Some(mut conn) = self.connect().await else {
+            return Err(redis::RedisError::from((redis::ErrorKind::IoError, "redis unavailable")));
+        };
         // Single round-trip: HSET both fields, then EXPIRE. The pipeline
         // is atomic from Redis's POV so a reader never sees half-written.
         let mut pipe = redis::pipe();
@@ -333,9 +539,28 @@ impl ResponseCache {
             .ignore()
             .expire(key, ttl.as_secs() as i64)
             .ignore();
-        let _: () = pipe.query_async(&mut conn).await?;
+        let query_fut = pipe.query_async(&mut conn);
+        let res: redis::RedisResult<()> =
+            timeout(REDIS_OP_TIMEOUT, query_fut).await.unwrap_or_else(|_| {
+                Err(redis::RedisError::from((redis::ErrorKind::IoError, "write timed out")))
+            });
+        if let Err(err) = res {
+            self.note_redis_failure();
+            return Err(err);
+        }
         Ok(())
     }
+}
+
+/// Monotonic millis since Unix epoch. Cheap on all major platforms;
+/// avoids the SystemTime non-monotonic gotcha by using the same source
+/// `tokio::time::timeout` uses internally.
+fn now_ms() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
 }
 
 /// Build the L1 in-process cache. Numbers are sized for a per-process
@@ -352,12 +577,19 @@ fn build_l1() -> MokaCache<String, CachedEntry> {
 }
 
 /// Assemble an HTTP response from a cached `(body, etag)` pair. If the
-/// client sent a matching `If-None-Match` we respond `304 Not Modified`.
-fn cached_response(body: &[u8], etag: &str, request_headers: &HeaderMap) -> Response {
-    if client_etag_matches(request_headers, etag) {
-        return (StatusCode::NOT_MODIFIED, etag_headers(etag)).into_response();
+/// client sent a matching `If-None-Match` AND we're emitting cache
+/// headers, we respond `304 Not Modified`. With `client_cache_headers
+/// = false` we never 304 — the browser shouldn't be caching anyway.
+fn cached_response(
+    body: &[u8],
+    etag: &str,
+    request_headers: &HeaderMap,
+    client_cache_headers: bool,
+) -> Response {
+    if client_cache_headers && client_etag_matches(request_headers, etag) {
+        return (StatusCode::NOT_MODIFIED, etag_headers(etag, true)).into_response();
     }
-    (StatusCode::OK, etag_headers(etag), body.to_vec()).into_response()
+    (StatusCode::OK, etag_headers(etag, client_cache_headers), body.to_vec()).into_response()
 }
 
 /// `"\"<hex>\""` — a strong ETag (no `W/` prefix). 16 hex chars of
@@ -369,17 +601,36 @@ fn strong_etag(body: &[u8]) -> String {
     format!("\"{hex}\"")
 }
 
-fn etag_headers(etag: &str) -> HeaderMap {
+fn etag_headers(etag: &str, client_cache_headers: bool) -> HeaderMap {
     let mut h = HeaderMap::new();
-    if let Ok(v) = HeaderValue::from_str(etag) {
-        h.insert(axum::http::header::ETAG, v);
+    if client_cache_headers {
+        if let Ok(v) = HeaderValue::from_str(etag) {
+            h.insert(axum::http::header::ETAG, v);
+        }
+        // `no-cache` does NOT mean "don't cache" — it means "always
+        // revalidate with the origin before reusing the cached body". The
+        // browser still saves bandwidth on a 304 round-trip when the ETag
+        // matches; the server *always* gets the chance to invalidate.
+        // `private` keeps the entry per-user so shared caches can't leak
+        // between accounts.
+        h.insert(
+            axum::http::header::CACHE_CONTROL,
+            HeaderValue::from_static("private, no-cache, must-revalidate"),
+        );
+    } else {
+        // Disabled: `no-store` forbids any persistence. Pair with
+        // `Pragma: no-cache` for HTTP/1.0 proxies (still alive in some
+        // corporate networks). No ETag = no conditional GET path, so
+        // every response is the live body.
+        h.insert(
+            axum::http::header::CACHE_CONTROL,
+            HeaderValue::from_static("no-store, no-cache, must-revalidate, max-age=0"),
+        );
+        h.insert(
+            axum::http::header::PRAGMA,
+            HeaderValue::from_static("no-cache"),
+        );
     }
-    // Hint to clients/proxies that this response is per-user. Without
-    // this, a shared cache could leak between users.
-    h.insert(
-        axum::http::header::CACHE_CONTROL,
-        HeaderValue::from_static("private, max-age=60"),
-    );
     h.insert(
         axum::http::header::CONTENT_TYPE,
         HeaderValue::from_static("application/json"),
@@ -405,7 +656,9 @@ pub fn json_with_etag<T: Serialize>(value: &T) -> Response {
     match serde_json::to_vec(value) {
         Ok(body) => {
             let etag = strong_etag(&body);
-            (StatusCode::OK, etag_headers(&etag), body).into_response()
+            // Standalone helper — opt into ETag headers since caller
+            // isn't bound to the cache's enabled state.
+            (StatusCode::OK, etag_headers(&etag, true), body).into_response()
         }
         Err(_) => {
             (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error":"serialize"})))

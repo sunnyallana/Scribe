@@ -2,6 +2,8 @@ import { type Awareness, type PresenceUser, ScribeYjsProvider } from '@scribe/yj
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { type Doc as YDoc, type Text as YText } from 'yjs';
 
+import { features } from '../lib/config';
+import { log } from '../lib/debug';
 import { API_URL, supabase } from '../lib/supabase';
 
 export interface YjsDocHandle {
@@ -46,10 +48,15 @@ export function useYjsDoc(
     let cancelled = false;
     let active: ScribeYjsProvider | null = null;
 
+    log.yjs('useYjsDoc mount', { projectId, fileId });
+
     void (async () => {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
-      if (token === undefined || cancelled) return;
+      if (token === undefined || cancelled) {
+        log.yjs.warn('useYjsDoc skipped: no session token or cancelled', { cancelled });
+        return;
+      }
 
       const next = new ScribeYjsProvider({
         url: wsUrlFromApi(API_URL),
@@ -58,14 +65,43 @@ export function useYjsDoc(
         ...(userRef.current !== null ? { user: userRef.current } : {}),
       });
       active = next;
-      next.on('synced', ({ synced: s }: { synced: boolean }) => { setSynced(s); });
-      next.on('presence', ({ peers: p }: { peers: readonly PresenceUser[] }) => { setPeers(p); });
+      next.on('status', ({ status }: { status: string }) => { log.ws(`status → ${status}`, { docId: `${projectId}/${fileId}` }); });
+      next.on('synced', ({ synced: s }: { synced: boolean }) => {
+        log.yjs(s ? 'synced' : 'unsynced', { docId: `${projectId}/${fileId}` });
+        setSynced(s);
+      });
+      next.on('presence', ({ peers: p }: { peers: readonly PresenceUser[] }) => {
+        log.yjs('presence update', { peerCount: p.length, peers: p.map((u) => u.displayName) });
+        setPeers(p);
+      });
       setProvider(next);
+      // Dev-only diagnostic: exposes the live provider so you can dump
+      // the current Y.Text content from DevTools:
+      //   __scribe.yjs.yText.toString()
+      //   __scribe.yjs.provider.connectionStatus
+      // Gated by `features.devGlobals` so production users never get
+      // a global handle to session-scoped Yjs state.
+      if (typeof window !== 'undefined' && features.devGlobals) {
+        (window as unknown as { __scribe?: Record<string, unknown> }).__scribe = {
+          yjs: {
+            provider: next,
+            doc: next.doc,
+            yText: next.doc.getText('text'),
+            awareness: next.awareness,
+          },
+        };
+      }
     })();
 
     return () => {
+      log.yjs('useYjsDoc unmount', { projectId, fileId });
       cancelled = true;
       active?.destroy();
+      // Drop the dev global so it doesn't dangle a reference to the
+      // destroyed provider for the next mount to confuse.
+      if (typeof window !== 'undefined') {
+        delete (window as unknown as { __scribe?: unknown }).__scribe;
+      }
       setProvider(null);
       setSynced(false);
       setPeers([]);

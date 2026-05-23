@@ -14,9 +14,10 @@ use scribe_shared::{
 };
 use scribe_storage::{project_file_key, Storage, SupabaseStorage, PROJECT_FILES_BUCKET};
 use sqlx::{PgPool, Row};
+use tracing::debug;
 use uuid::Uuid;
 
-use super::membership::assert_member;
+use super::membership::{assert_can_write, assert_member};
 
 #[derive(Clone)]
 pub struct FileService {
@@ -29,7 +30,9 @@ impl FileService {
         Self { pool, storage }
     }
 
+    #[tracing::instrument(skip(self), fields(%user, %project))]
     pub async fn list(&self, user: UserId, project: ProjectId) -> ApiResult<Vec<ProjectFile>> {
+        debug!("file list start");
         assert_member(&self.pool, user, project).await?;
         let rows = sqlx::query(
             r#"
@@ -47,13 +50,15 @@ impl FileService {
         Ok(rows.into_iter().map(row_to_file).collect())
     }
 
+    #[tracing::instrument(skip(self, input), fields(%user, %project, path = %input.path))]
     pub async fn create(
         &self,
         user: UserId,
         project: ProjectId,
         input: CreateFileInput,
     ) -> ApiResult<ProjectFile> {
-        assert_member(&self.pool, user, project).await?;
+        debug!(content_bytes = input.content.as_deref().map(str::len).unwrap_or(0), "file create start");
+        assert_can_write(&self.pool, user, project).await?;
 
         let id = FileId::new(Uuid::new_v4());
         let key = project_file_key(project, id);
@@ -100,6 +105,7 @@ impl FileService {
         }
     }
 
+    #[tracing::instrument(skip(self, input), fields(%user, %project, %file, new_path = %input.new_path))]
     pub async fn rename(
         &self,
         user: UserId,
@@ -107,7 +113,8 @@ impl FileService {
         file: FileId,
         input: RenameFileInput,
     ) -> ApiResult<ProjectFile> {
-        assert_member(&self.pool, user, project).await?;
+        debug!("file rename start");
+        assert_can_write(&self.pool, user, project).await?;
         let row = sqlx::query(
             r#"
             update public.project_files
@@ -126,13 +133,15 @@ impl FileService {
         row.map(row_to_file).ok_or_else(|| ApiError::not_found("File not found"))
     }
 
+    #[tracing::instrument(skip(self), fields(%user, %project, %file))]
     pub async fn remove(
         &self,
         user: UserId,
         project: ProjectId,
         file: FileId,
     ) -> ApiResult<()> {
-        assert_member(&self.pool, user, project).await?;
+        debug!("file remove start");
+        assert_can_write(&self.pool, user, project).await?;
         let key: Option<String> = sqlx::query_scalar(
             r#"
             delete from public.project_files
@@ -150,15 +159,18 @@ impl FileService {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self), fields(%user, %project, %file))]
     pub async fn read_content(
         &self,
         user: UserId,
         project: ProjectId,
         file: FileId,
     ) -> ApiResult<String> {
+        debug!("file read start");
         assert_member(&self.pool, user, project).await?;
         let key = self.fetch_storage_key(project, file).await?;
         let bytes = self.storage.download(PROJECT_FILES_BUCKET, &key).await?;
+        debug!(bytes = bytes.len(), "file read storage download complete");
         // Files in this bucket are almost always text (.tex/.bib/etc).
         // Binary files (images, PDFs) can occasionally land here via
         // the multipart upload path; rather than 500ing on invalid
@@ -167,6 +179,7 @@ impl FileService {
         Ok(String::from_utf8_lossy(&bytes).into_owned())
     }
 
+    #[tracing::instrument(skip(self, content), fields(%user, %project, %file, content_bytes = content.len()))]
     pub async fn write_content(
         &self,
         user: UserId,
@@ -174,9 +187,11 @@ impl FileService {
         file: FileId,
         content: String,
     ) -> ApiResult<ProjectFile> {
-        assert_member(&self.pool, user, project).await?;
+        debug!("file write start");
+        assert_can_write(&self.pool, user, project).await?;
         let key = self.fetch_storage_key(project, file).await?;
         let bytes = Bytes::from(content.into_bytes());
+        debug!(bytes = bytes.len(), "file write uploading to storage");
         self.storage
             .upload(
                 PROJECT_FILES_BUCKET,
@@ -185,6 +200,7 @@ impl FileService {
                 "text/plain; charset=utf-8",
             )
             .await?;
+        debug!("file write storage upload complete; updating row");
         let row = sqlx::query(
             r#"
             update public.project_files

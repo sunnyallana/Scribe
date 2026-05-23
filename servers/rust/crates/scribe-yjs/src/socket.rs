@@ -29,12 +29,24 @@ const OUTBOUND_CHANNEL_DEPTH: usize = 64;
 const PING_INTERVAL: Duration = Duration::from_secs(30);
 
 pub async fn serve_socket(socket: WebSocket, doc_id: String, registry: Arc<DocRegistry>) {
+    serve_socket_with_mode(socket, doc_id, registry, false).await
+}
+
+/// Like [`serve_socket`] but accepts a read-only flag. When `read_only`,
+/// inbound doc updates from this connection are silently dropped — the
+/// peer still receives broadcasts and can publish awareness (cursor +
+/// name) but their edits don't land. Used to enforce the Viewer role.
+pub async fn serve_socket_with_mode(
+    socket: WebSocket,
+    doc_id: String,
+    registry: Arc<DocRegistry>,
+    read_only: bool,
+) {
     let shared = registry.get_or_create(&doc_id).await;
     let conn_id = {
         let (sender, receiver) = mpsc::channel::<Bytes>(OUTBOUND_CHANNEL_DEPTH);
         let id = shared.register(sender);
-        // Hand the receiver into the loop driver below.
-        run(socket, shared.clone(), id, receiver).await;
+        run(socket, shared.clone(), id, receiver, read_only).await;
         id
     };
     shared.unregister(conn_id);
@@ -46,6 +58,7 @@ async fn run(
     shared: Arc<SharedDoc>,
     conn_id: ConnId,
     mut outbound: mpsc::Receiver<Bytes>,
+    read_only: bool,
 ) {
     let (mut sink, mut stream) = socket.split();
 
@@ -75,7 +88,7 @@ async fn run(
                 let Ok(frame) = frame else { break };
                 match frame {
                     WsMessage::Binary(data) => {
-                        process_inbound(&shared, conn_id, &data).await;
+                        process_inbound(&shared, conn_id, &data, read_only).await;
                     }
                     WsMessage::Close(_) => break,
                     WsMessage::Ping(payload) => {
@@ -117,7 +130,7 @@ async fn send_initial(
     Ok(())
 }
 
-async fn process_inbound(shared: &SharedDoc, conn_id: ConnId, data: &[u8]) {
+async fn process_inbound(shared: &SharedDoc, conn_id: ConnId, data: &[u8], read_only: bool) {
     let outcome = {
         let mut awareness = shared.awareness.lock();
         handle_message(&mut awareness, data)
@@ -133,6 +146,15 @@ async fn process_inbound(shared: &SharedDoc, conn_id: ConnId, data: &[u8]) {
             // will receive an idempotent sync step 2 they can ignore.)
         }
         HandleOutcome::DocUpdate { raw_update, encoded } => {
+            // Viewers can listen but not write — drop their edits before
+            // we'd persist or broadcast them. The client still applies
+            // updates locally, which produces a transient divergence,
+            // but the next inbound broadcast from the server will
+            // overwrite it. Good enough for "I shouldn't be editing".
+            if read_only {
+                debug!(doc_id = %shared.doc_id(), ?conn_id, "ignored update from read-only conn");
+                return;
+            }
             shared.apply_and_persist_update(conn_id, &raw_update, encoded).await;
         }
         HandleOutcome::AwarenessBroadcast { encoded, client_ids } => {

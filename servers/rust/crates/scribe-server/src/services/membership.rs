@@ -8,6 +8,7 @@
 
 use scribe_shared::{ApiError, ApiResult, ErrorCode, MemberRole, ProjectId, UserId};
 use sqlx::PgPool;
+use tracing::debug;
 
 /// Returns Ok if the caller is an owner of OR an accepted member of the
 /// project. NotFound (rather than Forbidden) on miss so we don't leak
@@ -77,6 +78,22 @@ pub async fn assert_owner(pool: &PgPool, user: UserId, project: ProjectId) -> Ap
     match require_role(pool, user, project).await? {
         MemberRole::Owner => Ok(()),
         _ => Err(ApiError::forbidden("owner-only operation")),
+    }
+}
+
+/// Guard: caller must be able to make content changes — owner or editor.
+/// Viewers (and the legacy `commenter` role) are read-only and get a 403
+/// here. Use this on any mutating file or compile route so a viewer who
+/// got invited by mistake can't smuggle edits through the API.
+#[tracing::instrument(skip(pool), fields(%user, %project))]
+pub async fn assert_can_write(pool: &PgPool, user: UserId, project: ProjectId) -> ApiResult<()> {
+    let role = require_role(pool, user, project).await?;
+    let allow = matches!(role, MemberRole::Owner | MemberRole::Editor);
+    debug!(?role, allow, "assert_can_write decision");
+    if allow {
+        Ok(())
+    } else {
+        Err(ApiError::forbidden("read-only access for this project"))
     }
 }
 

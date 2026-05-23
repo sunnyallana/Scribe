@@ -1,0 +1,45 @@
+# Scribe runtime config.
+#
+# This file is OPTIONAL — both server and client work without it, falling
+# back to per-env defaults. Set `SCRIBE_CONFIG_FILE=./path/to/config.toml`
+# to point the Rust server at a non-default location.
+#
+# Resolution order (later wins):
+#   1. per-env defaults baked into code (`FeatureFlags::for_env`)
+#   2. this file
+#   3. process env vars (DATABASE_URL, PORT, …) and individual
+#      `SCRIBE_FEATURE_<NAME>` overrides
+#
+# Copy to `scribe.config.toml` (loaded by default) and edit.
+
+# One of: "development" | "production" | "testing".
+# Also settable via the `SCRIBE_ENV` env var, which takes precedence.
+env = "development"
+
+[features]
+# Server-side response cache (L1 in-process + L2 Redis). When off,
+# every read goes straight to Postgres + Storage. Defaults: dev=false,
+# prod=true, testing=false. Override per-flag with
+# SCRIBE_FEATURE_CACHE_ENABLED=true|false.
+cache_enabled = false
+
+# Cache-Control / ETag headers on cacheable responses. When off the
+# server emits `Cache-Control: no-store` so browsers can't keep a
+# stale copy either. Useful for debugging save → refresh round-trips.
+client_cache_headers = false
+
+# Yjs WebSocket realtime collab. Off forces solo-mode editing.
+yjs_realtime = true
+
+# Compile worker BRPOP loop. Off skips spinning tectonic — useful in
+# `testing` so CI doesn't pull down CTAN bundles.
+compile_worker = true
+
+# Per-IP / per-user token-bucket rate limit.
+rate_limiting = false
+
+# Prometheus /metrics endpoint.
+metrics_endpoint = true
+
+# Bumps our crates to `debug` log level (still overridden by RUST_LOG).
+debug_logging = true

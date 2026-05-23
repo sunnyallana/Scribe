@@ -106,7 +106,7 @@ export function ProjectPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-[calc(100vh-2.75rem)] items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden="true" />
       </div>
     );
@@ -124,7 +124,7 @@ export function ProjectPage() {
   const selectedFile = files.find((f) => f.id === selectedFileId) ?? null;
 
   return (
-    <div className="h-[calc(100vh-2.75rem)]">
+    <div className="h-full">
       <PanelGroup
         direction="horizontal"
         autoSaveId="scribe:project-layout"
