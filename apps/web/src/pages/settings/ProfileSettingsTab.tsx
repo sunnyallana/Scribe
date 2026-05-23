@@ -1,14 +1,24 @@
-import { Button, Input, Label } from '@scribe/ui';
+import {
+  Button,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@scribe/ui';
 import { Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
+import { SUPPORTED_LANGUAGES } from '../../i18n';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/auth';
 
 export function ProfileSettingsTab() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const [displayName, setDisplayName] = useState<string>('');
   const [avatarUrl, setAvatarUrl] = useState<string>('');
@@ -73,6 +83,25 @@ export function ProfileSettingsTab() {
           onChange={(e) => { setAvatarUrl(e.target.value); }}
           placeholder="https://…"
         />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="profile-language">{t('settings.language')}</Label>
+        <Select
+          value={i18n.language}
+          onValueChange={(next) => { void i18n.changeLanguage(next); }}
+        >
+          <SelectTrigger id="profile-language" className="w-full max-w-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SUPPORTED_LANGUAGES.map((lang) => (
+              <SelectItem key={lang.code} value={lang.code}>
+                {lang.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">{t('settings.languageHint')}</p>
       </div>
       <Button type="submit" disabled={saving} className="gap-1.5">
         {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null}

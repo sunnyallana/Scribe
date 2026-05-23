@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
+import { PageError } from '../components/PageError/PageError';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { api, type ApiError } from '../lib/api';
 
@@ -83,7 +84,14 @@ export function DashboardPage() {
       {isLoading ? (
         <DashboardSkeleton />
       ) : error !== null ? (
-        <p className="text-sm text-destructive">{t('dashboard.loadError')}</p>
+        <div className="min-h-[40vh]">
+          <PageError
+            title={t('errors.couldntLoadDashboard')}
+            description={error.body.message}
+            onRetry={() => { window.location.reload(); }}
+            backTo={null}
+          />
+        </div>
       ) : projects === undefined || projects.length === 0 ? (
         <Card className="flex flex-col items-center justify-center py-16 text-center">
           <CardHeader>

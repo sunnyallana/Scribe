@@ -1,0 +1,121 @@
+{
+  "appName": "Scribe",
+  "appTagline": "Edición colaborativa de LaTeX para todos",
+
+  "theme": {
+    "label": "Tema",
+    "light": "Claro",
+    "dark": "Oscuro",
+    "highContrast": "Alto contraste"
+  },
+
+  "common": {
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "delete": "Eliminar",
+    "loading": "Cargando",
+    "back": "Volver",
+    "continue": "Continuar",
+    "create": "Crear",
+    "rename": "Renombrar",
+    "upload": "Subir",
+    "search": "Buscar",
+    "close": "Cerrar",
+    "tryAgain": "Reintentar",
+    "comingSoon": "Próximamente",
+    "openProject": "Abrir proyecto",
+    "download": "Descargar"
+  },
+
+  "collab": {
+    "presenceLabel": "Personas en línea",
+    "compile": "Compilar"
+  },
+
+  "command": {
+    "title": "Paleta de comandos",
+    "placeholder": "Escribe un comando…",
+    "groupActions": "Acciones",
+    "groupPanels": "Paneles",
+    "groupFiles": "Archivos",
+    "compile": "Compilar",
+    "aiAssist": "Asistencia de IA…",
+    "snapshotNow": "Tomar captura",
+    "toggleOutline": "Alternar esquema",
+    "toggleReview": "Alternar comentarios",
+    "toggleHistory": "Alternar historial",
+    "toggleBibliography": "Alternar bibliografía",
+    "toggleAIChat": "Alternar chat de IA",
+    "toggleMath": "Alternar símbolos matemáticos"
+  },
+
+  "compile": {
+    "runButton": "Compilar",
+    "running": "Compilando…",
+    "saved": "Guardado",
+    "noPdf": "Compila para ver el PDF.",
+    "openTexFile": "Abre un archivo .tex desde el árbol para empezar a editar.",
+    "viewPdf": "PDF",
+    "viewLog": "Registro"
+  },
+
+  "auth": {
+    "signIn": "Iniciar sesión",
+    "signOut": "Cerrar sesión",
+    "signUp": "Registrarse",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "forgotPassword": "¿Olvidaste tu contraseña?",
+    "magicLinkSent": "Hemos enviado un enlace mágico a tu correo."
+  },
+
+  "dashboard": {
+    "title": "Tus proyectos",
+    "subtitle": "Crea, abre y gestiona tus proyectos LaTeX.",
+    "newProject": "Nuevo proyecto",
+    "emptyTitle": "Aún no hay proyectos",
+    "loadError": "No se pudieron cargar los proyectos."
+  },
+
+  "project": {
+    "actions": "Acciones del proyecto",
+    "rename": "Renombrar",
+    "duplicate": "Duplicar",
+    "projectSettings": "Ajustes del proyecto",
+    "members": "Miembros",
+    "collapseSidebar": "Contraer barra lateral",
+    "expandSidebar": "Expandir barra lateral",
+    "morePanels": "Más paneles",
+    "showPreview": "Mostrar vista previa",
+    "hidePreview": "Ocultar vista previa"
+  },
+
+  "export": {
+    "menuLabel": "Exportar y descargar",
+    "downloadZip": "Descargar como .zip",
+    "downloadPdf": "Descargar PDF compilado",
+    "exportMarkdown": "Exportar como Markdown (.md)",
+    "exportWord": "Exportar como Word (.docx)"
+  },
+
+  "image": {
+    "loading": "Cargando imagen…",
+    "fit": "Ajustar al panel"
+  },
+
+  "errors": {
+    "generic": "Algo salió mal. Por favor, inténtalo de nuevo.",
+    "network": "No se pudo contactar con el servidor.",
+    "somethingWentWrong": "Algo salió mal",
+    "backToDashboard": "Volver al panel",
+    "couldntLoadProject": "No se pudo cargar este proyecto",
+    "couldntLoadDashboard": "No se pudieron cargar tus proyectos",
+    "pageNotFound": "Página no encontrada"
+  },
+
+  "settings": {
+    "title": "Ajustes",
+    "language": "Idioma",
+    "languageHint": "El idioma cambia inmediatamente."
+  }
+}

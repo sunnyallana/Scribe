@@ -84,7 +84,30 @@ export function PDFPreview({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [pageCount, setPageCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [zoomIndex, setZoomIndex] = useState<number>(DEFAULT_ZOOM_INDEX);
+  // Zoom is a per-user preference, not per-document — persist it
+  // in localStorage so reopening the app (or refreshing) restores
+  // the chosen magnification. Falls back to DEFAULT_ZOOM_INDEX
+  // when no preference is stored or `localStorage` is blocked.
+  const [zoomIndex, setZoomIndex] = useState<number>(() => {
+    if (typeof window === 'undefined') return DEFAULT_ZOOM_INDEX;
+    try {
+      const raw = window.localStorage.getItem('scribe:pdf:zoom');
+      if (raw === null) return DEFAULT_ZOOM_INDEX;
+      const n = Number.parseInt(raw, 10);
+      if (Number.isFinite(n) && n >= 0 && n < ZOOM_LEVELS.length) return n;
+    } catch {
+      /* ignore */
+    }
+    return DEFAULT_ZOOM_INDEX;
+  });
+  // Persist on every change.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('scribe:pdf:zoom', zoomIndex.toString());
+    } catch {
+      /* ignore */
+    }
+  }, [zoomIndex]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const docRef = useRef<pdfjs.PDFDocumentProxy | null>(null);

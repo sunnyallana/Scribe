@@ -32,6 +32,7 @@ mod routes;
 mod services;
 mod state;
 mod telemetry;
+mod voice;
 
 use config::AppConfig;
 use db::Db;
@@ -357,6 +358,7 @@ fn build_router(
         .merge(routes::compiles::router())
         .merge(routes::ai::router())
         .merge(routes::exports::router())
+        .merge(routes::voice::router())
         .layer(from_fn(rate_limit::per_user));
 
     let api = infra.merge(api).layer(from_fn(rate_limit::per_ip))
