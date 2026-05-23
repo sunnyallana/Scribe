@@ -22,6 +22,12 @@ export interface VoiceRoomHandle {
   readonly micEnabled: boolean;
   readonly speakerEnabled: boolean;
   readonly error: string | null;
+  /** Connection IDs of peers (incl. `local` for self) that have
+   *  audio energy above the speaking threshold right now. Updated
+   *  at ~20 Hz from a WebAudio AnalyserNode. */
+  readonly speakingConnIds: ReadonlySet<string>;
+  /** Convenience: am *I* currently above the speaking threshold? */
+  readonly localSpeaking: boolean;
   /** Open the mic + WS, join the room. Idempotent. */
   joinMic: () => Promise<void>;
   /** Close the WS + RTCPeerConnections, stop the mic. Idempotent. */
@@ -31,6 +37,16 @@ export interface VoiceRoomHandle {
   /** Mute / unmute incoming audio from every peer (master speaker). */
   setSpeakerEnabled: (enabled: boolean) => void;
 }
+
+/** Speaking-detection threshold. Empirical: typical room-noise RMS
+ *  is < 0.01, conversational voice sits in the 0.03–0.2 range. The
+ *  threshold is intentionally a hair above noise floor so headset
+ *  breath / keyboard taps don't flicker the indicator. */
+const SPEAKING_RMS_THRESHOLD = 0.03;
+
+/** Reconnect backoff (ms) — capped at 30s. Same shape as the Yjs
+ *  provider's exponential-with-jitter retry. */
+const RECONNECT_BACKOFF = [800, 1600, 3200, 6400, 12_800, 25_600, 30_000];
 
 /** Public STUN. WebRTC needs a STUN server to discover its public IP
  *  pair for NAT traversal. Google's free one is the de-facto default;
@@ -132,6 +148,7 @@ export function useVoiceRoom(projectId: ProjectId | null): VoiceRoomHandle {
   const [micEnabled, setMicEnabledState] = useState(true);
   const [speakerEnabled, setSpeakerEnabledState] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [speakingConnIds, setSpeakingConnIds] = useState<ReadonlySet<string>>(new Set());
 
   // Refs for everything that must persist across renders without
   // re-triggering effects. The mesh state machine reads + writes
@@ -146,6 +163,143 @@ export function useVoiceRoom(projectId: ProjectId | null): VoiceRoomHandle {
   // Latest peers list, kept in sync with state for callbacks.
   const peersRef = useRef<readonly VoicePeer[]>([]);
   peersRef.current = peers;
+
+  // --- Audio-level analysis -----------------------------------------
+  // One shared AudioContext, one AnalyserNode per stream
+  // (incl. `local`). The rAF loop computes RMS across all
+  // analysers ~20 Hz and updates the `speakingConnIds` set only
+  // when a transition happens — avoids re-rendering every frame.
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analysersRef = useRef<Map<string, AnalyserNode>>(new Map());
+  const analyserBufferRef = useRef<Float32Array | null>(null);
+  const speakingTickRef = useRef<number | null>(null);
+  const speakingSetRef = useRef<Set<string>>(new Set());
+
+  // --- Reconnect ---------------------------------------------------
+  // `intentionalLeaveRef` distinguishes a user-initiated hangup
+  // (don't reconnect) from a transient network blip (do reconnect).
+  // `reconnectAttemptRef` indexes into RECONNECT_BACKOFF.
+  const intentionalLeaveRef = useRef(false);
+  const reconnectAttemptRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // --- Wake lock ---------------------------------------------------
+  // `navigator.wakeLock` keeps the screen on while in the call —
+  // mobile devices otherwise sleep mid-conversation and drop the
+  // WebRTC connection. Released on leave / page hide.
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+
+  // Ensure / fetch the shared AudioContext lazily. Safari requires
+  // a user-gesture before the first AudioContext is created; we
+  // call this from joinMic which is always behind a click.
+  const ensureAudioContext = useCallback((): AudioContext | null => {
+    if (audioContextRef.current !== null) return audioContextRef.current;
+    try {
+      const Ctor =
+        window.AudioContext ??
+        (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (Ctor === undefined) return null;
+      audioContextRef.current = new Ctor();
+      return audioContextRef.current;
+    } catch (err) {
+      log.ws.warn('AudioContext create failed', err);
+      return null;
+    }
+  }, []);
+
+  // Attach a `connId`-keyed analyser to a MediaStream. Idempotent
+  // per connId — re-attaching replaces the old node cleanly.
+  const attachAnalyser = useCallback((connId: string, stream: MediaStream) => {
+    const ctx = ensureAudioContext();
+    if (ctx === null) return;
+    const existing = analysersRef.current.get(connId);
+    if (existing !== undefined) {
+      try { existing.disconnect(); } catch { /* ignore */ }
+    }
+    try {
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      // 512-bin FFT gives 256 time-domain samples per frame —
+      // plenty for an RMS, cheap on CPU.
+      analyser.fftSize = 512;
+      source.connect(analyser);
+      analysersRef.current.set(connId, analyser);
+    } catch (err) {
+      log.ws.warn('attachAnalyser failed', err);
+    }
+  }, [ensureAudioContext]);
+
+  const detachAnalyser = useCallback((connId: string) => {
+    const node = analysersRef.current.get(connId);
+    if (node !== undefined) {
+      try { node.disconnect(); } catch { /* ignore */ }
+      analysersRef.current.delete(connId);
+    }
+  }, []);
+
+  // Start the 50 ms RMS-sampling tick. Reads every active
+  // analyser, computes RMS over the most-recent frame, and only
+  // calls setState when the set of "speakers" actually changes —
+  // so a quiet room won't re-render at all.
+  const startSpeakingTick = useCallback(() => {
+    if (speakingTickRef.current !== null) return;
+    const tick = () => {
+      const analysers = analysersRef.current;
+      if (analysers.size === 0) {
+        speakingTickRef.current = window.setTimeout(tick, 200);
+        return;
+      }
+      let bufLen = 0;
+      for (const a of analysers.values()) {
+        bufLen = Math.max(bufLen, a.fftSize);
+      }
+      let buf = analyserBufferRef.current;
+      if (buf === null || buf.length < bufLen) {
+        buf = new Float32Array(bufLen);
+        analyserBufferRef.current = buf;
+      }
+      const next = new Set<string>();
+      for (const [connId, analyser] of analysers) {
+        // `getFloatTimeDomainData` writes -1..1 samples; RMS of
+        // that gives a normalised loudness number we threshold.
+        // The cast works around TS's stricter ArrayBuffer/SAB
+        // generic discrimination in newer lib.dom typings — at
+        // runtime the underlying buffer is always a plain
+        // ArrayBuffer for arrays we allocate ourselves.
+        analyser.getFloatTimeDomainData(
+          buf.subarray(0, analyser.fftSize) as Float32Array<ArrayBuffer>,
+        );
+        let sum = 0;
+        for (let i = 0; i < analyser.fftSize; i += 1) {
+          const v = buf[i] ?? 0;
+          sum += v * v;
+        }
+        const rms = Math.sqrt(sum / analyser.fftSize);
+        if (rms > SPEAKING_RMS_THRESHOLD) next.add(connId);
+      }
+      // Diff against the previous set; only setState on change.
+      const prev = speakingSetRef.current;
+      let changed = prev.size !== next.size;
+      if (!changed) {
+        for (const id of next) if (!prev.has(id)) { changed = true; break; }
+      }
+      if (changed) {
+        speakingSetRef.current = next;
+        setSpeakingConnIds(next);
+      }
+      speakingTickRef.current = window.setTimeout(tick, 50);
+    };
+    speakingTickRef.current = window.setTimeout(tick, 50);
+  }, []);
+
+  const stopSpeakingTick = useCallback(() => {
+    if (speakingTickRef.current !== null) {
+      window.clearTimeout(speakingTickRef.current);
+      speakingTickRef.current = null;
+    }
+    speakingSetRef.current = new Set();
+    setSpeakingConnIds(new Set());
+  }, []);
 
   const updatePeer = useCallback((connId: string, patch: Partial<VoicePeer>) => {
     setPeers((prev) => prev.map((p) => (p.connId === connId ? { ...p, ...patch } : p)));
@@ -186,10 +340,15 @@ export function useVoiceRoom(projectId: ProjectId | null): VoiceRoomHandle {
 
       // Receive remote audio. The track arrives in an event with
       // `streams[0]` populated by Chrome / Firefox / Safari; we
-      // hand it to React state for the `<audio>` element to play.
+      // hand it to React state for the `<audio>` element to play
+      // *and* wire it to an analyser so the active-speaker
+      // indicator can light up this peer's avatar.
       pc.ontrack = (e) => {
         const stream = e.streams[0] ?? null;
         updatePeer(remoteConnId, { stream });
+        if (stream !== null) {
+          attachAnalyser(remoteConnId, stream);
+        }
       };
 
       pc.onicecandidate = (e) => {
@@ -229,7 +388,7 @@ export function useVoiceRoom(projectId: ProjectId | null): VoiceRoomHandle {
 
       return pc;
     },
-    [sendSignal, updatePeer],
+    [attachAnalyser, sendSignal, updatePeer],
   );
 
   const handleSignal = useCallback(
@@ -282,11 +441,38 @@ export function useVoiceRoom(projectId: ProjectId | null): VoiceRoomHandle {
   );
 
   const teardown = useCallback(() => {
+    intentionalLeaveRef.current = true;
+    if (reconnectTimerRef.current !== null) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+    reconnectAttemptRef.current = 0;
+
     for (const pc of pcsRef.current.values()) {
       pc.close();
     }
     pcsRef.current.clear();
     pendingIceRef.current.clear();
+
+    // Drop every analyser and shut the AudioContext. Created
+    // lazily on next join.
+    for (const node of analysersRef.current.values()) {
+      try { node.disconnect(); } catch { /* ignore */ }
+    }
+    analysersRef.current.clear();
+    stopSpeakingTick();
+    if (audioContextRef.current !== null) {
+      void audioContextRef.current.close().catch(() => { /* ignore */ });
+      audioContextRef.current = null;
+    }
+
+    // Release the screen wake lock (mobile only — `null` on
+    // unsupported platforms).
+    if (wakeLockRef.current !== null) {
+      void wakeLockRef.current.release().catch(() => { /* ignore */ });
+      wakeLockRef.current = null;
+    }
+
     if (localStreamRef.current !== null) {
       for (const track of localStreamRef.current.getTracks()) {
         track.stop();
@@ -300,13 +486,103 @@ export function useVoiceRoom(projectId: ProjectId | null): VoiceRoomHandle {
     myConnIdRef.current = null;
     setPeers([]);
     setState('idle');
-  }, []);
+  }, [stopSpeakingTick]);
+
+  /** Open (or re-open) the signaling WS. Used both on first join and
+   *  on automatic reconnect. Doesn't touch getUserMedia — the local
+   *  stream from the original join is reused on reconnect so we
+   *  don't re-prompt the user for the mic. */
+  const openSignalingSocket = useCallback(async () => {
+    if (projectId === null) return;
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (token === undefined) throw new Error('no session token');
+    const url = `${wsOrigin()}/api/projects/${projectId}/voice?token=${encodeURIComponent(token)}`;
+    const ws = new WebSocket(url);
+    wsRef.current = ws;
+
+    ws.onmessage = (event) => {
+      let msg: ServerMsg;
+      try {
+        msg = JSON.parse(event.data as string) as ServerMsg;
+      } catch {
+        return;
+      }
+      if (msg.type === 'welcome') {
+        const w = msg as ServerMsg & {
+          readonly welcomeFor: string;
+          readonly peers: ReadonlyArray<{ readonly connId: string; readonly userId: string }>;
+        };
+        myConnIdRef.current = w.welcomeFor;
+        // On reconnect, tear down any stale RTCPeerConnections —
+        // the remote side sees us as a brand-new conn_id and we'll
+        // re-handshake fresh.
+        for (const pc of pcsRef.current.values()) pc.close();
+        pcsRef.current.clear();
+        for (const p of w.peers) {
+          addPeer({ connId: p.connId, userId: p.userId, stream: null, muted: false });
+          createPeerConnection(p.connId, true);
+        }
+        setState('live');
+        reconnectAttemptRef.current = 0; // reset backoff on success
+      } else if (msg.type === 'peerJoined') {
+        const j = msg as ServerMsg & {
+          readonly peer: { readonly connId: string; readonly userId: string };
+        };
+        addPeer({ connId: j.peer.connId, userId: j.peer.userId, stream: null, muted: false });
+      } else if (msg.type === 'peerLeft') {
+        const l = msg as ServerMsg & { readonly connId: string };
+        const pc = pcsRef.current.get(l.connId);
+        if (pc !== undefined) {
+          pc.close();
+          pcsRef.current.delete(l.connId);
+        }
+        detachAnalyser(l.connId);
+        removePeer(l.connId);
+      } else if (msg.type === 'signal') {
+        const s = msg as ServerMsg & {
+          readonly from: string;
+          readonly payload: { kind: string; sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit };
+        };
+        void handleSignal(s.from, s.payload);
+      } else if (msg.type === 'muted') {
+        const m = msg as ServerMsg & { readonly connId: string; readonly muted: boolean };
+        updatePeer(m.connId, { muted: m.muted });
+      }
+    };
+    ws.onerror = () => {
+      log.ws.warn('voice WS error');
+    };
+    ws.onclose = () => {
+      // Drop stale RTCPeerConnections — they reference dead WS.
+      for (const pc of pcsRef.current.values()) pc.close();
+      pcsRef.current.clear();
+      // If the user hung up, stop here.
+      if (intentionalLeaveRef.current) return;
+      if (wsRef.current !== ws) return; // a newer socket already took over
+      // Schedule reconnect. Backoff caps at 30 s; we keep trying
+      // forever — the user can always tap "hangup" to give up.
+      const idx = Math.min(reconnectAttemptRef.current, RECONNECT_BACKOFF.length - 1);
+      const delay = RECONNECT_BACKOFF[idx] ?? 30_000;
+      reconnectAttemptRef.current += 1;
+      setState('connecting');
+      log.ws.warn('voice WS closed; reconnecting', { attempt: reconnectAttemptRef.current, delay });
+      if (reconnectTimerRef.current !== null) clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = setTimeout(() => {
+        void openSignalingSocket().catch((err: unknown) => {
+          log.ws.error('voice WS reconnect failed', err);
+        });
+      }, delay);
+    };
+  }, [projectId, addPeer, createPeerConnection, detachAnalyser, handleSignal, removePeer, updatePeer]);
 
   const joinMic = useCallback(async () => {
     if (projectId === null) return;
     if (state === 'live' || state === 'connecting') return;
     setState('connecting');
     setError(null);
+    intentionalLeaveRef.current = false;
+    reconnectAttemptRef.current = 0;
     try {
       // Browser permission first — must precede the WS connect so
       // we can't be in the room without an outgoing track to send.
@@ -341,74 +617,34 @@ export function useVoiceRoom(projectId: ProjectId | null): VoiceRoomHandle {
       for (const track of stream.getAudioTracks()) {
         track.enabled = micEnabled;
       }
+      // Wire the local stream into the analyser graph so the
+      // active-speaker indicator can highlight YOU when you're
+      // talking, not just other peers.
+      attachAnalyser('local', stream);
+      startSpeakingTick();
 
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-      if (token === undefined) throw new Error('no session token');
-      const url = `${wsOrigin()}/api/projects/${projectId}/voice?token=${encodeURIComponent(token)}`;
-      const ws = new WebSocket(url);
-      wsRef.current = ws;
+      // Request a screen wake lock so a mobile screen-off doesn't
+      // suspend the connection. Silently ignored on platforms that
+      // don't support the API (older Safari, Firefox desktop).
+      try {
+        const nav = navigator as Navigator & {
+          wakeLock?: { request: (type: 'screen') => Promise<WakeLockSentinel> };
+        };
+        if (nav.wakeLock !== undefined) {
+          wakeLockRef.current = await nav.wakeLock.request('screen');
+        }
+      } catch (err) {
+        log.ws.warn('wake-lock request failed', err);
+      }
 
-      ws.onmessage = (event) => {
-        let msg: ServerMsg;
-        try {
-          msg = JSON.parse(event.data as string) as ServerMsg;
-        } catch {
-          return;
-        }
-        if (msg.type === 'welcome') {
-          const w = msg as ServerMsg & {
-            readonly welcomeFor: string;
-            readonly peers: ReadonlyArray<{ readonly connId: string; readonly userId: string }>;
-          };
-          myConnIdRef.current = w.welcomeFor;
-          // Offer to every existing peer.
-          for (const p of w.peers) {
-            addPeer({ connId: p.connId, userId: p.userId, stream: null, muted: false });
-            createPeerConnection(p.connId, true);
-          }
-          setState('live');
-        } else if (msg.type === 'peerJoined') {
-          const j = msg as ServerMsg & {
-            readonly peer: { readonly connId: string; readonly userId: string };
-          };
-          addPeer({ connId: j.peer.connId, userId: j.peer.userId, stream: null, muted: false });
-          // Don't offer here — the joiner will send us an offer via
-          // their welcome. Just be ready to answer.
-        } else if (msg.type === 'peerLeft') {
-          const l = msg as ServerMsg & { readonly connId: string };
-          const pc = pcsRef.current.get(l.connId);
-          if (pc !== undefined) {
-            pc.close();
-            pcsRef.current.delete(l.connId);
-          }
-          removePeer(l.connId);
-        } else if (msg.type === 'signal') {
-          const s = msg as ServerMsg & {
-            readonly from: string;
-            readonly payload: { kind: string; sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit };
-          };
-          void handleSignal(s.from, s.payload);
-        } else if (msg.type === 'muted') {
-          const m = msg as ServerMsg & { readonly connId: string; readonly muted: boolean };
-          updatePeer(m.connId, { muted: m.muted });
-        }
-      };
-      ws.onerror = () => {
-        setError('voice WS error');
-        setState('error');
-      };
-      ws.onclose = () => {
-        // If the server closed us mid-call, tear everything down.
-        if (wsRef.current === ws) teardown();
-      };
+      await openSignalingSocket();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'unknown';
       setError(msg);
       setState('error');
       teardown();
     }
-  }, [projectId, state, micEnabled, addPeer, createPeerConnection, handleSignal, removePeer, teardown, updatePeer]);
+  }, [projectId, state, micEnabled, attachAnalyser, openSignalingSocket, startSpeakingTick, teardown]);
 
   const leaveMic = useCallback(() => {
     teardown();
@@ -445,6 +681,8 @@ export function useVoiceRoom(projectId: ProjectId | null): VoiceRoomHandle {
     micEnabled,
     speakerEnabled,
     error,
+    speakingConnIds,
+    localSpeaking: speakingConnIds.has('local'),
     joinMic,
     leaveMic,
     setMicEnabled,
