@@ -1,0 +1,121 @@
+{
+  "appName": "Scribe",
+  "appTagline": "Édition LaTeX collaborative pour tous",
+
+  "theme": {
+    "label": "Thème",
+    "light": "Clair",
+    "dark": "Sombre",
+    "highContrast": "Contraste élevé"
+  },
+
+  "common": {
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "delete": "Supprimer",
+    "loading": "Chargement",
+    "back": "Retour",
+    "continue": "Continuer",
+    "create": "Créer",
+    "rename": "Renommer",
+    "upload": "Importer",
+    "search": "Rechercher",
+    "close": "Fermer",
+    "tryAgain": "Réessayer",
+    "comingSoon": "Bientôt disponible",
+    "openProject": "Ouvrir le projet",
+    "download": "Télécharger"
+  },
+
+  "collab": {
+    "presenceLabel": "Personnes présentes",
+    "compile": "Compiler"
+  },
+
+  "command": {
+    "title": "Palette de commandes",
+    "placeholder": "Tapez une commande…",
+    "groupActions": "Actions",
+    "groupPanels": "Panneaux",
+    "groupFiles": "Fichiers",
+    "compile": "Compiler",
+    "aiAssist": "Assistance IA…",
+    "snapshotNow": "Capturer maintenant",
+    "toggleOutline": "Afficher/masquer le plan",
+    "toggleReview": "Afficher/masquer les commentaires",
+    "toggleHistory": "Afficher/masquer l'historique",
+    "toggleBibliography": "Afficher/masquer la bibliographie",
+    "toggleAIChat": "Afficher/masquer le chat IA",
+    "toggleMath": "Afficher/masquer les symboles maths"
+  },
+
+  "compile": {
+    "runButton": "Compiler",
+    "running": "Compilation…",
+    "saved": "Enregistré",
+    "noPdf": "Lancez une compilation pour voir le PDF.",
+    "openTexFile": "Ouvrez un fichier .tex dans l'arborescence pour commencer.",
+    "viewPdf": "PDF",
+    "viewLog": "Journal"
+  },
+
+  "auth": {
+    "signIn": "Se connecter",
+    "signOut": "Se déconnecter",
+    "signUp": "S'inscrire",
+    "email": "E-mail",
+    "password": "Mot de passe",
+    "forgotPassword": "Mot de passe oublié ?",
+    "magicLinkSent": "Un lien magique a été envoyé à votre e-mail."
+  },
+
+  "dashboard": {
+    "title": "Vos projets",
+    "subtitle": "Créez, ouvrez et gérez vos projets LaTeX.",
+    "newProject": "Nouveau projet",
+    "emptyTitle": "Aucun projet pour l'instant",
+    "loadError": "Impossible de charger les projets."
+  },
+
+  "project": {
+    "actions": "Actions du projet",
+    "rename": "Renommer",
+    "duplicate": "Dupliquer",
+    "projectSettings": "Paramètres du projet",
+    "members": "Membres",
+    "collapseSidebar": "Réduire la barre latérale",
+    "expandSidebar": "Développer la barre latérale",
+    "morePanels": "Plus de panneaux",
+    "showPreview": "Afficher l'aperçu",
+    "hidePreview": "Masquer l'aperçu"
+  },
+
+  "export": {
+    "menuLabel": "Exporter et télécharger",
+    "downloadZip": "Télécharger en .zip",
+    "downloadPdf": "Télécharger le PDF compilé",
+    "exportMarkdown": "Exporter en Markdown (.md)",
+    "exportWord": "Exporter en Word (.docx)"
+  },
+
+  "image": {
+    "loading": "Chargement de l'image…",
+    "fit": "Adapter au volet"
+  },
+
+  "errors": {
+    "generic": "Quelque chose a mal tourné. Veuillez réessayer.",
+    "network": "Impossible de joindre le serveur.",
+    "somethingWentWrong": "Quelque chose a mal tourné",
+    "backToDashboard": "Retour au tableau de bord",
+    "couldntLoadProject": "Impossible de charger ce projet",
+    "couldntLoadDashboard": "Impossible de charger vos projets",
+    "pageNotFound": "Page introuvable"
+  },
+
+  "settings": {
+    "title": "Paramètres",
+    "language": "Langue",
+    "languageHint": "La langue change immédiatement."
+  }
+}

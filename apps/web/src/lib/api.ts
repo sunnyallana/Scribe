@@ -175,7 +175,7 @@ export const api = {
       fetchJson(`/api/projects/${projectId}/compiles`),
     get: (jobId: CompileJobId): Promise<CompileJob> =>
       fetchJson(`/api/compiles/${jobId}`),
-    artifactUrl: (jobId: CompileJobId, kind: 'pdf' | 'log' | 'synctex'): Promise<{ url: string }> =>
+    artifactUrl: (jobId: CompileJobId, kind: 'pdf' | 'log' | 'synctex' | 'bbl'): Promise<{ url: string }> =>
       fetchJson(`/api/compiles/${jobId}/artifact-url?kind=${kind}`),
   },
   comments: {

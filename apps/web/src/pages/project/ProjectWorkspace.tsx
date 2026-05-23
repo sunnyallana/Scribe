@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@scribe/ui';
 import { type PresenceUser } from '@scribe/yjs-provider';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BookText,
   CameraIcon,
@@ -37,6 +37,7 @@ import { useTranslation } from 'react-i18next';
 import { type ImperativePanelHandle, Panel, PanelGroup } from 'react-resizable-panels';
 import { toast } from 'sonner';
 
+import { findBibKeyInBbl, findEntryLineInBib } from '../../lib/bblToBib';
 import { log } from '../../lib/debug';
 
 import { ErrorBoundary } from '../../components/ErrorBoundary/ErrorBoundary';
@@ -47,6 +48,7 @@ import { AICommandPalette } from '../../components/AICommandPalette/AICommandPal
 import { BibliographyPanel } from '../../components/Bibliography/BibliographyPanel';
 import { CommandPalette, type CommandItem } from '../../components/CommandPalette/CommandPalette';
 import { MathPalette } from '../../components/MathPalette/MathPalette';
+import { ImageViewer } from '../../components/ImageViewer/ImageViewer';
 import { OutlinePanel } from '../../components/Outline/OutlinePanel';
 import { LatexEditor, type LatexEditorImperativeHandle } from '../../components/Editor/LatexEditor';
 import { PresenceAvatars } from '../../components/Editor/PresenceAvatars';
@@ -58,7 +60,7 @@ import { useCompileSession } from '../../hooks/useCompileSession';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { lookup, lookupReverse, useSyncTeX } from '../../hooks/useSyncTeX';
 import { useYjsDoc } from '../../hooks/useYjsDoc';
-import { api, type ApiError } from '../../lib/api';
+import { api, ApiError } from '../../lib/api';
 import { API_URL, getAccessTokenSync } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/auth';
 import { useSettings } from '../../stores/settings';
@@ -94,6 +96,22 @@ function isEditableTextFile(file: ProjectFile): boolean {
   const lower = file.path.toLowerCase();
   const BINARY_EXT = ['.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.eps', '.zip'];
   return !BINARY_EXT.some((ext) => lower.endsWith(ext));
+}
+
+/** Browser-renderable image extensions. We open these in the
+ *  ImageViewer instead of showing the "binary file" placeholder.
+ *  .eps deliberately omitted — browsers can't render PostScript
+ *  directly; we keep the placeholder there. */
+const VIEWABLE_IMAGE_EXT = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.avif'];
+function isViewableImage(file: ProjectFile): boolean {
+  if (file.type === 'image') {
+    // Some uploads have type='image' but an unknown extension;
+    // still try if it's listed.
+    const lower = file.path.toLowerCase();
+    return VIEWABLE_IMAGE_EXT.some((ext) => lower.endsWith(ext));
+  }
+  const lower = file.path.toLowerCase();
+  return VIEWABLE_IMAGE_EXT.some((ext) => lower.endsWith(ext));
 }
 
 type RightPanelId = 'outline' | 'review' | 'history' | 'bibliography' | 'ai-chat' | 'math' | null;
@@ -364,25 +382,84 @@ export function ProjectWorkspace({
     setEditorPrimed(true);
   }, [editorPrimed, yjs.synced, yjs.yText, fileContent.data]);
 
-  // Parse all .bib files in the project; cache entries + keys.
-  const bibContents = useQuery({
-    queryKey: ['bib-entries', projectId],
-    queryFn: async () => {
-      const bibFiles = files.filter((f) => f.type === 'bib' || f.path.endsWith('.bib'));
-      const results = await Promise.allSettled(
-        bibFiles.map((f) => api.files.readContent(projectId, f.id)),
-      );
-      const entries: BibEntry[] = [];
-      for (const r of results) {
-        if (r.status === 'fulfilled') {
-          entries.push(...parseBibTeX(r.value.content));
-        }
-      }
-      return entries;
-    },
+  // Fetch every .tex file's content so the Outline panel can show
+  // sections from the whole project, not just the currently-open
+  // file. Per-file React-Query entries (one query per file) instead
+  // of a single allSettled-wrapped batch — three benefits:
+  //
+  //   1. The outline renders INCREMENTALLY: each file that finishes
+  //      shows up in the panel immediately, instead of all of them
+  //      blocking on the slowest one.
+  //   2. Each per-file fetch piggybacks off the editor reader's
+  //      `file-content` cache (same query key), so when the active
+  //      file is also a .tex file we don't double-fetch.
+  //   3. Files already in cache from a previous visit render with
+  //      zero network round-trip.
+  //
+  // Gated on the outline panel being visible to avoid pulling
+  // dozens of files on every project open.
+  const texFiles = useMemo(
+    () => files.filter((f) => f.type === 'tex' || f.path.endsWith('.tex')),
+    [files],
+  );
+  const outlineFileQueries = useQueries({
+    queries: texFiles.map((f) => ({
+      queryKey: ['file-content', projectId, f.id],
+      enabled: rightPanel === 'outline',
+      queryFn: () => api.files.readContent(projectId, f.id),
+      staleTime: 30_000,
+    })),
   });
+  // Merge in the live editor buffer for the open .tex file so newly
+  // added sections appear immediately, without waiting for autosave
+  // (~800 ms) and a fresh fetch.
+  const outlineContents = useMemo(() => {
+    const merged = new Map<string, string>();
+    for (let i = 0; i < texFiles.length; i += 1) {
+      const file = texFiles[i];
+      const q = outlineFileQueries[i];
+      if (file !== undefined && q?.data !== undefined) {
+        merged.set(file.path, q.data.content);
+      }
+    }
+    if (
+      selectedFile !== null &&
+      (selectedFile.type === 'tex' || selectedFile.path.endsWith('.tex')) &&
+      editorContent.length > 0
+    ) {
+      merged.set(selectedFile.path, editorContent);
+    }
+    return merged;
+  }, [texFiles, outlineFileQueries, selectedFile, editorContent]);
 
-  const bibEntries = bibContents.data ?? [];
+  // .bib files — shared between (a) the cite-key autocomplete in
+  // the editor, (b) the bibliography panel UI, and (c) the bbl-to-
+  // bib reverse lookup. We fetch each file's raw content via React
+  // Query, using the same `file-content` cache key the editor
+  // reader uses so a .bib that's open in the editor is a free hit.
+  // The parsed BibEntry[] is derived from that — single source of
+  // truth, one fetch per file across the whole page lifetime.
+  const bibFiles = useMemo(
+    () => files.filter((f) => f.type === 'bib' || f.path.endsWith('.bib')),
+    [files],
+  );
+  const bibContentQueries = useQueries({
+    queries: bibFiles.map((f) => ({
+      queryKey: ['file-content', projectId, f.id],
+      enabled: bibFiles.length > 0,
+      queryFn: () => api.files.readContent(projectId, f.id),
+      staleTime: 60 * 1000,
+    })),
+  });
+  const bibEntries = useMemo(() => {
+    const out: BibEntry[] = [];
+    for (const q of bibContentQueries) {
+      if (q.data !== undefined) {
+        out.push(...parseBibTeX(q.data.content));
+      }
+    }
+    return out;
+  }, [bibContentQueries]);
   const autocomplete: AutocompleteSources = useMemo(
     () => ({
       labels,
@@ -530,44 +607,291 @@ export function ProjectWorkspace({
     return () => { window.removeEventListener('beforeunload', onUnload); };
   }, [projectId, selectedFile]);
 
+  // Map a SyncTeX-recorded path (or a log-parser-extracted path) to
+  // the matching project file. SyncTeX is inconsistent across
+  // distributions: it might store `./sec/intro.tex`, `sec/intro` (no
+  // extension), the basename alone, or the absolute path inside the
+  // compile workdir. We try matchers in order of specificity and
+  // stop at the first hit so a basename match never trumps a full
+  // path match.
+  const resolveProjectFile = useCallback(
+    (raw: string): ProjectFile | undefined => {
+      // Normalise separators (Windows-style backslashes show up when
+      // MiKTeX is the underlying engine) and strip leading `./`.
+      const cleaned = raw.replace(/\\/g, '/').replace(/^\.\//, '').trim();
+      const withTexExt = cleaned.endsWith('.tex') ? cleaned : `${cleaned}.tex`;
+      const cleanedBase = cleaned.substring(cleaned.lastIndexOf('/') + 1);
+      const baseWithExt = cleanedBase.endsWith('.tex')
+        ? cleanedBase
+        : `${cleanedBase}.tex`;
+
+      // 1. Exact path match.
+      let target = files.find((f) => f.path === cleaned);
+      if (target !== undefined) return target;
+
+      // 2. Path equality after appending `.tex` (covers \input{foo}
+      //    recorded without the extension).
+      target = files.find((f) => f.path === withTexExt);
+      if (target !== undefined) return target;
+
+      // 3. Suffix match: SyncTeX gave us a longer path (e.g. absolute
+      //    inside a temp workdir) that ends with our project path.
+      target = files.find(
+        (f) => cleaned.endsWith(`/${f.path}`) || withTexExt.endsWith(`/${f.path}`),
+      );
+      if (target !== undefined) return target;
+
+      // 4. Reverse suffix: our project path ends with the cleaned
+      //    record (when SyncTeX stored just the basename or a
+      //    sub-path).
+      target = files.find(
+        (f) =>
+          f.path.endsWith(`/${cleaned}`) ||
+          f.path.endsWith(`/${withTexExt}`),
+      );
+      if (target !== undefined) return target;
+
+      // 5. Basename-only match — last resort; lossy when two files
+      //    in different folders share a name, but better than a
+      //    silent miss.
+      target = files.find((f) => {
+        const fname = f.path.substring(f.path.lastIndexOf('/') + 1);
+        return fname === cleanedBase || fname === baseWithExt;
+      });
+      return target;
+    },
+    [files],
+  );
+
+  // Pending cross-file jump. The previous "setTimeout(..., 220ms)"
+  // approach failed when the editor needed longer than 220 ms to
+  // mount with the new file's content — the gotoLine call fired
+  // against an editor that was still bootstrapping, so it no-op'd
+  // and the user had to double-click again. This state holds the
+  // jump until the editor for the right file is genuinely ready;
+  // the effect below fires the jump deterministically once that's
+  // true, with no fixed-delay guesswork.
+  const [pendingJump, setPendingJump] = useState<
+    { fileId: string; line: number; flash: boolean } | null
+  >(null);
+
   const handleJumpTo = useCallback(
     (filePath: string, line: number) => {
-      const target = files.find(
-        (f) => f.path === filePath || f.path === filePath.replace(/^\.\//, ''),
-      );
-      if (target !== undefined && target.id !== selectedFile?.id) {
+      const target = resolveProjectFile(filePath);
+      if (target === undefined) return;
+      if (target.id !== selectedFile?.id) {
+        setPendingJump({ fileId: target.id, line, flash: false });
         onSelectFile(target);
-        // Defer until the file loads — best-effort jump.
-        setTimeout(() => editorRef.current?.gotoLine(line), 200);
       } else {
         editorRef.current?.gotoLine(line);
       }
     },
-    [files, selectedFile, onSelectFile],
+    [resolveProjectFile, selectedFile, onSelectFile],
+  );
+
+  // Range jump used by the Reviews panel — opens the target file and
+  // selects the exact block that was anchored when the comment was
+  // made. `snippet` is the resilience fallback: when later edits have
+  // shifted line numbers, we search for the original snippet text in
+  // the current doc and select that span instead. Stale anchors that
+  // can't be found anywhere fall back to a plain gotoLine of the
+  // recorded start line — no silent misses.
+  const handleJumpToRange = useCallback(
+    (
+      filePath: string,
+      from: { line: number; column: number },
+      to: { line: number; column: number },
+      snippet: string | null,
+    ) => {
+      const target = resolveProjectFile(filePath);
+      if (target === undefined) return;
+      const doSelect = () => {
+        const handle = editorRef.current;
+        if (handle === null) return;
+        if (snippet !== null && snippet.length > 0) {
+          // Try the snippet first — it's resilient to line drift.
+          const content = handle.getContent();
+          const idx = content.indexOf(snippet);
+          if (idx !== -1) {
+            // Convert character offset → (line, column).
+            const before = content.slice(0, idx);
+            const line = before.split(/\r?\n/).length;
+            const lastNL = before.lastIndexOf('\n');
+            const column = lastNL === -1 ? idx : idx - lastNL - 1;
+            const endBefore = content.slice(0, idx + snippet.length);
+            const endLine = endBefore.split(/\r?\n/).length;
+            const lastNLEnd = endBefore.lastIndexOf('\n');
+            const endColumn =
+              lastNLEnd === -1 ? idx + snippet.length : idx + snippet.length - lastNLEnd - 1;
+            handle.selectRange(
+              { line, column },
+              { line: endLine, column: endColumn },
+              { flash: true },
+            );
+            return;
+          }
+        }
+        // No snippet, or snippet has been edited away — fall back
+        // to the recorded line/column positions.
+        handle.selectRange(from, to, { flash: true });
+      };
+      if (target.id !== selectedFile?.id) {
+        setPendingJump({ fileId: target.id, line: from.line, flash: true });
+        onSelectFile(target);
+        // Once the pending-jump effect fires its gotoLine, refine
+        // to a proper range selection on the next frame.
+        setTimeout(doSelect, 250);
+      } else {
+        doSelect();
+      }
+    },
+    [resolveProjectFile, selectedFile, onSelectFile],
+  );
+
+  // ---- Bibliography reverse-lookup ----
+  //
+  // SyncTeX only ever sees `main.bbl` (BibTeX's output that pdflatex
+  // consumes); it never references the source `.bib`. The .bbl text
+  // is fetched once per compile job and cached so the click handler
+  // below is a synchronous cache read; bib contents are already
+  // cached by the shared `bibContentQueries` above.
+
+  // .bbl text, keyed by compile job ID. One-shot per compile —
+  // .bbl content can't change after the compile finishes, so a
+  // long staleTime + Infinity gcTime is safe and makes second-click
+  // latency literally zero. Eagerly enabled the moment a job ID +
+  // a .bib file are both present, which is the prefetch behaviour.
+  const bblQuery = useQuery({
+    queryKey: ['compile-bbl', compileSession.job?.id],
+    enabled: compileSession.job?.id !== undefined && bibFiles.length > 0,
+    queryFn: async () => {
+      const jobId = compileSession.job?.id;
+      if (jobId === undefined) throw new Error('no compile job');
+      const { url } = await api.compiles.artifactUrl(jobId, 'bbl');
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`bbl HTTP ${resp.status.toString()}`);
+      return resp.text();
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: Infinity,
+    // Don't retry the 404 we get for compiles that ran before the
+    // .bbl-upload feature shipped — useless and noisy.
+    retry: (failureCount, err) =>
+      !(err instanceof ApiError && err.status === 404) && failureCount < 2,
+  });
+
+  const handleBblInverseSync = useCallback(
+    (bblLine: number) => {
+      const jobId = compileSession.job?.id;
+      if (jobId === undefined) {
+        toast.info(t('compile.inverseSyncBblNeedsCompile'));
+        return;
+      }
+      if (bibFiles.length === 0) {
+        toast.info(t('compile.inverseSyncBblNoBib'));
+        return;
+      }
+      // Read straight from the React Query cache. If the prefetch
+      // already landed (it will have, in steady state) this is
+      // synchronous; otherwise the click waits on the same fetch
+      // that any future click would have waited on too.
+      const bblText = bblQuery.data;
+      if (bblText === undefined) {
+        if (bblQuery.error !== null) {
+          toast.info(t('compile.inverseSyncBblFetchFailed'));
+        } else {
+          toast.info(t('common.loading'));
+        }
+        return;
+      }
+      const key = findBibKeyInBbl(bblText, bblLine);
+      if (key === null) {
+        toast.info(t('compile.inverseSyncBblKeyMiss'));
+        return;
+      }
+      // Walk cached .bib contents — synchronous, fast. Falls back
+      // to a "still loading" toast if any are pending, but that's
+      // unlikely after the prefetch fired.
+      for (let i = 0; i < bibFiles.length; i += 1) {
+        const bib = bibFiles[i];
+        const q = bibContentQueries[i];
+        if (bib === undefined || q?.data === undefined) continue;
+        const entryLine = findEntryLineInBib(q.data.content, key);
+        if (entryLine === null) continue;
+        if (bib.id !== selectedFile?.id) {
+          setPendingJump({ fileId: bib.id, line: entryLine, flash: true });
+          onSelectFile(bib);
+        } else {
+          editorRef.current?.gotoLine(entryLine, { flash: true });
+        }
+        return;
+      }
+      log.compile.warn('inverse-sync: cite key not found in any .bib', {
+        key,
+        searchedFiles: bibFiles.map((b) => b.path),
+      });
+      toast.info(t('compile.inverseSyncBblEntryMiss', { key }));
+    },
+    [
+      compileSession.job?.id,
+      bibFiles,
+      bibContentQueries,
+      bblQuery.data,
+      bblQuery.error,
+      selectedFile,
+      onSelectFile,
+      t,
+    ],
   );
 
   const handleInverseSync = useCallback(
     (page: number, x: number, y: number) => {
-      const loc = lookupReverse(synctex.index, page, x, y);
+      // Accept records pointing at project files AS WELL AS the
+      // bibliography (`.bbl`). Without admitting `.bbl` through the
+      // filter, citation clicks would silently miss because the
+      // BibTeX-emitted file isn't in the project's source tree.
+      const loc = lookupReverse(synctex.index, page, x, y, (filename) => {
+        if (filename.toLowerCase().endsWith('.bbl')) return true;
+        return resolveProjectFile(filename) !== undefined;
+      });
       if (loc === null) {
         toast.info(t('compile.inverseSyncMiss'));
         return;
       }
-      // Switch file if needed, then jump-and-flash. The 200ms inside
-      // handleJumpTo waits for the new file's editor to mount before
-      // invoking gotoLine; we replicate the same delay here so the flash
-      // happens in the *target* file's editor instance.
-      const target = files.find(
-        (f) => f.path === loc.filename || f.path === loc.filename.replace(/^\.\//, ''),
-      );
-      if (target !== undefined && target.id !== selectedFile?.id) {
+      // Bibliography path: translate (.bbl, line) into the matching
+      // .bib entry. Async because we have to fetch the .bbl.
+      if (loc.filename.toLowerCase().endsWith('.bbl')) {
+        void handleBblInverseSync(loc.line);
+        return;
+      }
+      const target = resolveProjectFile(loc.filename);
+      if (target === undefined) {
+        log.compile.warn('inverse-sync: source file not in project', {
+          synctexPath: loc.filename,
+          line: loc.line,
+          knownPaths: files.map((f) => f.path),
+        });
+        toast.info(t('compile.inverseSyncMiss'));
+        return;
+      }
+      if (target.id !== selectedFile?.id) {
+        // Cross-file jump — defer until the editor remounts with
+        // the new file's content (see comment on `pendingJump`).
+        setPendingJump({ fileId: target.id, line: loc.line, flash: true });
         onSelectFile(target);
-        setTimeout(() => editorRef.current?.gotoLine(loc.line, { flash: true }), 220);
       } else {
         editorRef.current?.gotoLine(loc.line, { flash: true });
       }
     },
-    [synctex.index, files, selectedFile, onSelectFile, t],
+    [
+      synctex.index,
+      resolveProjectFile,
+      files,
+      selectedFile,
+      onSelectFile,
+      t,
+      handleBblInverseSync,
+    ],
   );
 
   const logEntries = compileSession.entries;
@@ -612,6 +936,26 @@ export function ProjectWorkspace({
   const editorReady =
     editorReadyNow ||
     (selectedFile !== null && stickyReadyFileId === selectedFile.id);
+
+  // Fire any deferred cross-file jump once the editor for the target
+  // file is *actually* mounted and primed. Relying on a fixed delay
+  // was racy — large files or a still-syncing Yjs handshake would
+  // miss the timer and the user had to double-click again. Here we
+  // listen for the genuine "ready" signal and only then invoke
+  // gotoLine — robust regardless of mount latency.
+  useEffect(() => {
+    if (pendingJump === null) return;
+    if (selectedFile?.id !== pendingJump.fileId) return;
+    if (!editorReady) return;
+    // One more microtask to make sure the editor's view has the
+    // initial doc content laid out (gotoLine is a no-op against an
+    // empty doc).
+    const id = window.setTimeout(() => {
+      editorRef.current?.gotoLine(pendingJump.line, { flash: pendingJump.flash });
+      setPendingJump(null);
+    }, 0);
+    return () => { window.clearTimeout(id); };
+  }, [pendingJump, selectedFile?.id, editorReady]);
 
   const commandList = useMemo<CommandItem[]>(() => {
     const cmds: CommandItem[] = [
@@ -869,11 +1213,15 @@ export function ProjectWorkspace({
         </div>
       </div>
       <div className="flex-1 overflow-hidden">
-        {selectedFile === null || !isEditableTextFile(selectedFile) ? (
+        {selectedFile === null ? (
           <div className="flex h-full items-center justify-center bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-            {selectedFile === null
-              ? t('compile.openTexFile')
-              : t('compile.nonTextFile', { path: selectedFile.path })}
+            {t('compile.openTexFile')}
+          </div>
+        ) : isViewableImage(selectedFile) ? (
+          <ImageViewer projectId={projectId} file={selectedFile} />
+        ) : !isEditableTextFile(selectedFile) ? (
+          <div className="flex h-full items-center justify-center bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+            {t('compile.nonTextFile', { path: selectedFile.path })}
           </div>
         ) : !editorReady ? (
           <div className="flex h-full items-center justify-center">
@@ -945,17 +1293,22 @@ export function ProjectWorkspace({
             <Panel defaultSize={25} minSize={15} maxSize={45}>
               {rightPanel === 'outline' ? (
                 <OutlinePanel
-                  content={editorContent}
-                  onJump={(line) => { editorRef.current?.gotoLine(line); }}
+                  contents={outlineContents}
+                  mainFile={project.mainFile}
+                  onJump={(filePath, line) => { handleJumpTo(filePath, line); }}
                   onClose={() => { setRightPanel(null); }}
                 />
               ) : null}
               {rightPanel === 'review' ? (
                 <ReviewPanel
                   projectId={projectId}
+                  files={files}
                   selectedFile={selectedFile}
                   currentLine={cursorLine}
-                  onJumpTo={handleJumpTo}
+                  getEditorSelection={() => editorRef.current?.getSelectionRange() ?? null}
+                  onJumpToRange={(filePath, from, to, snippet) => {
+                    handleJumpToRange(filePath, from, to, snippet);
+                  }}
                   onClose={() => { setRightPanel(null); }}
                 />
               ) : null}

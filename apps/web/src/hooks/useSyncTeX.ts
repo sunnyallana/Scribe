@@ -86,7 +86,12 @@ export function lookupReverse(
   page: number,
   x: number,
   y: number,
+  /** Filter out records from non-project files (e.g. `.cls` / `.sty`
+   *  / `.fd`). Without this the picker happily returns
+   *  "IEEEtran.cls:1842" because the system class file owns the
+   *  page-layout records and they overlap with body-text positions. */
+  filter?: (filename: string) => boolean,
 ): SyncTeXSourceLocation | null {
   if (index === null) return null;
-  return lookupInverse(index, page, x, y);
+  return lookupInverse(index, page, x, y, filter);
 }
