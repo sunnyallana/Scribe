@@ -279,7 +279,11 @@ fn row_to_file(row: sqlx::postgres::PgRow) -> ProjectFile {
 }
 
 fn internal(err: sqlx::Error) -> ApiError {
-    ApiError::new(ErrorCode::Internal, format!("db: {err}"))
+    // sqlx Display can leak schema details and (rarely) connection
+    // info into the user-facing string. Log the full error
+    // server-side via tracing and hand the client a generic message.
+    tracing::error!(?err, "database error in files service");
+    ApiError::new(ErrorCode::Internal, "Database error")
 }
 
 /// Map Postgres unique-violation (23505) to a 409 so the client can

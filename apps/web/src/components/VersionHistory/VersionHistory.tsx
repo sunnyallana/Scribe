@@ -40,7 +40,15 @@ export function VersionHistory({ projectId, onClose }: VersionHistoryProps) {
     mutationFn: (versionId) => api.versions.restore(projectId, versionId),
     onSuccess: async () => {
       toast.success(t('history.restored'));
-      await queryClient.invalidateQueries();
+      // Restore only rewrites file content + sizes for files that
+      // existed in the snapshot. Invalidate just those query keys
+      // instead of nuking the whole React Query cache (which previously
+      // forced spinners on every panel — members, comments, AI config —
+      // for no reason).
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['files', projectId] }),
+        queryClient.invalidateQueries({ queryKey: ['file-content', projectId] }),
+      ]);
     },
     onError: (err) => {
       toast.error(err.body.message);

@@ -57,7 +57,9 @@ impl CommentService {
                 insert into public.comments
                     (project_id, file_id, parent_id, author_id, anchor_line, anchor_column, body)
                 values ($1, $2, $3, $4, $5, $6, $7)
-                returning *
+                returning id, project_id, file_id, parent_id, author_id,
+                          anchor_line, anchor_column, body,
+                          resolved_at, resolved_by, created_at, updated_at
             )
             select i.id, i.project_id, i.file_id, i.parent_id, i.author_id,
                    u.display_name as author_display_name,
@@ -104,7 +106,9 @@ impl CommentService {
                         else resolved_by
                     end
                 where project_id = $5 and id = $6
-                returning *
+                returning id, project_id, file_id, parent_id, author_id,
+                          anchor_line, anchor_column, body,
+                          resolved_at, resolved_by, created_at, updated_at
             )
             select u.id, u.project_id, u.file_id, u.parent_id, u.author_id,
                    au.display_name as author_display_name,
@@ -194,5 +198,6 @@ fn row_to_comment(row: sqlx::postgres::PgRow) -> Comment {
 }
 
 fn internal(err: sqlx::Error) -> ApiError {
-    ApiError::new(ErrorCode::Internal, format!("db: {err}"))
+    tracing::error!(?err, "database error in comments service");
+    ApiError::new(ErrorCode::Internal, "Database error")
 }

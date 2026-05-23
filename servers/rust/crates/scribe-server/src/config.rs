@@ -38,9 +38,7 @@ impl Default for AppEnv {
 }
 
 impl AppEnv {
-    pub fn is_dev(self) -> bool { matches!(self, Self::Development) }
     pub fn is_prod(self) -> bool { matches!(self, Self::Production) }
-    pub fn is_test(self) -> bool { matches!(self, Self::Testing) }
 
     fn from_str_loose(s: &str) -> Option<Self> {
         match s.trim().to_ascii_lowercase().as_str() {

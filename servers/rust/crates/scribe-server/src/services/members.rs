@@ -207,7 +207,8 @@ fn row_to_member(row: sqlx::postgres::PgRow) -> ProjectMember {
 }
 
 fn internal(err: sqlx::Error) -> ApiError {
-    ApiError::new(ErrorCode::Internal, format!("db: {err}"))
+    tracing::error!(?err, "database error in members service");
+    ApiError::new(ErrorCode::Internal, "Database error")
 }
 
 /// Map the `(project_id, user_id)` and `(project_id, lower(invited_email))`

@@ -362,10 +362,16 @@ impl Worker {
         let pdf_path = workdir.join(format!("{base_name}.pdf"));
         let log_path = workdir.join(format!("{base_name}.log"));
         let synctex_path = workdir.join(format!("{base_name}.synctex.gz"));
+        // Cap each artifact read so a runaway compile (huge synctex,
+        // looping PDF) can't OOM the worker. Sizes chosen to leave
+        // generous headroom for real documents.
+        const MAX_PDF_BYTES: u64 = 256 * 1024 * 1024;  // 256 MiB
+        const MAX_LOG_BYTES: u64 = 32 * 1024 * 1024;   // 32 MiB
+        const MAX_SYNCTEX_BYTES: u64 = 128 * 1024 * 1024; // 128 MiB
         let (pdf, log_file, synctex) = tokio::join!(
-            fs::read(&pdf_path),
-            fs::read(&log_path),
-            fs::read(&synctex_path),
+            read_capped(&pdf_path, MAX_PDF_BYTES),
+            read_capped(&log_path, MAX_LOG_BYTES),
+            read_capped(&synctex_path, MAX_SYNCTEX_BYTES),
         );
 
         let pdf_bytes = pdf.ok();
@@ -579,4 +585,24 @@ struct Artifacts {
 #[allow(dead_code)]
 fn _assert_job_id_visible(id: CompileJobId) {
     debug_assert_ne!(id.into_inner(), Uuid::nil());
+}
+
+/// Read a file into memory, refusing if `metadata().len()` exceeds
+/// `max_bytes`. Cheap stat-then-read rather than streaming, since these
+/// artifacts are small enough that streaming would just add complexity.
+async fn read_capped(path: &Path, max_bytes: u64) -> std::io::Result<Vec<u8>> {
+    let meta = fs::metadata(path).await?;
+    if meta.len() > max_bytes {
+        tracing::warn!(
+            file = %path.display(),
+            size = meta.len(),
+            cap = max_bytes,
+            "refusing to read artifact: exceeds cap",
+        );
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("artifact exceeds {max_bytes}-byte cap"),
+        ));
+    }
+    fs::read(path).await
 }

@@ -27,6 +27,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 import { api, type ApiError } from '../../lib/api';
+import { log } from '../../lib/debug';
 
 interface FileTreeProps {
   readonly projectId: ProjectId;
@@ -238,7 +239,12 @@ export function FileTree({ projectId, files, selectedFileId, onSelect }: FileTre
     let entries: Record<string, Uint8Array>;
     try {
       entries = unzipSync(buffer);
-    } catch {
+    } catch (err) {
+      // Underlying error matters for bug reports — a corrupt ZIP and
+      // an unsupported algorithm (e.g. encrypted) fail the same way
+      // from the user's perspective. Log it so a console.export tells
+      // us which it was.
+      log.editor.warn('zip unpack failed', err, { name: file.name, bytes: file.size });
       toast.error(t('project.zipParseFailed'));
       return;
     }

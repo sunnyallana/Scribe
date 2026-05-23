@@ -80,16 +80,33 @@ impl VersionService {
         .await
         .map_err(internal)?;
 
-        let mut files: Vec<VersionFile> = Vec::with_capacity(file_rows.len());
-        let mut total_bytes: i64 = 0;
-        for row in file_rows {
+        // Download every text-ish file in parallel rather than awaiting
+        // each one sequentially. With ~10 files at ~50ms each that's
+        // ~50ms total instead of ~500ms.
+        let downloads = file_rows.into_iter().map(|row| {
             let path: String = row.get("path");
             let storage_key: String = row.get("storage_key");
-            let bytes = self.storage.download(PROJECT_FILES_BUCKET, &storage_key).await?;
-            let content = String::from_utf8(bytes.to_vec())
-                .map_err(|err| ApiError::internal(format!("utf-8: {err}")))?;
-            total_bytes += content.len() as i64;
-            files.push(VersionFile { path, content });
+            let storage = self.storage.clone();
+            async move {
+                let bytes = storage.download(PROJECT_FILES_BUCKET, &storage_key).await?;
+                let content = String::from_utf8(bytes.to_vec())
+                    .map_err(|err| ApiError::internal(format!("utf-8: {err}")))?;
+                Ok::<VersionFile, ApiError>(VersionFile { path, content })
+            }
+        });
+        let files: Vec<VersionFile> = futures::future::try_join_all(downloads).await?;
+        let total_bytes: i64 = files.iter().map(|f| f.content.len() as i64).sum();
+        // Hard cap on snapshot total — keeps a malicious/runaway project
+        // from materialising a multi-GB JSON in memory.
+        const MAX_SNAPSHOT_BYTES: i64 = 64 * 1024 * 1024; // 64 MiB
+        if total_bytes > MAX_SNAPSHOT_BYTES {
+            return Err(ApiError::new(
+                ErrorCode::PayloadTooLarge,
+                format!(
+                    "version snapshot would be {} bytes; max is {}",
+                    total_bytes, MAX_SNAPSHOT_BYTES
+                ),
+            ));
         }
 
         let version_id = VersionId::new(Uuid::new_v4());
@@ -229,5 +246,6 @@ fn row_to_version(row: sqlx::postgres::PgRow) -> ProjectVersion {
 }
 
 fn internal(err: sqlx::Error) -> ApiError {
-    ApiError::new(ErrorCode::Internal, format!("db: {err}"))
+    tracing::error!(?err, "database error in versions service");
+    ApiError::new(ErrorCode::Internal, "Database error")
 }

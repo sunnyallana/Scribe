@@ -75,7 +75,12 @@ export function PDFPreview({ url, compiling, highlight, onInverseSync }: PDFPrev
         setDocVersion((v) => v + 1);
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load PDF');
+          // PDF.js throws plain strings in some code paths
+          // (e.g. password-protected docs) and `Error` instances in
+          // others. `String(err)` falls back to a useful description
+          // either way instead of the generic "Failed to load PDF".
+          const message = err instanceof Error ? err.message : String(err);
+          setError(message.length > 0 ? message : 'Failed to load PDF');
         }
       } finally {
         if (!cancelled) setLoading(false);

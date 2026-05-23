@@ -48,7 +48,12 @@ struct JwkEntry {
     n: Option<String>,
     #[serde(default)]
     e: Option<String>,
+    // `crv` is part of the JWK wire format for EC keys but we don't
+    // currently inspect it (any curve advertised by the provider is
+    // accepted). Kept in the struct so unknown-field-rejection doesn't
+    // bite us if `deny_unknown_fields` is ever added.
     #[serde(default)]
+    #[allow(dead_code)]
     crv: Option<String>,
     #[serde(default)]
     x: Option<String>,

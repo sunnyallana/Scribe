@@ -60,6 +60,21 @@ export const LatexEditor = forwardRef<LatexEditorImperativeHandle, LatexEditorPr
     const handleRef = useRef<ScribeEditorHandle | null>(null);
     const { resolvedTheme } = useTheme();
 
+    // Keep the latest callbacks in refs so the editor — which is only
+    // rebuilt on `filePath` / `collab` change — can dispatch through
+    // them and never invoke a stale closure. Without this, a parent
+    // re-render that produced a new `onChange` (e.g. via `useCallback`
+    // with a changed dep) would be ignored until the next file
+    // switch, with the editor still calling the previous closure.
+    const onChangeRef = useRef(onChange);
+    const onCompileRef = useRef(onCompile);
+    const onSaveRef = useRef(onSave);
+    const onCursorRef = useRef(onCursor);
+    onChangeRef.current = onChange;
+    onCompileRef.current = onCompile;
+    onSaveRef.current = onSave;
+    onCursorRef.current = onCursor;
+
     useImperativeHandle(
       ref,
       () => ({
@@ -95,10 +110,13 @@ export const LatexEditor = forwardRef<LatexEditorImperativeHandle, LatexEditorPr
         theme: toEditorTheme(resolvedTheme),
         readOnly: readOnly ?? false,
         autocomplete,
-        onChange,
-        onCompileRequest: onCompile,
-        onSaveRequest: onSave,
-        ...(onCursor !== undefined ? { onCursor } : {}),
+        // Dispatch through the refs so the editor always sees the
+        // latest closures from the parent, even when the parent
+        // re-renders without remounting the editor.
+        onChange: (next) => { onChangeRef.current(next); },
+        onCompileRequest: () => { onCompileRef.current(); },
+        onSaveRequest: () => { onSaveRef.current(); },
+        onCursor: (line, column) => { onCursorRef.current?.(line, column); },
         ...(hasCollab ? { collab } : {}),
       });
       handleRef.current = editor;
@@ -107,6 +125,9 @@ export const LatexEditor = forwardRef<LatexEditorImperativeHandle, LatexEditorPr
         editor.destroy();
         handleRef.current = null;
       };
+      // initialContent/readOnly/autocomplete/resolvedTheme are
+      // intentionally excluded — they're either applied via the
+      // separate effects below or only matter at mount time.
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filePath, collab]);
 

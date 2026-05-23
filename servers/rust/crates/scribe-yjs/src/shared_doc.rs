@@ -22,7 +22,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 use y_sync::awareness::Awareness;
-use yrs::{Doc, ReadTxn, Transact};
+use yrs::Doc;
 
 use crate::persistence::YjsPersistence;
 
