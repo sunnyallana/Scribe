@@ -353,6 +353,7 @@ fn build_router(
         .merge(routes::comments::router())
         .merge(routes::members::router())
         .merge(routes::invites::router())
+        .merge(routes::shares::router())
         .merge(routes::versions::router())
         .merge(routes::yjs::router())
         .merge(routes::compiles::router())

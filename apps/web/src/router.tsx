@@ -8,6 +8,7 @@ import { AuthCallbackPage } from './pages/auth/AuthCallbackPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { InviteAcceptPage } from './pages/auth/InviteAcceptPage';
 import { LoginPage } from './pages/auth/LoginPage';
+import { SharePage } from './pages/auth/SharePage';
 import { SignupPage } from './pages/auth/SignupPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -24,6 +25,7 @@ export const router = createBrowserRouter([
       { path: '/forgot', element: <ForgotPasswordPage />, errorElement: <ErrorPage /> },
       { path: '/auth/callback', element: <AuthCallbackPage />, errorElement: <ErrorPage /> },
       { path: '/invite/:token', element: <InviteAcceptPage />, errorElement: <ErrorPage /> },
+      { path: '/share/:token', element: <SharePage />, errorElement: <ErrorPage /> },
       {
         element: <AuthGuard />,
         errorElement: <ErrorPage />,

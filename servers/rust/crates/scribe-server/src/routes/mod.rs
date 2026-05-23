@@ -10,6 +10,7 @@ pub mod health;
 pub mod invites;
 pub mod members;
 pub mod projects;
+pub mod shares;
 pub mod versions;
 pub mod voice;
 pub mod whoami;

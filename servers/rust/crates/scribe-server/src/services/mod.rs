@@ -12,6 +12,7 @@ pub mod invites;
 pub mod members;
 pub mod membership;
 pub mod projects;
+pub mod shares;
 pub mod templates;
 pub mod versions;
 
@@ -20,4 +21,5 @@ pub use files::FileService;
 pub use invites::InviteService;
 pub use members::MemberService;
 pub use projects::ProjectService;
+pub use shares::ShareService;
 pub use versions::VersionService;
