@@ -10,6 +10,7 @@ pub mod ids;
 pub mod error;
 pub mod files;
 pub mod members;
+pub mod notifications;
 pub mod projects;
 pub mod shares;
 pub mod versions;
@@ -34,6 +35,7 @@ pub use projects::{
     CompilerEngine, CreateFileInput, CreateProjectInput, FileContentInput, Project, ProjectFile,
     ProjectTemplate, RenameFileInput, UpdateProjectInput,
 };
+pub use notifications::{Notification, NotificationKind, UnreadCountResponse};
 pub use shares::{
     CreateShareLinkInput, RedeemShareResponse, ShareLink, SharePreview, ShareRole,
 };

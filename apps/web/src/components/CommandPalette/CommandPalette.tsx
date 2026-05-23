@@ -66,6 +66,9 @@ export function CommandPalette({ open, onOpenChange, commands }: CommandPaletteP
     return scored.map((x) => x.cmd);
   }, [commands, query]);
 
+  // Group items by `group` field while preserving the score-sorted
+  // order WITHIN each group. The iteration order of the Map mirrors
+  // the order each group first appears in `filtered`.
   const groups = useMemo(() => {
     const out = new Map<string, CommandItem[]>();
     for (const c of filtered) {
@@ -76,10 +79,26 @@ export function CommandPalette({ open, onOpenChange, commands }: CommandPaletteP
     return out;
   }, [filtered]);
 
+  // Single source of truth for keyboard nav: a flat array of items
+  // in the *rendered* order (groups concatenated). Without this,
+  // `activeIdx` referenced render position but `filtered[activeIdx]`
+  // referenced score order, causing Enter to fire the wrong command
+  // whenever grouping reordered items (the canonical case:
+  // "outline" is filtered[2] but renders 4th, after the two Actions
+  // items at the top, so Enter on the outline row would invoke
+  // filtered[3] = "review" instead).
+  const flatItems = useMemo(() => {
+    const out: CommandItem[] = [];
+    for (const items of groups.values()) {
+      for (const c of items) out.push(c);
+    }
+    return out;
+  }, [groups]);
+
   // Keep activeIdx in range.
   useEffect(() => {
-    if (activeIdx >= filtered.length) setActiveIdx(Math.max(0, filtered.length - 1));
-  }, [filtered.length, activeIdx]);
+    if (activeIdx >= flatItems.length) setActiveIdx(Math.max(0, flatItems.length - 1));
+  }, [flatItems.length, activeIdx]);
 
   // Scroll active item into view.
   useEffect(() => {
@@ -92,13 +111,16 @@ export function CommandPalette({ open, onOpenChange, commands }: CommandPaletteP
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setActiveIdx((i) => Math.min(filtered.length - 1, i + 1));
+      setActiveIdx((i) => Math.min(flatItems.length - 1, i + 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setActiveIdx((i) => Math.max(0, i - 1));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      const cmd = filtered[activeIdx];
+      // Use flatItems (render order), not `filtered` (score order)
+      // — the visual highlight follows render order via runningIdx,
+      // so Enter must resolve to the same item the user sees.
+      const cmd = flatItems[activeIdx];
       if (cmd !== undefined) {
         onOpenChange(false);
         cmd.action();

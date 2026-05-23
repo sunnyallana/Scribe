@@ -4,6 +4,7 @@ export * from './projects.js';
 export * from './files.js';
 export * from './members.js';
 export * from './invites.js';
+export * from './notifications.js';
 export * from './shares.js';
 export * from './compiles.js';
 export * from './comments.js';

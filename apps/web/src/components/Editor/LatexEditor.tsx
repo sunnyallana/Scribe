@@ -2,6 +2,7 @@ import {
   applyCompileDiagnostics,
   type AutocompleteSources,
   createScribeEditor,
+  type HoverPreviewSources,
   type ScribeEditorCollab,
   type ScribeEditorHandle,
   type ScribeEditorTheme,
@@ -39,6 +40,7 @@ interface LatexEditorProps {
   readonly initialContent: string;
   readonly readOnly?: boolean;
   readonly autocomplete: AutocompleteSources;
+  readonly hover?: HoverPreviewSources;
   readonly logEntries: readonly CompileLogEntry[];
   readonly onChange: (next: string) => void;
   readonly onCompile: () => void;
@@ -58,6 +60,7 @@ export const LatexEditor = forwardRef<LatexEditorImperativeHandle, LatexEditorPr
       initialContent,
       readOnly,
       autocomplete,
+      hover,
       logEntries,
       onChange,
       onCompile,
@@ -130,6 +133,7 @@ export const LatexEditor = forwardRef<LatexEditorImperativeHandle, LatexEditorPr
         theme: toEditorTheme(resolvedTheme),
         readOnly: readOnly ?? false,
         autocomplete,
+        ...(hover !== undefined ? { hover } : {}),
         // Dispatch through the refs so the editor always sees the
         // latest closures from the parent, even when the parent
         // re-renders without remounting the editor.
@@ -154,6 +158,10 @@ export const LatexEditor = forwardRef<LatexEditorImperativeHandle, LatexEditorPr
     useEffect(() => {
       handleRef.current?.setAutocompleteSources(autocomplete);
     }, [autocomplete]);
+
+    useEffect(() => {
+      handleRef.current?.setHoverSources(hover ?? {});
+    }, [hover]);
 
     useEffect(() => {
       handleRef.current?.setReadOnly(readOnly ?? false);

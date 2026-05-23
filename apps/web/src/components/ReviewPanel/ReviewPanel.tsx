@@ -39,6 +39,12 @@ interface ReviewPanelProps {
     snippet: string | null,
   ) => void;
   readonly onClose: () => void;
+  /** Used to gate the resolve / delete buttons — only the author of
+   *  a comment OR the project owner sees them. Mirrors the server's
+   *  `assert_author_or_owner` policy so we never render an icon the
+   *  user can't actually use. */
+  readonly currentUserId?: string | null;
+  readonly isProjectOwner?: boolean;
 }
 
 interface CommentThread {
@@ -80,6 +86,19 @@ function initialsFor(name: string | null): string {
     .toUpperCase();
 }
 
+/** Same policy the server enforces in `assert_author_or_owner`:
+ *  resolve / delete are author-or-owner-only. We mirror it on the
+ *  client to suppress icons that would otherwise 403 on click. */
+function canModerate(
+  comment: Comment,
+  currentUserId: string | null | undefined,
+  isOwner: boolean,
+): boolean {
+  if (isOwner) return true;
+  if (currentUserId === null || currentUserId === undefined) return false;
+  return comment.authorId === currentUserId;
+}
+
 export function ReviewPanel({
   projectId,
   files,
@@ -88,6 +107,8 @@ export function ReviewPanel({
   getEditorSelection,
   onJumpToRange,
   onClose,
+  currentUserId,
+  isProjectOwner = false,
 }: ReviewPanelProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -234,6 +255,7 @@ export function ReviewPanel({
               <CommentCard
                 comment={thread.root}
                 isRoot
+                canModerate={canModerate(thread.root, currentUserId, isProjectOwner)}
                 onJump={jumpToComment}
                 onReply={() => { setReplyTo(thread.root.id); }}
                 onResolve={() => {
@@ -255,6 +277,7 @@ export function ReviewPanel({
                       key={reply.id}
                       comment={reply}
                       isRoot={false}
+                      canModerate={canModerate(reply, currentUserId, isProjectOwner)}
                       onJump={jumpToComment}
                       onResolve={() => {
                         resolveMutation.mutate({
@@ -415,9 +438,13 @@ interface CommentCardProps {
   readonly onReply?: () => void;
   readonly onResolve: () => void;
   readonly onDelete: () => void;
+  /** When false, the resolve + delete icons are hidden. The
+   *  back-end enforces the same policy via `assert_author_or_owner`
+   *  — this is just to avoid showing buttons that would 403. */
+  readonly canModerate: boolean;
 }
 
-function CommentCard({ comment, isRoot, onJump, onReply, onResolve, onDelete }: CommentCardProps) {
+function CommentCard({ comment, isRoot, onJump, onReply, onResolve, onDelete, canModerate }: CommentCardProps) {
   const { t } = useTranslation();
   return (
     <div className="flex gap-2">
@@ -431,24 +458,26 @@ function CommentCard({ comment, isRoot, onJump, onReply, onResolve, onDelete }: 
           <span className="truncate text-xs font-medium">
             {comment.authorDisplayName ?? t('review.unknownAuthor')}
           </span>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-foreground"
-              aria-label={comment.resolvedAt === null ? t('review.resolve') : t('review.reopen')}
-              onClick={onResolve}
-            >
-              <Check className="h-3 w-3" />
-            </button>
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-destructive"
-              aria-label={t('common.delete')}
-              onClick={onDelete}
-            >
-              <Trash2 className="h-3 w-3" />
-            </button>
-          </div>
+          {canModerate ? (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground"
+                aria-label={comment.resolvedAt === null ? t('review.resolve') : t('review.reopen')}
+                onClick={onResolve}
+              >
+                <Check className="h-3 w-3" />
+              </button>
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-destructive"
+                aria-label={t('common.delete')}
+                onClick={onDelete}
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+          ) : null}
         </div>
         <p className="whitespace-pre-wrap text-xs">
           {parseBody(comment.body).map((tok, idx) =>

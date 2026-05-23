@@ -29,6 +29,7 @@ import {
   MessageSquare,
   MoreHorizontal,
   Play,
+  Replace as ReplaceIcon,
   Search,
   Sigma,
   Sparkles,
@@ -48,6 +49,7 @@ import { AIChat } from '../../components/AIChat/AIChat';
 import { AICommandPalette } from '../../components/AICommandPalette/AICommandPalette';
 import { BibliographyPanel } from '../../components/Bibliography/BibliographyPanel';
 import { CitationLookup } from '../../components/Citations/CitationLookup';
+import { SearchPanel } from '../../components/Search/SearchPanel';
 import { CommandPalette, type CommandItem } from '../../components/CommandPalette/CommandPalette';
 import { MathPalette } from '../../components/MathPalette/MathPalette';
 import { ImageViewer } from '../../components/ImageViewer/ImageViewer';
@@ -121,7 +123,7 @@ function isViewableImage(file: ProjectFile): boolean {
   return VIEWABLE_IMAGE_EXT.some((ext) => lower.endsWith(ext));
 }
 
-type RightPanelId = 'outline' | 'review' | 'history' | 'bibliography' | 'citations' | 'ai-chat' | 'math' | null;
+type RightPanelId = 'outline' | 'review' | 'history' | 'bibliography' | 'citations' | 'find' | 'ai-chat' | 'math' | null;
 
 // Right-side panel toggles in display order. Lives at module scope so
 // both the inline button row (wide layouts) and the overflow dropdown
@@ -138,6 +140,7 @@ const PANEL_TOGGLES: ReadonlyArray<{
   { id: 'history', icon: History, labelKey: 'history.title' },
   { id: 'bibliography', icon: BookText, labelKey: 'bibliography.title' },
   { id: 'citations', icon: Search, labelKey: 'citations.title' },
+  { id: 'find', icon: ReplaceIcon, labelKey: 'search.title' },
   { id: 'ai-chat', icon: Sparkles, labelKey: 'ai.chat.title' },
   { id: 'math', icon: Sigma, labelKey: 'math.title' },
 ];
@@ -484,6 +487,17 @@ export function ProjectWorkspace({
       citations: bibEntries.map((e) => e.key),
     }),
     [labels, bibEntries],
+  );
+
+  // Hover preview lookups. The editor extension calls these lazily
+  // (only when the user hovers a `\ref{...}` / `\cite{...}`) so the
+  // O(N) scan over project contents only runs on demand.
+  const hoverSources = useMemo<import('@scribe/editor').HoverPreviewSources>(
+    () => ({
+      resolveLabel: (name) => resolveLabelPreview(name, outlineContents),
+      resolveCitation: (name) => resolveCitationPreview(name, bibEntries),
+    }),
+    [outlineContents, bibEntries],
   );
 
   // Debounced auto-save: writes content back to Storage on idle.
@@ -1033,6 +1047,13 @@ export function ProjectWorkspace({
         action: () => { toggleRightPanel('citations'); },
       },
       {
+        id: 'find',
+        label: t('command.toggleFind'),
+        group: t('command.groupPanels'),
+        icon: ReplaceIcon,
+        action: () => { toggleRightPanel('find'); },
+      },
+      {
         id: 'ai-chat',
         label: t('command.toggleAIChat'),
         group: t('command.groupPanels'),
@@ -1284,6 +1305,7 @@ export function ProjectWorkspace({
             filePath={selectedFile.path}
             initialContent={fileContent.data?.content ?? ''}
             autocomplete={autocomplete}
+            hover={hoverSources}
             collab={collab}
             readOnly={editorReadOnly}
             logEntries={logEntries.map((e) => ({
@@ -1360,6 +1382,8 @@ export function ProjectWorkspace({
                     handleJumpToRange(filePath, from, to, snippet);
                   }}
                   onClose={() => { setRightPanel(null); }}
+                  currentUserId={authUser?.id ?? null}
+                  isProjectOwner={myRole === 'owner'}
                 />
               ) : null}
               {rightPanel === 'history' ? (
@@ -1386,6 +1410,16 @@ export function ProjectWorkspace({
                   onCite={(key) => {
                     editorRef.current?.insertAtCursor(`\\cite{${key}}`);
                   }}
+                  onClose={() => { setRightPanel(null); }}
+                />
+              ) : null}
+              {rightPanel === 'find' ? (
+                <SearchPanel
+                  projectId={projectId}
+                  files={files}
+                  activeFileId={selectedFile?.id ?? null}
+                  activeFileContent={editorContent}
+                  onSelectFile={(file, line) => { handleJumpTo(file.path, line); }}
                   onClose={() => { setRightPanel(null); }}
                 />
               ) : null}
@@ -1439,6 +1473,111 @@ function extractLabelsFromText(text: string): string[] {
     if (m[1] !== undefined) out.push(m[1]);
   }
   return out;
+}
+
+/** Environments whose source we surface in a `\ref` hover. Order
+ *  affects nothing — we just match the innermost enclosing block. */
+const PREVIEWABLE_ENVIRONMENTS = new Set([
+  'equation', 'equation*', 'align', 'align*', 'gather', 'gather*',
+  'multline', 'multline*', 'eqnarray', 'eqnarray*', 'cases',
+  'figure', 'figure*', 'table', 'table*',
+  'theorem', 'lemma', 'proposition', 'corollary', 'definition',
+  'remark', 'example', 'proof',
+]);
+
+interface RefPreview {
+  readonly title: string;
+  readonly body: string;
+  readonly mono: boolean;
+}
+
+/** Scan every project .tex file for `\label{name}` and, when found,
+ *  walk back to the innermost enclosing `\begin{env}` whose `\end`
+ *  comes after the label. Returns the enclosing source block as the
+ *  preview body so a hover answers "what does eq:foo look like?"
+ *  with the actual equation source. */
+function resolveLabelPreview(name: string, contents: Map<string, string>): RefPreview | null {
+  if (name === '') return null;
+  const labelRe = new RegExp(`\\\\label\\{${name.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\}`);
+  for (const [path, content] of contents) {
+    const labelMatch = labelRe.exec(content);
+    if (labelMatch === null) continue;
+    const labelPos = labelMatch.index;
+    // Walk every `\begin{env}` … `\end{env}` pair and pick the
+    // innermost one that brackets the label position.
+    const beginRe = /\\begin\{([a-zA-Z*]+)\}/g;
+    let chosen: { env: string; from: number; to: number } | null = null;
+    let bm: RegExpExecArray | null;
+    while ((bm = beginRe.exec(content)) !== null) {
+      const env = bm[1] ?? '';
+      if (!PREVIEWABLE_ENVIRONMENTS.has(env)) continue;
+      const beginPos = bm.index;
+      if (beginPos > labelPos) break;
+      const endRe = new RegExp(`\\\\end\\{${env.replace('*', '\\*')}\\}`);
+      endRe.lastIndex = beginPos;
+      const em = endRe.exec(content.slice(beginPos));
+      if (em === null) continue;
+      const endPos = beginPos + em.index + em[0].length;
+      if (endPos < labelPos) continue;
+      // Innermost wins — keep the latest match that still brackets the label.
+      chosen = { env, from: beginPos, to: endPos };
+    }
+    if (chosen !== null) {
+      const body = content.slice(chosen.from, chosen.to).trim();
+      const trimmed = body.length > 1200 ? `${body.slice(0, 1200)}…` : body;
+      return {
+        title: `${chosen.env} · ${name}  (${basenameOf(path)})`,
+        body: trimmed,
+        mono: true,
+      };
+    }
+    // Found the label but not inside a known environment — fall
+    // back to a 3-line context window.
+    const lineStart = content.lastIndexOf('\n', labelPos) + 1;
+    const lineEnd = content.indexOf('\n', labelPos + labelMatch[0].length);
+    const around = content.slice(lineStart, lineEnd === -1 ? content.length : lineEnd);
+    return {
+      title: `label · ${name}  (${basenameOf(path)})`,
+      body: around.trim(),
+      mono: true,
+    };
+  }
+  return null;
+}
+
+/** Format a `\cite{key}` hover as authors · year · title · journal,
+ *  pulling fields from the already-parsed bib entries. */
+function resolveCitationPreview(
+  name: string,
+  entries: ReadonlyArray<{ readonly key: string; readonly type: string; readonly fields: Readonly<Record<string, string>> }>,
+): RefPreview | null {
+  if (name === '') return null;
+  const entry = entries.find((e) => e.key === name);
+  if (entry === undefined) return null;
+  const { fields } = entry;
+  const authors = fields.author ?? fields.editor ?? '';
+  const year = fields.year ?? fields.date ?? '';
+  const title = fields.title ?? '';
+  const venue = fields.journal ?? fields.booktitle ?? fields.publisher ?? '';
+  const lines: string[] = [];
+  if (authors !== '') lines.push(stripBraces(authors));
+  const meta = [year, venue].filter((s) => s !== '').join(' · ');
+  if (meta !== '') lines.push(meta);
+  if (title !== '') lines.push(stripBraces(title));
+  return {
+    title: `${entry.type} · ${name}`,
+    body: lines.join('\n'),
+    mono: false,
+  };
+}
+
+function stripBraces(s: string): string {
+  return s.replace(/[{}]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function basenameOf(path: string): string {
+  const idx = path.lastIndexOf('/');
+  return idx === -1 ? path : path.slice(idx + 1);
 }
 
 // Re-exports used by tests if any.

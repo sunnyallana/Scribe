@@ -127,6 +127,7 @@
     "toggleHistory": "Toggle version history",
     "toggleBibliography": "Toggle bibliography",
     "toggleCitations": "Toggle citation search",
+    "toggleFind": "Toggle project search",
     "toggleAIChat": "Toggle AI chat",
     "toggleMath": "Toggle math symbols"
   },
@@ -479,6 +480,41 @@
     "createdBib": "Created {{path}} with {{key}}",
     "addFailed": "Couldn't add citation",
     "insertCite": "Insert \\cite{{{key}}} at cursor"
+  },
+
+  "notifications": {
+    "title": "Notifications",
+    "openInbox": "Open notifications",
+    "empty": "You're all caught up.",
+    "markAllRead": "Mark all read",
+    "someone": "Someone",
+    "aProject": "a project",
+    "mentionedYou": "mentioned you in {{project}}",
+    "repliedToYou": "replied to your comment in {{project}}",
+    "acceptedInvite": "accepted your invite to {{project}}",
+    "joinedViaShare": "joined {{project}} as {{role}} via a share link"
+  },
+
+  "search": {
+    "title": "Project search",
+    "placeholder": "Search across all files…",
+    "replacePlaceholder": "Replace with…",
+    "caseSensitive": "Match case (Aa)",
+    "wholeWord": "Match whole word",
+    "regex": "Regular expression",
+    "toggleReplace": "Show replace field",
+    "matchCount_one": "{{count}} match",
+    "matchCount_other": "{{count}} matches",
+    "matchCount": "{{count}} matches",
+    "loading": "Loading files…",
+    "empty": "Type to search across every file in the project.",
+    "noMatches": "No matches found.",
+    "moreHits": "+{{count}} more hits in this file (open it to see all)",
+    "activeFileSkipped": "Open file has {{count}} hit(s) — use Ctrl+F there to replace inline.",
+    "replaceAll": "Replace ({{count}})",
+    "replaceConfirm": "Replace {{count}} matches across the project? This rewrites every affected file.",
+    "replaceDone": "Replaced {{count}} matches across {{files}} files.",
+    "replaceFailed": "Replace failed."
   },
 
   "share": {
