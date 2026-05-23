@@ -34,6 +34,18 @@
     "fit": "Fit to pane"
   },
 
+  "voice": {
+    "joinAndSpeak": "Join voice",
+    "leave": "Leave voice",
+    "connecting": "Connecting…",
+    "muteMic": "Mute mic",
+    "unmuteMic": "Unmute mic",
+    "muteSpeaker": "Mute incoming audio",
+    "unmuteSpeaker": "Unmute incoming audio",
+    "othersOnCall_one": "{{count}} person on the call",
+    "othersOnCall_other": "{{count}} people on the call"
+  },
+
   "collab": {
     "presenceLabel": "Connected collaborators"
   },

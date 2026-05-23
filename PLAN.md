@@ -889,6 +889,39 @@ That should be one focused session. Phase 1 begins next.
 >
 > **Next action:** execute Phase 6 — Tauri desktop wrapper + offline sync.
 
+## 12. Overleaf-parity candidates (post-v1)
+
+Once Phases 0–5 are live (they are, as of 2026-05) and the v1.0 surface is
+stable, the next push is closing the perceived gap with Overleaf for the
+typical academic workflow. These are *candidates* — pick any subset based
+on value-per-week — not a committed phase. Each line carries an impact
+note + effort estimate so we can sequence by ratio later.
+
+| # | Feature | Why it matters | Effort | Status |
+|---|---|---|---|---|
+| 6.1 | **Multi-file editor tabs** | Today the editor shows one file at a time; real LaTeX work moves between `main.tex`, `sec/*.tex`, `references.bib` constantly. Tab strip above the editor, unsaved-dot indicator, middle-click to close, Ctrl+W shortcut. | M | not started |
+| 6.2 | **Project-wide Find & Replace** | CodeMirror's in-file search works (Ctrl+F); the missing piece is cross-file rename of `\foo` / labels / cite-keys. New right-panel "Search" tab with hit list per file and "replace in all" mutation. | M | not started |
+| 6.3 | **Citation lookup (DOI / CrossRef / arXiv)** | Users currently leave the app to grab BibTeX from CrossRef/Zotero. A "Search citation" panel that hits CrossRef + arXiv, formats the result, appends to the project's `.bib` file in one click. Huge academic-workflow win. | L–M | not started |
+| 6.4 | **Track changes / suggestion mode** | Yjs gives us multi-user editing; track changes is the "suggest mode" supervisors and journals need. CRDT custom-attribute decoration layer on top of the existing Y.Text binding. Most ambitious item — deserves its own dedicated phase. | H | not started |
+| 6.5 | **Project sharing via link** | One-click read-only or comment-only public URL — what people actually use day-to-day, distinct from email invites. Token-based bypass of auth on the `/project/:id` route with role pinned to viewer/commenter. | L–M | not started |
+| 6.6 | **Git / GitHub integration** | Push/pull to a GitHub repo. Lets users version-control + share via the world's biggest social network for code. Niche but loved by power users. Two layers: OAuth to GitHub, then a sync worker that diffs project-files against a repo. | H | not started |
+| 6.7 | **Template gallery from community** | Phase 5 shipped six built-in templates. A browsable catalogue (IEEE, ACM, NeurIPS, ICML, theses, CVs) is Overleaf's largest organic on-ramp. Could be a thin wrapper around the existing template loader plus a hosted JSON manifest of community contributions. | L–M | not started |
+| 6.8 | **Notification inbox** | Mentions, replies to comments, invite acceptances currently surface as transient toasts and vanish. Bell-icon dropdown with unread counts + read/unread state on a new `notifications` table. Makes the app "sticky" for collaborators. | M | not started |
+| 6.9 | **chktex linter integration** | Underline LaTeX style issues inline (over-bracketed eqs, `\over` vs `\frac`, double `~`, etc.). Server helper hooks into the compile pipeline; output flows through the existing `applyCompileDiagnostics` path. | M | not started |
+| 6.10 | **Equation/`\ref` hover preview** | Hover a `\ref{eq:foo}` → popover with the rendered equation; hover a `\cite{key}` → popover with the bib entry's authors/title. Uses the already-parsed `bibEntries` + a small KaTeX render. Small but instantly reads as "premium polish". | L–M | not started |
+| 6.11 | **Real-time voice chat** | Mic / speaker icons in the editor toolbar. WebRTC peer-to-peer mesh signalled over `/api/projects/:projectId/voice` (`scribe-server/src/voice/`). Browser-to-browser DTLS-SRTP for media — the server never touches audio bytes. Echo-cancel / noise-suppression via `getUserMedia` constraints. Per-peer mute broadcast + master speaker mute. Works up to ~5 participants on mesh; SFU upgrade deferred. | M | **v1 shipped 2026-05-24** |
+
+### Recommended sequencing (lowest-risk first)
+
+A reasonable first slice that ships fast and is highly visible:
+
+1. **Multi-file tabs** (6.1) — most-used UX gap.
+2. **Citation DOI lookup** (6.3) — biggest academic-workflow win for the smallest scope.
+3. **Project sharing via link** (6.5) — what users actually paste in chat.
+
+Track changes (6.4) and Git integration (6.6) are the most ambitious; they
+warrant their own bounded phase once the lower-effort wins are in.
+
 ### Things explicitly *not* in scope yet, to keep momentum
 The spec is maximalist; the following are intentionally deferred past v1.0:
 
