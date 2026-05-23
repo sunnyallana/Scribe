@@ -48,3 +48,4 @@ uuid_newtype!(FileId);
 uuid_newtype!(UserId);
 uuid_newtype!(MemberId);
 uuid_newtype!(CommentId);
+uuid_newtype!(ShareLinkId);

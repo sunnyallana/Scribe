@@ -9,19 +9,26 @@ import {
   type CreateCommentInput,
   type CreateCompileJobInput,
   type CreateProjectInput,
+  type CreateShareLinkInput,
   type CreateVersionInput,
   type FileId,
   type InviteDetails,
   type InviteMemberInput,
   type InviteToken,
   type MemberId,
+  type Notification,
+  type UnreadCountResponse,
   type Project,
   type ProjectFile,
   type ProjectId,
   type ProjectMember,
   type ProjectVersion,
+  type RedeemShareResponse,
   type RenameFileInput,
   type ServiceError,
+  type ShareLink,
+  type ShareLinkId,
+  type SharePreview,
   type UpdateAIConfigInput,
   type UpdateCommentInput,
   type UpdateMemberRoleInput,
@@ -244,6 +251,35 @@ export const api = {
     details: (token: InviteToken): Promise<InviteDetails> => fetchJson(`/api/invites/${token}`),
     accept: (token: InviteToken): Promise<AcceptInviteResponse> =>
       fetchJson(`/api/invites/${token}/accept`, { method: 'POST' }),
+  },
+  notifications: {
+    list: (opts: { readonly unread?: boolean; readonly limit?: number } = {}): Promise<Notification[]> => {
+      const params = new URLSearchParams();
+      if (opts.unread === true) params.set('unread', 'true');
+      if (opts.limit !== undefined) params.set('limit', opts.limit.toString());
+      const qs = params.toString();
+      return fetchJson(`/api/notifications${qs !== '' ? `?${qs}` : ''}`);
+    },
+    unreadCount: (): Promise<UnreadCountResponse> => fetchJson('/api/notifications/unread-count'),
+    markRead: (id: string): Promise<{ ok: boolean }> =>
+      fetchJson(`/api/notifications/${id}/read`, { method: 'POST' }),
+    markAllRead: (): Promise<{ ok: boolean }> =>
+      fetchJson('/api/notifications/read-all', { method: 'POST' }),
+  },
+  shares: {
+    list: (projectId: ProjectId): Promise<ShareLink[]> =>
+      fetchJson(`/api/projects/${projectId}/share-links`),
+    create: (projectId: ProjectId, input: CreateShareLinkInput): Promise<ShareLink> =>
+      fetchJson(`/api/projects/${projectId}/share-links`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    revoke: (linkId: ShareLinkId): Promise<{ ok: boolean }> =>
+      fetchJson(`/api/share-links/${linkId}`, { method: 'DELETE' }),
+    preview: (token: string): Promise<SharePreview> =>
+      fetchJson(`/api/share/${token}`),
+    redeem: (token: string): Promise<RedeemShareResponse> =>
+      fetchJson(`/api/share/${token}/redeem`, { method: 'POST' }),
   },
   exports: {
     /** Server-side pandoc export. Returns the raw bytes + the

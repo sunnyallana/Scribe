@@ -16,6 +16,7 @@ import {
 import { type AutocompleteSources, createLatexAutocomplete, extractLabels } from './autocomplete.js';
 import { autoCloseEnv } from './extensions/auto-close-env.js';
 import { flashLineExtension, flashLineOnView } from './extensions/flash-line.js';
+import { type HoverPreviewSources, hoverPreview } from './extensions/hover-preview.js';
 import { ruler } from './extensions/ruler.js';
 import { wordCountExtension } from './extensions/word-count.js';
 import { fromYjs, scribeYjsBinding } from './extensions/yjs-binding.js';
@@ -37,6 +38,10 @@ export interface ScribeEditorOptions {
   readonly theme?: ScribeEditorTheme;
   readonly readOnly?: boolean;
   readonly autocomplete?: AutocompleteSources;
+  /** Sources for hover popovers on `\ref{...}` / `\cite{...}`. The
+   *  callbacks are invoked lazily (only when the user hovers), so it's
+   *  cheap to pass even on every render. */
+  readonly hover?: HoverPreviewSources;
   /** Show a vertical ruler at this column. 0 disables. */
   readonly rulerColumn?: number;
   readonly onChange?: (content: string) => void;
@@ -63,6 +68,9 @@ export interface ScribeEditorHandle {
   setReadOnly(readOnly: boolean): void;
   /** Refresh the autocomplete sources without rebuilding the editor. */
   setAutocompleteSources(sources: AutocompleteSources): void;
+  /** Refresh the hover-preview lookup callbacks. Lazy — no
+   *  reconfigure cost; the next hover picks up the new sources. */
+  setHoverSources(sources: HoverPreviewSources): void;
   /** Move the cursor to the given 1-based line. When `flash` is true, briefly
    *  highlight the line so the user can see where the jump landed. */
   gotoLine(line: number, options?: { readonly flash?: boolean }): void;
@@ -100,6 +108,10 @@ export function createScribeEditor(opts: ScribeEditorOptions): ScribeEditorHandl
   // Mutable autocomplete sources so we can swap them via setAutocompleteSources()
   // without tearing down the editor state.
   let autocompleteSources: AutocompleteSources = opts.autocomplete ?? { labels: [], citations: [] };
+  // Same trick for hover sources — host passes a fresh object on
+  // every render, but the extension holds a closure over our `let`
+  // so each tooltip invocation reads the latest value.
+  let hoverSources: HoverPreviewSources = opts.hover ?? {};
 
   const autocompleteCompartment = new Compartment();
   const readOnlyCompartment = new Compartment();
@@ -169,6 +181,7 @@ export function createScribeEditor(opts: ScribeEditorOptions): ScribeEditorHandl
     compileKeymap,
     latexLanguageSupport(),
     autocompleteCompartment.of(createLatexAutocomplete(autocompleteSources)),
+    hoverPreview(() => hoverSources),
     autoCloseEnv(),
     wordCountExtension(),
     flashLineExtension(),
@@ -236,6 +249,12 @@ export function createScribeEditor(opts: ScribeEditorOptions): ScribeEditorHandl
       view.dispatch({
         effects: autocompleteCompartment.reconfigure(createLatexAutocomplete(autocompleteSources)),
       });
+    },
+    setHoverSources(next) {
+      // Hover providers read through the `() => hoverSources` closure
+      // on every popup, so no editor reconfigure is needed — we just
+      // swap the value and the next hover picks it up.
+      hoverSources = next;
     },
     gotoLine(line, options) {
       const safeLine = Math.min(Math.max(line, 1), view.state.doc.lines);

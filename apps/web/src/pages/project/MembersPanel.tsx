@@ -27,6 +27,8 @@ import { toast } from 'sonner';
 import { api, type ApiError } from '../../lib/api';
 import { useAuthStore } from '../../stores/auth';
 
+import { ShareLinks } from './ShareLinks';
+
 interface MembersPanelProps {
   readonly projectId: ProjectId;
 }
@@ -184,6 +186,8 @@ export function MembersPanel({ projectId }: MembersPanelProps) {
           </Button>
         </form>
       ) : null}
+
+      <ShareLinks projectId={projectId} isOwner={isOwner} />
 
       {isLoading ? (
         <div className="space-y-2">
