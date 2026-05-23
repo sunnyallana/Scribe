@@ -20,7 +20,6 @@ use std::time::Duration;
 
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use bytes::Bytes;
 use dashmap::DashMap;
 use moka::future::Cache as MokaCache;
@@ -93,14 +92,6 @@ impl ResponseCache {
     /// Wire up the cache to an existing Redis. `None` disables L2
     /// caching but keeps L1 enabled (calls fall through to compute on
     /// L1 miss).
-    pub fn new(client: Option<Arc<Client>>) -> Self {
-        Self::with_flags(client, true, true)
-    }
-
-    pub fn disabled() -> Self {
-        Self::with_flags(None, false, false)
-    }
-
     /// Full constructor used by main.rs to honour the feature flags.
     /// `enabled=false` short-circuits all cache logic; `client_cache_headers=false`
     /// flips the outgoing Cache-Control to `no-store`.
@@ -117,12 +108,6 @@ impl ResponseCache {
             enabled,
             client_cache_headers,
         }
-    }
-
-    /// Whether `cached_json` will actually consult any cache. Handy for
-    /// log lines that say "L1/L2 miss" vs "cache disabled".
-    pub fn is_enabled(&self) -> bool {
-        self.enabled
     }
 
     /// True if the circuit breaker says Redis is currently unreachable.
@@ -647,24 +632,6 @@ fn client_etag_matches(request_headers: &HeaderMap, server_etag: &str) -> bool {
     raw.split(',')
         .map(|s| s.trim())
         .any(|e| e == "*" || e == server_etag)
-}
-
-/// Returned-by-axum extractor convenience. Handlers that don't want to
-/// touch the cache directly can still construct an HTTP 200 with the
-/// right ETag for any serializable value.
-pub fn json_with_etag<T: Serialize>(value: &T) -> Response {
-    match serde_json::to_vec(value) {
-        Ok(body) => {
-            let etag = strong_etag(&body);
-            // Standalone helper — opt into ETag headers since caller
-            // isn't bound to the cache's enabled state.
-            (StatusCode::OK, etag_headers(&etag, true), body).into_response()
-        }
-        Err(_) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error":"serialize"})))
-                .into_response()
-        }
-    }
 }
 
 #[cfg(test)]

@@ -230,6 +230,9 @@ export function MathPalette({ onInsert, onClose }: MathPaletteProps) {
       <div className="border-b px-3 py-2">
         <input
           type="search"
+          id="math-palette-query"
+          name="math-palette-query"
+          autoComplete="off"
           value={query}
           onChange={(e) => { setQuery(e.target.value); }}
           placeholder={t('math.searchPlaceholder')}

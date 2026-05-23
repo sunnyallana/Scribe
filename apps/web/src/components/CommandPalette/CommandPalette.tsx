@@ -114,6 +114,10 @@ export function CommandPalette({ open, onOpenChange, commands }: CommandPaletteP
         <input
           // eslint-disable-next-line jsx-a11y/no-autofocus -- command palette UX
           autoFocus
+          id="command-palette-query"
+          name="command-palette-query"
+          type="text"
+          autoComplete="off"
           value={query}
           onChange={(e) => { setQuery(e.target.value); }}
           onKeyDown={handleKeyDown}

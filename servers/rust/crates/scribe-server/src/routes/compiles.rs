@@ -157,11 +157,16 @@ async fn stream(
     };
     let already_complete = replay.iter().any(|m| matches!(m, CompileLogStreamMessage::Completed { .. }));
 
-    ws.on_upgrade(move |socket| async move {
-        if let Err(err) = drive_stream(socket, queue, job_id, replay, already_complete).await {
-            warn!(?err, %job_id, "compile stream exited");
-        }
-    })
+    // Compile-stream is server → client only; clients never send frames
+    // bigger than a ping. Tiny caps reject any attempt to flood the
+    // socket from the client side.
+    ws.max_message_size(64 * 1024)
+        .max_frame_size(64 * 1024)
+        .on_upgrade(move |socket| async move {
+            if let Err(err) = drive_stream(socket, queue, job_id, replay, already_complete).await {
+                warn!(?err, %job_id, "compile stream exited");
+            }
+        })
 }
 
 async fn drive_stream(

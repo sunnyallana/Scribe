@@ -126,5 +126,6 @@ impl InviteService {
 }
 
 fn internal(err: sqlx::Error) -> ApiError {
-    ApiError::new(ErrorCode::Internal, format!("db: {err}"))
+    tracing::error!(?err, "database error in invites service");
+    ApiError::new(ErrorCode::Internal, "Database error")
 }

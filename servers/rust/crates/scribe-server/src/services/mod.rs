@@ -6,6 +6,7 @@
 pub mod ai;
 pub mod comments;
 pub mod compiles;
+pub mod exports;
 pub mod files;
 pub mod invites;
 pub mod members;

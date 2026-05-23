@@ -83,7 +83,7 @@ impl Db {
             .connect_with(options)
             .await
             .map_err(|err| ApiError::new(ErrorCode::Internal, format!("db connect: {err}")))?;
-        info!("postgres pool ready ({} max conns)", 20);
+        info!(max = pool.options().get_max_connections(), "postgres pool ready");
         Ok(Self { pool })
     }
 

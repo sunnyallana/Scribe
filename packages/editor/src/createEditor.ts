@@ -171,6 +171,7 @@ export function createScribeEditor(opts: ScribeEditorOptions): ScribeEditorHandl
       scribeYjsBinding({
         yText: opts.collab.yText,
         awareness: opts.collab.awareness,
+        filePath: opts.filePath,
       }),
     );
   }

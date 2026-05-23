@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { supabase } from '../../lib/supabase';
 
 import { AuthCardLayout } from './AuthCardLayout';
@@ -22,6 +23,7 @@ type Values = z.infer<typeof schema>;
 
 export function SignupPage() {
   const { t } = useTranslation();
+  useDocumentTitle(t('auth.signUp'));
   const [sent, setSent] = useState(false);
 
   const form = useForm<Values>({

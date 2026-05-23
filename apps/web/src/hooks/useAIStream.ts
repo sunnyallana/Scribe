@@ -1,6 +1,7 @@
 import { type AICompleteInput } from '@scribe/shared';
 import { useCallback, useRef, useState } from 'react';
 
+import { log } from '../lib/debug';
 import { API_URL, supabase } from '../lib/supabase';
 
 export interface AIStreamState {
@@ -56,8 +57,12 @@ export function useAIStream(): AIStreamHandle {
         try {
           const body = (await resp.json()) as { message?: string };
           if (body.message !== undefined) errMsg = body.message;
-        } catch {
-          /* ignore */
+        } catch (err) {
+          // Server returned a non-JSON error body (e.g. plaintext
+          // from a proxy / gateway). Fall back to the HTTP-status
+          // string already in `errMsg`; surface the parse failure
+          // for diagnostics.
+          log.api('ai/complete error-body parse failed', err);
         }
         setState({ text: '', streaming: false, error: errMsg });
         return;
@@ -91,8 +96,11 @@ export function useAIStream(): AIStreamHandle {
               accumulated += json.text;
               setState({ text: accumulated, streaming: true, error: null });
             }
-          } catch {
-            /* ignore malformed lines */
+          } catch (err) {
+            // SSE stream contained a non-JSON `data:` line. Recoverable
+            // — we just skip it and keep reading subsequent lines —
+            // but log so a malformed upstream becomes visible.
+            log.api('ai/complete SSE line parse failed', err, { payload });
           }
         }
       }

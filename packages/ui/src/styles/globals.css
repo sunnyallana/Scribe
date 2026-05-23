@@ -110,6 +110,54 @@
   }
 }
 
+/*
+ * Global elegant scrollbar. Applied to every scroll container in the
+ * app (PDF preview, compile log, file tree, outline, AI chat, …)
+ * via the universal selector so we never have to remember a class
+ * name on each new container.
+ *
+ * Light / dark variants picked up from the `data-theme` attribute
+ * set by `ThemeProvider`. The `border + background-clip: padding-box`
+ * trick on the thumb floats the bar inside an inset gutter instead
+ * of jamming it against the edge.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.20) transparent;
+}
+[data-theme='dark'] *,
+[data-theme='high-contrast'] * {
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.20);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.35);
+  background-clip: padding-box;
+}
+[data-theme='dark'] *::-webkit-scrollbar-thumb,
+[data-theme='high-contrast'] *::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.18);
+}
+[data-theme='dark'] *::-webkit-scrollbar-thumb:hover,
+[data-theme='high-contrast'] *::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.32);
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 .pdf-text-layer {
   text-align: initial;
   inset: 0;
@@ -120,6 +168,14 @@
   forced-color-adjust: none;
   transform-origin: 0 0;
   z-index: 2;
+  /* `geometricPrecision` tells the browser to lay glyphs out at
+     exact mathematical positions rather than rounding to whole
+     pixels. The text layer is invisible (`color: transparent` on
+     children), but precise positioning matters for selection
+     alignment with the underlying canvas. */
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: subpixel-antialiased;
+  -moz-osx-font-smoothing: auto;
 }
 
 .pdf-text-layer :is(span, br) {

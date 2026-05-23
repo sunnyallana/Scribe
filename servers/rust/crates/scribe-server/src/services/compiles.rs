@@ -217,5 +217,6 @@ fn row_to_job(row: sqlx::postgres::PgRow) -> CompileJob {
 }
 
 fn internal(err: sqlx::Error) -> ApiError {
-    ApiError::new(ErrorCode::Internal, format!("db: {err}"))
+    tracing::error!(?err, "database error in compiles service");
+    ApiError::new(ErrorCode::Internal, "Database error")
 }

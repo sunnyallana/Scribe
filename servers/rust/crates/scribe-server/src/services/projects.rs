@@ -32,10 +32,6 @@ impl ProjectService {
         Self { pool: pool.clone(), files: FileService::new(pool, storage) }
     }
 
-    pub fn files(&self) -> &FileService {
-        &self.files
-    }
-
     pub async fn list_for_user(&self, user: UserId) -> ApiResult<Vec<Project>> {
         let rows = sqlx::query(
             r#"
@@ -295,5 +291,6 @@ fn row_to_project(row: sqlx::postgres::PgRow) -> Project {
 }
 
 fn internal(err: sqlx::Error) -> ApiError {
-    ApiError::new(ErrorCode::Internal, format!("db: {err}"))
+    tracing::error!(?err, "database error in projects service");
+    ApiError::new(ErrorCode::Internal, "Database error")
 }

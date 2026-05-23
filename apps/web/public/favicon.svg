@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Scribe">
+  <!--
+    Scribe favicon. Black tile + white S-stroke.
+    The S is a single bezier path so it stays crisp at every density
+    without depending on system fonts; stroke-linecap/linejoin
+    "round" give soft terminals. Stroke width 3 — a touch heavier
+    than the earlier 2.6 so the mark holds its weight at 16 px tab
+    sizes without crushing the negative space.
+  -->
+  <rect width="32" height="32" rx="7" fill="#000000"/>
+
+  <path
+    d="M21.6 11.3
+       C20.4 9.3 18.3 8.3 16 8.3
+       C13.3 8.3 11.2 9.7 11.2 12.0
+       C11.2 14.0 12.9 14.9 15.4 15.7
+       L17.5 16.4
+       C20.1 17.3 21.6 18.4 21.6 20.4
+       C21.6 22.9 19.3 24.3 16.4 24.3
+       C13.7 24.3 11.4 23.2 10.2 21.0"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="3"
+    stroke-linecap="round"
+    stroke-linejoin="round"/>
+</svg>

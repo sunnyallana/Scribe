@@ -9,6 +9,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api, ApiError } from '../lib/api';
+import { log } from '../lib/debug';
 import { API_URL, supabase } from '../lib/supabase';
 
 export interface CompileSessionState {
@@ -61,17 +62,49 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
 
   const refreshArtifactUrls = useCallback(async (jobId: CompileJobId) => {
     try {
-      const [pdf, synctex] = await Promise.allSettled([
-        api.compiles.artifactUrl(jobId, 'pdf'),
-        api.compiles.artifactUrl(jobId, 'synctex'),
-      ]);
-      setState((s) => ({
-        ...s,
-        pdfUrl: pdf.status === 'fulfilled' ? pdf.value.url : s.pdfUrl,
-        synctexUrl: synctex.status === 'fulfilled' ? synctex.value.url : null,
-      }));
-    } catch {
-      // best-effort
+      // PDF is on the critical path of the worker — it's uploaded
+      // synchronously, so by the time we see `Completed` the signed
+      // URL is definitely available.
+      const pdfResult = await api.compiles
+        .artifactUrl(jobId, 'pdf')
+        .then((res) => ({ ok: true as const, url: res.url }))
+        .catch((err: unknown) => ({ ok: false as const, err }));
+      if (pdfResult.ok) {
+        setState((s) => ({ ...s, pdfUrl: pdfResult.url }));
+      } else {
+        log.compile.warn('artifact-url fetch failed (pdf)', pdfResult.err);
+      }
+
+      // Synctex is in a background tokio task — it lands a few
+      // hundred ms after the PDF. Wait a short beat before the first
+      // fetch so the bg upload finishes first: that turns "404 +
+      // retry-after-750ms" into "one successful 200" in the common
+      // case, removing the red "Failed to load resource" line from
+      // the browser console.
+      const trySynctex = (delay: number) => {
+        window.setTimeout(() => {
+          void api.compiles
+            .artifactUrl(jobId, 'synctex')
+            .then((res) => { setState((s) => ({ ...s, synctexUrl: res.url })); })
+            .catch((err: unknown) => {
+              if (err instanceof ApiError && err.status === 404) {
+                // Still racing; retry once more, then give up
+                // silently (synctex is non-critical).
+                if (delay < 1500) {
+                  trySynctex(delay * 2);
+                }
+              } else {
+                log.compile.warn('artifact-url fetch failed (synctex)', err);
+              }
+            });
+        }, delay);
+      };
+      trySynctex(600);
+    } catch (err) {
+      // Belt-and-braces — both inner fetches already swallow their
+      // own errors, so this branch is only hit by a programming
+      // error. Log loudly so we'd notice.
+      log.compile.error('refreshArtifactUrls unexpected throw', err);
     }
   }, []);
 
@@ -103,8 +136,11 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
               void refreshArtifactUrls(jobId);
             }
           }
-        } catch {
-          // ignore malformed
+        } catch (err) {
+          // Malformed JSON from the WS shouldn't happen if the server
+          // and client are on the same protocol version. Log so we'd
+          // catch a schema drift early.
+          log.compile.warn('compile-stream WS message parse failed', err);
         }
       };
       ws.onerror = () => {

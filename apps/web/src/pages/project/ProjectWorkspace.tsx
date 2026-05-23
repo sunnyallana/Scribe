@@ -7,7 +7,13 @@ import {
   type ProjectFile,
   type ProjectId,
 } from '@scribe/shared';
-import { Button } from '@scribe/ui';
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@scribe/ui';
 import { type PresenceUser } from '@scribe/yjs-provider';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -15,44 +21,48 @@ import {
   CameraIcon,
   ChevronsRight,
   Command,
+  Eye,
   FileText,
   History,
   ListTree,
   Loader2,
   MessageSquare,
+  MoreHorizontal,
   Play,
   Sigma,
   Sparkles,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Panel, PanelGroup } from 'react-resizable-panels';
+import { type ImperativePanelHandle, Panel, PanelGroup } from 'react-resizable-panels';
 import { toast } from 'sonner';
 
 import { log } from '../../lib/debug';
 
+import { ErrorBoundary } from '../../components/ErrorBoundary/ErrorBoundary';
 import { Splitter } from '../../components/Layout/Splitter';
 
 import { AIChat } from '../../components/AIChat/AIChat';
 import { AICommandPalette } from '../../components/AICommandPalette/AICommandPalette';
 import { BibliographyPanel } from '../../components/Bibliography/BibliographyPanel';
 import { CommandPalette, type CommandItem } from '../../components/CommandPalette/CommandPalette';
-import { CompileLog } from '../../components/CompileLog/CompileLog';
 import { MathPalette } from '../../components/MathPalette/MathPalette';
 import { OutlinePanel } from '../../components/Outline/OutlinePanel';
 import { LatexEditor, type LatexEditorImperativeHandle } from '../../components/Editor/LatexEditor';
 import { PresenceAvatars } from '../../components/Editor/PresenceAvatars';
-import { PDFPreview } from '../../components/PDFPreview/PDFPreview';
 import { StatusBar, type CompileStatusKind } from '../../components/StatusBar/StatusBar';
 import { ReviewPanel } from '../../components/ReviewPanel/ReviewPanel';
 import { VersionHistory } from '../../components/VersionHistory/VersionHistory';
+import { PreviewPanel } from './PreviewPanel';
 import { useCompileSession } from '../../hooks/useCompileSession';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { lookup, lookupReverse, useSyncTeX } from '../../hooks/useSyncTeX';
 import { useYjsDoc } from '../../hooks/useYjsDoc';
 import { api, type ApiError } from '../../lib/api';
-import { API_URL } from '../../lib/supabase';
+import { API_URL, getAccessTokenSync } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/auth';
 import { useSettings } from '../../stores/settings';
+import { useProjectChrome } from '../../stores/projectChrome';
 
 import type { AutocompleteSources } from '@scribe/editor';
 
@@ -87,6 +97,24 @@ function isEditableTextFile(file: ProjectFile): boolean {
 }
 
 type RightPanelId = 'outline' | 'review' | 'history' | 'bibliography' | 'ai-chat' | 'math' | null;
+
+// Right-side panel toggles in display order. Lives at module scope so
+// both the inline button row (wide layouts) and the overflow dropdown
+// (narrow layouts) iterate the exact same list — labels and icons stay
+// in lock-step without us hand-syncing two copies.
+import type { LucideIcon } from 'lucide-react';
+const PANEL_TOGGLES: ReadonlyArray<{
+  readonly id: NonNullable<RightPanelId>;
+  readonly icon: LucideIcon;
+  readonly labelKey: string;
+}> = [
+  { id: 'outline', icon: ListTree, labelKey: 'outline.title' },
+  { id: 'review', icon: MessageSquare, labelKey: 'review.title' },
+  { id: 'history', icon: History, labelKey: 'history.title' },
+  { id: 'bibliography', icon: BookText, labelKey: 'bibliography.title' },
+  { id: 'ai-chat', icon: Sparkles, labelKey: 'ai.chat.title' },
+  { id: 'math', icon: Sigma, labelKey: 'math.title' },
+];
 
 const PRESENCE_COLORS = [
   '#3b82f6',
@@ -128,6 +156,41 @@ export function ProjectWorkspace({
   const [rightPanel, setRightPanel] = useState<RightPanelId>(null);
   const [aiPaletteOpen, setAIPaletteOpen] = useState(false);
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
+  const previewPanelRef = useRef<ImperativePanelHandle>(null);
+  const [previewCollapsed, setPreviewCollapsed] = useState(false);
+  const togglePreview = useCallback(() => {
+    const panel = previewPanelRef.current;
+    if (panel === null) return;
+    if (panel.isCollapsed()) panel.expand();
+    else panel.collapse();
+  }, []);
+  // Auto-collapse the preview at mobile widths. Two columns at <=
+  // 768px crushes both panels below usable width; folding the preview
+  // gives the editor the full viewport. User can toggle it back on via
+  // the Eye button when they want to inspect the rendered PDF or log.
+  // We *don't* auto-expand when the viewport grows again — once the
+  // user is in a layout, respect that until they change it.
+  const isNarrowViewport = useMediaQuery('(max-width: 768px)');
+  const lastNarrowRef = useRef<boolean>(isNarrowViewport);
+  useEffect(() => {
+    if (isNarrowViewport && !lastNarrowRef.current) {
+      previewPanelRef.current?.collapse();
+    }
+    lastNarrowRef.current = isNarrowViewport;
+  }, [isNarrowViewport]);
+  // First mount on a mobile viewport: collapse straight away so the
+  // editor isn't squeezed for the initial paint. The effect above
+  // would only fire on a desktop→mobile transition, not on first
+  // mount in mobile.
+  useEffect(() => {
+    if (isNarrowViewport) {
+      // Defer one frame so the panel is mounted with its handle ready.
+      const id = window.setTimeout(() => { previewPanelRef.current?.collapse(); }, 0);
+      return () => { window.clearTimeout(id); };
+    }
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Fetch the caller's role on this project so we can gate the editor.
   // Read-only roles (viewer/commenter) get a non-writable CodeMirror — the
@@ -160,6 +223,14 @@ export function ProjectWorkspace({
   const compileSession = useCompileSession(projectId);
   const synctex = useSyncTeX(compileSession.synctexUrl);
   const editorRef = useRef<LatexEditorImperativeHandle>(null);
+
+  // Publish the compiled PDF URL into the chrome store so the navbar
+  // project-menu and the sidebar download button can offer
+  // "Download PDF" without having to be wired through props.
+  const setChrome = useProjectChrome((s) => s.set);
+  useEffect(() => {
+    setChrome({ pdfUrl: compileSession.pdfUrl });
+  }, [compileSession.pdfUrl, setChrome]);
 
   // Ctrl/Cmd+Shift+A → AI palette. Ctrl/Cmd+K → global command palette.
   useEffect(() => {
@@ -215,6 +286,12 @@ export function ProjectWorkspace({
       if (selectedFile === null) throw new Error('no file selected');
       return api.files.readContent(projectId, selectedFile.id);
     },
+    // File content rarely changes outside of our own writes (which
+    // invalidate the query via writeMutation.onSuccess). Treating
+    // the cached body as fresh for 30 s saves a round-trip on every
+    // tab-switch / window refocus without risking serious staleness
+    // — the Yjs WS still pushes live edits regardless.
+    staleTime: 30_000,
   });
 
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
@@ -423,25 +500,25 @@ export function ProjectWorkspace({
     const onUnload = () => {
       const live = editorRef.current?.getContent() ?? '';
       if (live.length === 0) return;
+      // `supabase.auth.getSession()` is async and can't be awaited
+      // here — the page is dying. `getAccessTokenSync()` reads from a
+      // cache kept in sync via `supabase.auth.onAuthStateChange` in
+      // `lib/supabase.ts`. Robust to Supabase changing its storage
+      // schema, which our old `localStorage` scan was not.
+      const accessToken = getAccessTokenSync();
+      if (accessToken === null) return;
       const url = `${API_URL}/api/projects/${projectId}/files/${fileId}/content`;
       try {
-        // Pull the auth token from the persisted Supabase session in
-        // localStorage. We can't await `supabase.auth.getSession()` in
-        // unload handlers — the page is about to be killed.
-        const sbKey = Object.keys(localStorage).find((k) => k.startsWith('sb-') && k.endsWith('-auth-token'));
-        const session = sbKey !== undefined ? JSON.parse(localStorage.getItem(sbKey) ?? 'null') : null;
-        const accessToken: string | undefined = session?.access_token;
-        if (accessToken === undefined) return;
-        const blob = new Blob([JSON.stringify({ content: live })], { type: 'application/json' });
-        // `sendBeacon` doesn't let us set Authorization headers, so we
-        // append it as a query param fallback. Server already accepts
-        // `?token=` on the YJS route — extend the file route the same
-        // way OR just rely on a normal fetch with `keepalive: true`,
-        // which is supported in all evergreen browsers.
+        const body = JSON.stringify({ content: live });
+        // `fetch(..., { keepalive: true })` is supported in every
+        // evergreen browser and is the documented mechanism for "send
+        // this last request before unload". Unlike `sendBeacon` it
+        // accepts Authorization headers, so we don't need a fallback
+        // path that smuggles the token into a query param.
         void fetch(url, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-          body: blob,
+          body,
           keepalive: true,
         });
         log.save('beforeunload flush', { fileId, bytes: live.length });
@@ -624,15 +701,30 @@ export function ProjectWorkspace({
     return cmds;
   }, [files, handleCompile, onSelectFile, t]);
 
-  const wordCount = useMemo(() => {
-    if (editorContent === '') return 0;
-    return editorContent
-      .replace(/%.*$/gm, '')
-      .replace(/\\[a-zA-Z@]+\*?(\{[^}]*\})?/g, ' ')
-      .replace(/\$[^$\n]*\$/g, ' ')
-      .trim()
-      .split(/\s+/)
-      .filter((w) => w.length > 0).length;
+  // Debounced word count. The previous version recomputed via
+  // `useMemo` on every `editorContent` change — that's every
+  // keystroke, with three regex passes over the entire document. A
+  // 50 KB file did ~5-20 ms of regex work per keystroke on the main
+  // thread, visibly stuttering on slow machines. Compute only when
+  // the user pauses for 400 ms; show the last computed value in
+  // between (good enough for an indicator).
+  const [wordCount, setWordCount] = useState(0);
+  useEffect(() => {
+    if (editorContent === '') {
+      setWordCount(0);
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      const count = editorContent
+        .replace(/%.*$/gm, '')
+        .replace(/\\[a-zA-Z@]+\*?(\{[^}]*\})?/g, ' ')
+        .replace(/\$[^$\n]*\$/g, ' ')
+        .trim()
+        .split(/\s+/)
+        .filter((w) => w.length > 0).length;
+      setWordCount(count);
+    }, 400);
+    return () => { window.clearTimeout(handle); };
   }, [editorContent]);
 
   const saveStatusLabel = (() => {
@@ -682,66 +774,52 @@ export function ProjectWorkspace({
         <div className="flex items-center gap-1.5">
           <PresenceAvatars peers={yjs.peers} localUser={localUser} />
           <div className="mx-1 h-4 w-px bg-border" aria-hidden="true" />
-          <Button
-            variant={rightPanel === 'outline' ? 'default' : 'ghost'}
-            size="icon"
-            aria-label={t('outline.title')}
-            aria-pressed={rightPanel === 'outline'}
-            className="h-7 w-7"
-            onClick={() => { toggleRightPanel('outline'); }}
-          >
-            <ListTree className="h-3.5 w-3.5" aria-hidden="true" />
-          </Button>
-          <Button
-            variant={rightPanel === 'review' ? 'default' : 'ghost'}
-            size="icon"
-            aria-label={t('review.title')}
-            aria-pressed={rightPanel === 'review'}
-            className="h-7 w-7"
-            onClick={() => { toggleRightPanel('review'); }}
-          >
-            <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
-          </Button>
-          <Button
-            variant={rightPanel === 'history' ? 'default' : 'ghost'}
-            size="icon"
-            aria-label={t('history.title')}
-            aria-pressed={rightPanel === 'history'}
-            className="h-7 w-7"
-            onClick={() => { toggleRightPanel('history'); }}
-          >
-            <History className="h-3.5 w-3.5" aria-hidden="true" />
-          </Button>
-          <Button
-            variant={rightPanel === 'bibliography' ? 'default' : 'ghost'}
-            size="icon"
-            aria-label={t('bibliography.title')}
-            aria-pressed={rightPanel === 'bibliography'}
-            className="h-7 w-7"
-            onClick={() => { toggleRightPanel('bibliography'); }}
-          >
-            <BookText className="h-3.5 w-3.5" aria-hidden="true" />
-          </Button>
-          <Button
-            variant={rightPanel === 'ai-chat' ? 'default' : 'ghost'}
-            size="icon"
-            aria-label={t('ai.chat.title')}
-            aria-pressed={rightPanel === 'ai-chat'}
-            className="h-7 w-7"
-            onClick={() => { toggleRightPanel('ai-chat'); }}
-          >
-            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-          </Button>
-          <Button
-            variant={rightPanel === 'math' ? 'default' : 'ghost'}
-            size="icon"
-            aria-label={t('math.title')}
-            aria-pressed={rightPanel === 'math'}
-            className="h-7 w-7"
-            onClick={() => { toggleRightPanel('math'); }}
-          >
-            <Sigma className="h-3.5 w-3.5" aria-hidden="true" />
-          </Button>
+          {/* Wide layouts: every panel toggle inline. */}
+          <div className="hidden items-center gap-0.5 xl:flex">
+            {PANEL_TOGGLES.map((toggle) => (
+              <Button
+                key={toggle.id}
+                variant={rightPanel === toggle.id ? 'default' : 'ghost'}
+                size="icon"
+                aria-label={t(toggle.labelKey)}
+                aria-pressed={rightPanel === toggle.id}
+                className="h-7 w-7"
+                onClick={() => { toggleRightPanel(toggle.id); }}
+                title={t(toggle.labelKey)}
+              >
+                <toggle.icon className="h-3.5 w-3.5" aria-hidden="true" />
+              </Button>
+            ))}
+          </div>
+          {/* Narrow layouts: collapse panel toggles into an overflow menu. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t('project.morePanels')}
+                className="h-7 w-7 xl:hidden"
+                title={t('project.morePanels')}
+              >
+                <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[12rem]">
+              {PANEL_TOGGLES.map((toggle) => (
+                <DropdownMenuItem
+                  key={toggle.id}
+                  onSelect={() => { toggleRightPanel(toggle.id); }}
+                  className="gap-2"
+                >
+                  <toggle.icon className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span className="flex-1">{t(toggle.labelKey)}</span>
+                  {rightPanel === toggle.id ? (
+                    <span className="ml-auto text-[10px] text-muted-foreground">●</span>
+                  ) : null}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="ghost"
             size="icon"
@@ -762,6 +840,18 @@ export function ProjectWorkspace({
           >
             <Command className="h-3.5 w-3.5" aria-hidden="true" />
           </Button>
+          {previewCollapsed ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t('project.showPreview')}
+              title={t('project.showPreview')}
+              className="h-7 w-7"
+              onClick={togglePreview}
+            >
+              <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          ) : null}
           <div className="mx-1 h-4 w-px bg-border" aria-hidden="true" />
           <Button
             size="sm"
@@ -774,7 +864,7 @@ export function ProjectWorkspace({
             ) : (
               <Play className="h-3.5 w-3.5" aria-hidden="true" />
             )}
-            {t('compile.runButton')}
+            <span className="hidden sm:inline">{t('compile.runButton')}</span>
           </Button>
         </div>
       </div>
@@ -817,26 +907,14 @@ export function ProjectWorkspace({
   );
 
   const previewPanel = (
-    <PanelGroup direction="vertical" autoSaveId="scribe:preview-stack" className="h-full">
-      <Panel defaultSize={70} minSize={20}>
-        <PDFPreview
-          url={compileSession.pdfUrl}
-          compiling={compileSession.compiling}
-          highlight={highlight}
-          onInverseSync={handleInverseSync}
-        />
-      </Panel>
-      <Splitter orientation="horizontal" />
-      <Panel defaultSize={30} minSize={10}>
-        <CompileLog
-          status={compileSession.status}
-          entries={logEntries}
-          durationMs={compileSession.job?.durationMs ?? null}
-          errorMessage={compileSession.errorMessage}
-          onJumpTo={handleJumpTo}
-        />
-      </Panel>
-    </PanelGroup>
+    <PreviewPanel
+      compileSession={compileSession}
+      highlight={highlight}
+      onInverseSync={handleInverseSync}
+      onJumpTo={handleJumpTo}
+      onCollapse={togglePreview}
+      downloadFilename={project.name}
+    />
   );
 
   const collabSynced = collab !== null ? yjs.synced : null;
@@ -846,9 +924,21 @@ export function ProjectWorkspace({
   return (
     <div className="flex h-full flex-col">
       <PanelGroup direction="horizontal" autoSaveId="scribe:workspace" className="min-h-0 flex-1">
-        <Panel defaultSize={50} minSize={20}>{editorPanel}</Panel>
+        <Panel defaultSize={50} minSize={20}>
+          <ErrorBoundary scope="editor">{editorPanel}</ErrorBoundary>
+        </Panel>
         <Splitter orientation="vertical" />
-        <Panel defaultSize={50} minSize={20}>{previewPanel}</Panel>
+        <Panel
+          ref={previewPanelRef}
+          defaultSize={50}
+          minSize={20}
+          collapsible
+          collapsedSize={0}
+          onCollapse={() => { setPreviewCollapsed(true); }}
+          onExpand={() => { setPreviewCollapsed(false); }}
+        >
+          <ErrorBoundary scope="preview">{previewPanel}</ErrorBoundary>
+        </Panel>
         {rightPanel !== null ? (
           <>
             <Splitter orientation="vertical" />

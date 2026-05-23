@@ -7,7 +7,6 @@ use scribe_ai::CryptoBox;
 use scribe_compile::CompileQueue;
 use scribe_storage::SupabaseStorage;
 
-use crate::config::AppConfig;
 use crate::db::Db;
 use crate::response_cache::ResponseCache;
 
@@ -17,7 +16,6 @@ pub struct AppState {
 }
 
 pub struct AppStateInner {
-    pub config: AppConfig,
     /// Postgres handle. `None` when DATABASE_URL is unset — useful in dev
     /// and for liveness probes that don't need the DB.
     pub db: Option<Db>,
@@ -37,7 +35,6 @@ pub struct AppStateInner {
 
 impl AppState {
     pub fn new(
-        config: AppConfig,
         db: Option<Db>,
         storage: Option<Arc<SupabaseStorage>>,
         compile_queue: Option<Arc<CompileQueue>>,
@@ -46,7 +43,6 @@ impl AppState {
     ) -> Self {
         Self {
             inner: Arc::new(AppStateInner {
-                config,
                 db,
                 storage,
                 compile_queue,
@@ -59,11 +55,6 @@ impl AppState {
     #[inline]
     pub fn response_cache(&self) -> &ResponseCache {
         &self.inner.response_cache
-    }
-
-    #[inline]
-    pub fn config(&self) -> &AppConfig {
-        &self.inner.config
     }
 
     #[inline]

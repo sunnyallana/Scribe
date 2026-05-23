@@ -1,0 +1,10 @@
+# Scribe — robots policy.
+# Marketing/landing routes are crawlable; auth-gated paths return
+# 401 anyway so crawlers can't index project content.
+User-agent: *
+Allow: /
+Disallow: /project/
+Disallow: /settings/
+Disallow: /invite/
+
+Sitemap: /sitemap.xml

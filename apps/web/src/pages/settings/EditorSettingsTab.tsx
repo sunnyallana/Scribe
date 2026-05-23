@@ -8,12 +8,17 @@ interface ToggleProps {
   readonly onChange: (next: boolean) => void;
   readonly label: string;
   readonly description?: string;
+  /** Stable identifier — used for the `id` + `name` so Chrome's
+   *  autofill heuristics and the a11y label-for relationship work. */
+  readonly name: string;
 }
 
-function Toggle({ checked, onChange, label, description }: ToggleProps) {
+function Toggle({ checked, onChange, label, description, name }: ToggleProps) {
   return (
-    <label className="flex cursor-pointer items-start gap-3">
+    <label className="flex cursor-pointer items-start gap-3" htmlFor={name}>
       <input
+        id={name}
+        name={name}
         type="checkbox"
         checked={checked}
         onChange={(e) => { onChange(e.target.checked); }}
@@ -69,18 +74,21 @@ export function EditorSettingsTab() {
 
       <div className="space-y-3">
         <Toggle
+          name="editor-autocomplete"
           checked={editor.autocomplete}
           onChange={bound('autocomplete')}
           label={t('settings.editor.autocomplete')}
           description={t('settings.editor.autocompleteDesc')}
         />
         <Toggle
+          name="editor-ghost-text"
           checked={editor.ghostText}
           onChange={bound('ghostText')}
           label={t('settings.editor.ghostText')}
           description={t('settings.editor.ghostTextDesc')}
         />
         <Toggle
+          name="editor-vim-mode"
           checked={editor.vimMode}
           onChange={bound('vimMode')}
           label={t('settings.editor.vimMode')}
