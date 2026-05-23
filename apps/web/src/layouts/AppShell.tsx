@@ -3,6 +3,7 @@ import { LogOut, Settings as SettingsIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 
+import { NotificationBell } from '../components/Notifications/NotificationBell';
 import { useAuthStore } from '../stores/auth';
 
 import { ProjectNavSlot } from './ProjectNavSlot';
@@ -40,6 +41,7 @@ export function AppShell() {
           <ProjectNavSlot />
           <div className="flex shrink-0 items-center gap-1">
             <span className="hidden text-xs text-muted-foreground sm:inline">{displayName}</span>
+            <NotificationBell />
             <Button variant="ghost" size="icon" asChild aria-label={t('settings.title')} className="h-7 w-7">
               <Link to="/settings">
                 <SettingsIcon className="h-3.5 w-3.5" />

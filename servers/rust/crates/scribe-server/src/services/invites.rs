@@ -72,7 +72,7 @@ impl InviteService {
     ) -> ApiResult<AcceptInviteResponse> {
         let row = sqlx::query(
             r#"
-            select id, project_id, invited_email, invite_expires_at,
+            select id, project_id, role, invited_email, invite_expires_at,
                    invite_accepted_at, user_id
             from public.project_members
             where invite_token = $1
@@ -86,6 +86,7 @@ impl InviteService {
         let row = row.ok_or_else(|| ApiError::not_found("Invitation not found"))?;
         let invite_id: Uuid = row.get("id");
         let project_id: Uuid = row.get("project_id");
+        let invite_role_str: String = row.get("role");
         let invited_email: Option<String> = row.get("invited_email");
         let expires_at: DateTime<Utc> = row.get("invite_expires_at");
         let accepted_at: Option<DateTime<Utc>> = row.get("invite_accepted_at");
@@ -108,20 +109,96 @@ impl InviteService {
             ));
         }
 
-        sqlx::query(
+        // If the user is *already* a member of this project (e.g. they
+        // redeemed a share link before clicking the email invite), a
+        // straight UPDATE here would trip the unique
+        // `(project_id, user_id)` index. Coalesce instead: keep the
+        // existing membership, optionally upgrade its role to the
+        // invite's, and drop the now-redundant invite row.
+        let existing = sqlx::query_scalar::<_, Option<String>>(
             r#"
-            update public.project_members
-            set user_id = $1, invite_accepted_at = now()
-            where id = $2
+            select role from public.project_members
+            where project_id = $1 and user_id = $2 and id <> $3
+            limit 1
             "#,
         )
+        .bind(project_id)
         .bind(accepting_user)
         .bind(invite_id)
-        .execute(&self.pool)
+        .fetch_optional(&self.pool)
         .await
         .map_err(internal)?;
 
+        if let Some(Some(existing_role_str)) = existing {
+            // Pick the higher-ranked role so neither path silently
+            // downgrades. Owner-rank is preserved against any invite.
+            let existing_role = MemberRole::parse(&existing_role_str);
+            let invite_role = MemberRole::parse(&invite_role_str);
+            let chosen = match (existing_role, invite_role) {
+                (Some(a), Some(b)) if invite_rank(a) >= invite_rank(b) => a,
+                (_, Some(b)) => b,
+                (Some(a), None) => a,
+                (None, None) => MemberRole::Viewer,
+            };
+            let mut tx = self.pool.begin().await.map_err(internal)?;
+            sqlx::query(
+                r#"
+                update public.project_members
+                set role = $1,
+                    invite_accepted_at = coalesce(invite_accepted_at, now())
+                where project_id = $2 and user_id = $3
+                "#,
+            )
+            .bind(member_role_str(chosen))
+            .bind(project_id)
+            .bind(accepting_user)
+            .execute(&mut *tx)
+            .await
+            .map_err(internal)?;
+            sqlx::query(
+                r#"
+                delete from public.project_members where id = $1
+                "#,
+            )
+            .bind(invite_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(internal)?;
+            tx.commit().await.map_err(internal)?;
+        } else {
+            sqlx::query(
+                r#"
+                update public.project_members
+                set user_id = $1, invite_accepted_at = now()
+                where id = $2
+                "#,
+            )
+            .bind(accepting_user)
+            .bind(invite_id)
+            .execute(&self.pool)
+            .await
+            .map_err(internal)?;
+        }
+
         Ok(AcceptInviteResponse { project_id: ProjectId::new(project_id) })
+    }
+}
+
+fn invite_rank(role: MemberRole) -> u8 {
+    match role {
+        MemberRole::Owner => 4,
+        MemberRole::Editor => 3,
+        MemberRole::Commenter => 2,
+        MemberRole::Viewer => 1,
+    }
+}
+
+fn member_role_str(role: MemberRole) -> &'static str {
+    match role {
+        MemberRole::Owner => "owner",
+        MemberRole::Editor => "editor",
+        MemberRole::Commenter => "commenter",
+        MemberRole::Viewer => "viewer",
     }
 }
 

@@ -14,3 +14,9 @@ export type MemberId = z.infer<typeof memberIdSchema>;
 
 export const inviteTokenSchema = z.string().min(20).brand<'InviteToken'>();
 export type InviteToken = z.infer<typeof inviteTokenSchema>;
+
+export const shareLinkIdSchema = z.string().uuid().brand<'ShareLinkId'>();
+export type ShareLinkId = z.infer<typeof shareLinkIdSchema>;
+
+export const shareTokenSchema = z.string().min(20).brand<'ShareToken'>();
+export type ShareToken = z.infer<typeof shareTokenSchema>;

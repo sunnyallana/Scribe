@@ -10,7 +10,9 @@ pub mod ids;
 pub mod error;
 pub mod files;
 pub mod members;
+pub mod notifications;
 pub mod projects;
+pub mod shares;
 pub mod versions;
 
 pub use ai::{
@@ -24,7 +26,7 @@ pub use compiles::{
 };
 pub use error::{ApiError, ApiErrorBody, ApiResult, ErrorCode};
 pub use files::{infer_file_type, FileType};
-pub use ids::{CommentId, FileId, MemberId, ProjectId, UserId};
+pub use ids::{CommentId, FileId, MemberId, ProjectId, ShareLinkId, UserId};
 pub use members::{
     AcceptInviteResponse, InviteDetails, InviteMemberInput, InviteRole, MemberRole, ProjectMember,
     UpdateMemberRoleInput,
@@ -32,5 +34,9 @@ pub use members::{
 pub use projects::{
     CompilerEngine, CreateFileInput, CreateProjectInput, FileContentInput, Project, ProjectFile,
     ProjectTemplate, RenameFileInput, UpdateProjectInput,
+};
+pub use notifications::{Notification, NotificationKind, UnreadCountResponse};
+pub use shares::{
+    CreateShareLinkInput, RedeemShareResponse, ShareLink, SharePreview, ShareRole,
 };
 pub use versions::{CreateVersionInput, ProjectVersion, VersionFile, VersionId, VersionPayload};

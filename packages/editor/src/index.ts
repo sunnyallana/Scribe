@@ -3,6 +3,7 @@ export * from './commands-db.js';
 export * from './createEditor.js';
 export * from './extensions/auto-close-env.js';
 export * from './extensions/ghost-complete.js';
+export * from './extensions/hover-preview.js';
 export * from './extensions/ruler.js';
 export * from './extensions/word-count.js';
 export * from './latex-language.js';
