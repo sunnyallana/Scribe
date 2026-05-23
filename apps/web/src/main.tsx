@@ -1,10 +1,12 @@
 import { ThemeProvider } from '@scribe/ui';
 import { QueryClientProvider } from '@tanstack/react-query';
+import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
 
 import '@scribe/ui/styles.css';
 import './i18n';
+import { ErrorBoundary } from './components/ErrorBoundary/ErrorBoundary';
 import { queryClient } from './lib/queryClient';
 import { router } from './router';
 
@@ -13,18 +15,20 @@ if (rootElement === null) {
   throw new Error('Missing #root element in index.html');
 }
 
-// NOTE: StrictMode is disabled because it double-invokes effects in dev,
-// which makes the Yjs provider lifecycle in `useYjsDoc` create and
-// immediately destroy Provider A before Provider B takes over. The
-// async-IIFE guard handles cancellation correctly, but the editor's
-// y-codemirror.next binding can end up pointing at Y.Text from the
-// destroyed provider — which is why live updates from the WS never
-// reach the editor view. Re-enable once `useYjsDoc` is refactored to
-// share a single Y.Doc across the double-mount.
+// StrictMode is back. The Yjs-provider lifecycle bug it was masking is
+// resolved: we replaced `y-codemirror.next` with the custom binding in
+// `packages/editor/src/extensions/yjs-binding.ts` and fixed the
+// y-protocols sync-step-2 constant in `packages/yjs-provider/src/provider.ts`.
+// The async-IIFE guard in `useYjsDoc` already handles the double-mount
+// correctly, so StrictMode's verification doesn't break us anymore.
 createRoot(rootElement).render(
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider>
-      <RouterProvider router={router} />
-    </ThemeProvider>
-  </QueryClientProvider>,
+  <StrictMode>
+    <ErrorBoundary scope="app root">
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <RouterProvider router={router} />
+        </ThemeProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
+  </StrictMode>,
 );

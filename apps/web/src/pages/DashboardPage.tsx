@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { api, type ApiError } from '../lib/api';
 
 import { NewProjectDialog } from './dashboard/NewProjectDialog';
@@ -58,6 +59,7 @@ function DashboardSkeleton() {
 
 export function DashboardPage() {
   const { t } = useTranslation();
+  useDocumentTitle(t('dashboard.title'));
   const { data: projects, isLoading, error } = useProjects();
   const [dialogOpen, setDialogOpen] = useState(false);
 

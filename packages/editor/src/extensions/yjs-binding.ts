@@ -1,5 +1,5 @@
 /**
- * Minimal CodeMirror ↔ Y.Text binding.
+ * Minimal CodeMirror ↔ Y.Text binding + remote cursor rendering.
  *
  * Replaces `y-codemirror.next` because the upstream plugin (0.3.5)
  * intermittently fails to mirror editor transactions back into Y.Text
@@ -7,32 +7,37 @@
  * Node-vs-Node ping-pong test, but the browser's editor wasn't
  * generating any Yjs updates while the user typed.
  *
- * What this plugin does (and only this — no awareness/cursors yet):
+ * What this module does:
  *
- *   1. On attach, snap the editor's doc to `ytext.toString()` so the
- *      two start in sync. Marks the transaction with `fromYjs` so the
- *      update step below doesn't immediately echo it back.
+ *   1. **Text sync (Y.Text ↔ CodeMirror)** — on attach, snap the
+ *      editor's doc to `ytext.toString()`. After that, translate
+ *      CodeMirror change sets into `ytext` ops (tagged with
+ *      `LOCAL_ORIGIN`) and translate remote `YTextEvent`s back into
+ *      CodeMirror dispatches (annotated with `fromYjs`). Each round
+ *      trip is tagged so the inverse path silences itself — no echo
+ *      loops, no double-applies.
  *
- *   2. On every CodeMirror transaction that mutated the doc and was
- *      NOT originated by us (no `fromYjs` annotation), translate the
- *      diff into a series of `ytext.delete` / `ytext.insert` ops
- *      inside a single `ytext.doc.transact(…, LOCAL_ORIGIN)`. The
- *      origin tag is unique to this module so the observer (below)
- *      knows to skip the resulting `YTextEvent`.
+ *   2. **Local cursor → awareness** — whenever the selection moves,
+ *      write the head/anchor offsets onto our awareness local state
+ *      (merged into the existing `user` PresenceUser).
  *
- *   3. On every `ytext` change whose transaction origin ISN'T our
- *      `LOCAL_ORIGIN` — i.e. it came from the WebSocket provider
- *      applying a remote update — convert the Yjs delta into a
- *      CodeMirror change set and dispatch it, annotated with
- *      `fromYjs` so step 2 doesn't re-apply it.
- *
- * Convergence: every change makes exactly one round trip
- * (editor → ytext or ytext → editor) before being silenced by the
- * origin tag / annotation. No echo loops, no double-applies.
+ *   3. **Remote cursors → editor** — render each peer's caret as a
+ *      `Decoration.widget` with their color and a small name label
+ *      hovering above it. Selections rendered as colored marks.
+ *      Peers viewing a different file are filtered out via the
+ *      `currentFile` field already populated by `provider.setCursor`.
  */
 
-import { Annotation, type Extension } from '@codemirror/state';
-import { EditorView, type PluginValue, ViewPlugin, type ViewUpdate } from '@codemirror/view';
+import { Annotation, type Extension, type Range, StateEffect, StateField } from '@codemirror/state';
+import {
+  Decoration,
+  type DecorationSet,
+  EditorView,
+  type PluginValue,
+  ViewPlugin,
+  type ViewUpdate,
+  WidgetType,
+} from '@codemirror/view';
 import { type Awareness } from 'y-protocols/awareness';
 import { type Text as YText, type YTextEvent } from 'yjs';
 
@@ -51,21 +56,123 @@ const LOCAL_ORIGIN = Symbol('scribe.yjs.local');
  *  403s for viewers. */
 export const fromYjs = Annotation.define<boolean>();
 
+/** Pushed by the awareness listener; carries the latest decoration set
+ *  for *remote* cursors. The state field swaps its value when this
+ *  effect arrives. */
+const setRemoteCursorsEffect = StateEffect.define<DecorationSet>();
+
+const remoteCursorsField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(value, tr) {
+    // Map existing decorations through any local doc changes so they
+    // don't lag behind when the user types between awareness updates.
+    let next = value.map(tr.changes);
+    for (const effect of tr.effects) {
+      if (effect.is(setRemoteCursorsEffect)) {
+        next = effect.value;
+      }
+    }
+    return next;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+class RemoteCursorWidget extends WidgetType {
+  constructor(private readonly color: string, private readonly name: string) {
+    super();
+  }
+  override eq(other: RemoteCursorWidget): boolean {
+    return other.color === this.color && other.name === this.name;
+  }
+  override toDOM(): HTMLElement {
+    const caret = document.createElement('span');
+    caret.className = 'scribe-remote-cursor';
+    caret.style.borderLeftColor = this.color;
+    const label = document.createElement('span');
+    label.className = 'scribe-remote-cursor-label';
+    label.style.backgroundColor = this.color;
+    label.textContent = this.name;
+    caret.appendChild(label);
+    return caret;
+  }
+  override ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+/** Base theme for the remote-cursor widget + selection mark. Loaded
+ *  alongside the binding so callers don't have to wire it in
+ *  separately. */
+const remoteCursorTheme = EditorView.baseTheme({
+  '.scribe-remote-cursor': {
+    position: 'relative',
+    display: 'inline-block',
+    width: '0',
+    height: '1.1em',
+    borderLeftStyle: 'solid',
+    borderLeftWidth: '2px',
+    marginLeft: '-1px',
+    pointerEvents: 'none',
+    verticalAlign: 'text-bottom',
+  },
+  '.scribe-remote-cursor-label': {
+    position: 'absolute',
+    bottom: 'calc(100% - 2px)',
+    left: '-1px',
+    fontSize: '10px',
+    lineHeight: '14px',
+    padding: '0 4px',
+    color: '#fff',
+    borderRadius: '3px 3px 3px 0',
+    whiteSpace: 'nowrap',
+    fontFamily:
+      'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+    fontWeight: '500',
+    userSelect: 'none',
+    pointerEvents: 'none',
+    transform: 'translateY(2px)',
+    boxShadow: '0 1px 2px rgba(0,0,0,.15)',
+  },
+  '.scribe-remote-selection': {
+    // Translucent mark over the peer's selection range. Color comes
+    // from the inline style on the mark.
+    borderRadius: '1px',
+  },
+});
+
+interface PeerUser {
+  readonly userId?: string;
+  readonly displayName?: string;
+  readonly color?: string;
+  readonly cursorAnchor?: number;
+  readonly cursorHead?: number;
+  readonly currentFile?: string;
+}
+
+interface AwarenessState {
+  readonly user?: PeerUser;
+}
+
 export interface ScribeYjsCollab {
   readonly yText: YText;
-  /** Reserved — passed in so the API matches `y-codemirror.next`'s
-   *  `yCollab(yText, awareness)` shape. Used for presence/cursors in a
-   *  follow-up extension. */
   readonly awareness: Awareness | null;
+  /** File path this editor instance is bound to. Used to filter out
+   *  peers viewing a different file when rendering remote cursors. */
+  readonly filePath?: string;
 }
 
 export function scribeYjsBinding(opts: ScribeYjsCollab): Extension {
-  const { yText } = opts;
-  return ViewPlugin.fromClass(
+  const { yText, awareness, filePath } = opts;
+  const plugin = ViewPlugin.fromClass(
     class implements PluginValue {
       private readonly view: EditorView;
       private readonly observer: (event: YTextEvent) => void;
+      private readonly awarenessHandler:
+        | ((changes: { added: number[]; updated: number[]; removed: number[] }) => void)
+        | null;
       private destroyed = false;
+      private lastLocalAnchor = -1;
+      private lastLocalHead = -1;
 
       constructor(view: EditorView) {
         this.view = view;
@@ -117,53 +224,201 @@ export function scribeYjsBinding(opts: ScribeYjsCollab): Extension {
           });
         };
         yText.observe(this.observer);
+
+        // ── Awareness → remote cursor decorations ────────────────────
+        if (awareness !== null) {
+          const localId = awareness.clientID;
+          this.awarenessHandler = (changes: {
+            added: number[];
+            updated: number[];
+            removed: number[];
+          }) => {
+            if (this.destroyed) return;
+            // Skip when only our own client changed — that handler fires
+            // synchronously from inside `setLocalState`, which we call
+            // from `update()`. Dispatching back into the view during an
+            // update throws "Calls to EditorView.update are not allowed
+            // while an update is in progress" and kills the plugin.
+            const remoteChanged =
+              changes.added.some((id) => id !== localId) ||
+              changes.updated.some((id) => id !== localId) ||
+              changes.removed.some((id) => id !== localId);
+            if (!remoteChanged) return;
+            // Even when triggered by a genuine remote change, the
+            // handler can still fire during another transaction (the
+            // network read happens off the main update loop, but
+            // belt-and-braces). Defer to a microtask so we never
+            // dispatch from inside another dispatch.
+            Promise.resolve().then(() => { this.refreshRemoteCursors(); });
+          };
+          awareness.on('change', this.awarenessHandler);
+          // Initial paint (peers already present at attach time).
+          Promise.resolve().then(() => { this.refreshRemoteCursors(); });
+        } else {
+          this.awarenessHandler = null;
+        }
       }
 
-      // ── Editor → Y.Text ────────────────────────────────────────────
+      // ── Editor → Y.Text + local cursor → awareness ────────────────
       update(update: ViewUpdate): void {
-        if (!update.docChanged) return;
-        // Skip if this transaction is the echo of a remote yText change
-        // we just dispatched. Without this guard, every keystroke from
-        // a peer would round-trip into yText again and the doc grows
-        // forever.
         const isEcho = update.transactions.some(
           (tr) => tr.annotation(fromYjs) === true,
         );
-        if (isEcho) return;
 
-        // Translate the CodeMirror change set into Y.Text ops inside a
-        // single Y.Doc transaction so the WS provider serialises them
-        // as one update message (one fewer round-trip, atomic on the
-        // peer side). `LOCAL_ORIGIN` is unique to this module so the
-        // observer above knows to skip the resulting event.
-        const doc = yText.doc;
-        if (doc === null || doc === undefined) return;
-        doc.transact(() => {
-          // iterChanges hands us positions in the OLD doc (`fromA`/`toA`).
-          // We need positions in the CURRENT yText, which still matches
-          // the old doc. As we apply each delete/insert, yText shifts;
-          // track the running net length delta so subsequent ranges
-          // line up.
-          let offset = 0;
-          update.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
-            const at = fromA + offset;
-            const deleteLen = toA - fromA;
-            if (deleteLen > 0) {
-              yText.delete(at, deleteLen);
+        // Text changes — translate to Y.Text ops.
+        if (update.docChanged && !isEcho) {
+          const doc = yText.doc;
+          if (doc !== null && doc !== undefined) {
+            doc.transact(() => {
+              let offset = 0;
+              update.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
+                const at = fromA + offset;
+                const deleteLen = toA - fromA;
+                if (deleteLen > 0) {
+                  yText.delete(at, deleteLen);
+                }
+                const insertStr = inserted.toString();
+                if (insertStr.length > 0) {
+                  yText.insert(at, insertStr);
+                }
+                offset += insertStr.length - deleteLen;
+              });
+            }, LOCAL_ORIGIN);
+          }
+        }
+
+        // Local cursor → awareness. Fire on selection move and on doc
+        // change (a typed char moves the cursor without
+        // `selectionSet`). De-dupe so we don't flood the WS with
+        // identical states.
+        if (awareness !== null && (update.selectionSet || update.docChanged)) {
+          const sel = update.state.selection.main;
+          if (sel.anchor !== this.lastLocalAnchor || sel.head !== this.lastLocalHead) {
+            this.lastLocalAnchor = sel.anchor;
+            this.lastLocalHead = sel.head;
+            const existing = awareness.getLocalState() as AwarenessState | null;
+            const existingUser: PeerUser = existing?.user ?? {};
+            awareness.setLocalState({
+              ...existing,
+              user: {
+                ...existingUser,
+                ...(filePath !== undefined ? { currentFile: filePath } : {}),
+                cursorAnchor: sel.anchor,
+                cursorHead: sel.head,
+              },
+            });
+          }
+        }
+      }
+
+      private refreshRemoteCursors(): void {
+        if (awareness === null) return;
+        const localId = awareness.clientID;
+        const states = awareness.getStates();
+        const docLength = this.view.state.doc.length;
+        const ranges: Range<Decoration>[] = [];
+
+        // States is a Map<number, AwarenessState>. Sort by clientID so
+        // overlapping carets render in a stable order across frames.
+        const entries: Array<[number, AwarenessState]> = [];
+        states.forEach((value, key) => {
+          entries.push([key, value as AwarenessState]);
+        });
+        entries.sort((a, b) => a[0] - b[0]);
+
+        // Yjs awareness keys every connection by clientID, so the same
+        // user with the project open in two tabs shows up twice. Pick
+        // the most-recently-active connection per `userId` so we draw
+        // one cursor per human, not one per tab. `awareness.meta` is
+        // a Map<clientID, { clock, lastUpdated }> kept in sync by the
+        // y-protocols/awareness module — `lastUpdated` is the wall-
+        // clock ms of the last state mutation, which is exactly the
+        // "which tab is the user currently typing in" signal.
+        const meta = awareness.meta;
+        const bestByUser = new Map<string, { clientId: number; lastUpdated: number }>();
+        for (const [clientId, state] of entries) {
+          if (clientId === localId) continue;
+          const user = state.user;
+          if (user === undefined) continue;
+          if (user.userId === undefined) continue;
+          // Skip peers in a different file (cursors would land at
+          // meaningless offsets in this doc).
+          if (
+            filePath !== undefined &&
+            user.currentFile !== undefined &&
+            user.currentFile !== filePath
+          ) {
+            continue;
+          }
+          const lastUpdated = meta.get(clientId)?.lastUpdated ?? 0;
+          const existing = bestByUser.get(user.userId);
+          if (existing === undefined || lastUpdated > existing.lastUpdated) {
+            bestByUser.set(user.userId, { clientId, lastUpdated });
+          }
+        }
+        const winners = new Set<number>();
+        for (const v of bestByUser.values()) winners.add(v.clientId);
+
+        for (const [clientId, state] of entries) {
+          if (clientId === localId) continue;
+          if (!winners.has(clientId)) continue;
+          const user = state.user;
+          if (user === undefined) continue;
+          if (
+            filePath !== undefined &&
+            user.currentFile !== undefined &&
+            user.currentFile !== filePath
+          ) {
+            continue;
+          }
+          const head = user.cursorHead;
+          const anchor = user.cursorAnchor;
+          if (typeof head !== 'number') continue;
+          const color = user.color ?? '#888';
+          const name = user.displayName ?? 'Anonymous';
+
+          // Selection mark (if anchor != head).
+          if (typeof anchor === 'number' && anchor !== head) {
+            const from = Math.max(0, Math.min(anchor, head, docLength));
+            const to = Math.max(0, Math.min(Math.max(anchor, head), docLength));
+            if (from < to) {
+              ranges.push(
+                Decoration.mark({
+                  class: 'scribe-remote-selection',
+                  attributes: {
+                    style: `background-color: ${color}33;`, // 20% alpha
+                  },
+                }).range(from, to),
+              );
             }
-            const insertStr = inserted.toString();
-            if (insertStr.length > 0) {
-              yText.insert(at, insertStr);
-            }
-            offset += insertStr.length - deleteLen;
-          });
-        }, LOCAL_ORIGIN);
+          }
+
+          // Caret widget at the head position (clamped).
+          const at = Math.max(0, Math.min(head, docLength));
+          ranges.push(
+            Decoration.widget({
+              widget: new RemoteCursorWidget(color, name),
+              side: 0,
+            }).range(at),
+          );
+        }
+
+        // Decorations must be sorted by `from`, then by `startSide`.
+        ranges.sort((a, b) => a.from - b.from || a.value.startSide - b.value.startSide);
+        this.view.dispatch({
+          effects: setRemoteCursorsEffect.of(Decoration.set(ranges, true)),
+        });
       }
 
       destroy(): void {
         this.destroyed = true;
         yText.unobserve(this.observer);
+        if (awareness !== null && this.awarenessHandler !== null) {
+          awareness.off('change', this.awarenessHandler);
+        }
       }
     },
   );
+
+  return [plugin, remoteCursorsField, remoteCursorTheme];
 }

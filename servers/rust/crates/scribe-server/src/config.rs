@@ -38,9 +38,7 @@ impl Default for AppEnv {
 }
 
 impl AppEnv {
-    pub fn is_dev(self) -> bool { matches!(self, Self::Development) }
     pub fn is_prod(self) -> bool { matches!(self, Self::Production) }
-    pub fn is_test(self) -> bool { matches!(self, Self::Testing) }
 
     fn from_str_loose(s: &str) -> Option<Self> {
         match s.trim().to_ascii_lowercase().as_str() {
@@ -164,8 +162,25 @@ pub struct AppConfig {
     /// fallback to index.html so client-side routing works.
     pub scribe_static_dir: Option<String>,
 
+    /// Compile engine selector. `"tectonic"` (default) keeps the
+    /// single-binary, auto-fetched-CTAN-packages path; `"latexmk"`
+    /// switches to the Overleaf-style pipeline (`latexmk` driving
+    /// pdflatex/xelatex/lualatex against a local TeX Live / MiKTeX).
+    /// Empty / unrecognised falls back to tectonic.
+    pub compile_engine: Option<String>,
     /// Path to the tectonic binary. Defaults to `tectonic` (PATH lookup).
     pub tectonic_bin: Option<String>,
+    /// Path to the latexmk binary when `compile_engine="latexmk"`.
+    /// Defaults to `latexmk` (PATH lookup).
+    pub latexmk_bin: Option<String>,
+    /// Underlying LaTeX engine that latexmk should drive:
+    /// `"pdflatex"` (default), `"xelatex"`, or `"lualatex"`.
+    pub latex_engine: Option<String>,
+    /// Path to the pandoc binary used for LaTeX→Markdown / LaTeX→DOCX
+    /// exports. Defaults to `pandoc` (PATH lookup). If neither this
+    /// nor `pandoc` on PATH resolves, the export routes 503 with a
+    /// clear "install pandoc" message.
+    pub pandoc_bin: Option<String>,
     /// Hard kill the compile after this many ms. Same name as Node side.
     pub compile_timeout_ms: Option<u64>,
     /// Persistent cache directory for tectonic so package downloads
@@ -195,7 +210,11 @@ impl Default for AppConfig {
             file_size_max_bytes: 25 * 1024 * 1024,
             cors_origin: None,
             scribe_static_dir: None,
+            compile_engine: None,
             tectonic_bin: None,
+            latexmk_bin: None,
+            latex_engine: None,
+            pandoc_bin: None,
             compile_timeout_ms: None,
             tectonic_cache_dir: None,
             compile_worker_concurrency: None,
@@ -238,7 +257,8 @@ impl AppConfig {
             "supabase_anon_key", "supabase_service_role_key",
             "supabase_jwt_secret", "redis_url", "ai_key_encryption_key",
             "file_size_max_bytes", "cors_origin", "scribe_static_dir",
-            "tectonic_bin", "compile_timeout_ms", "tectonic_cache_dir",
+            "compile_engine", "tectonic_bin", "latexmk_bin", "latex_engine",
+            "pandoc_bin", "compile_timeout_ms", "tectonic_cache_dir",
             "compile_worker_concurrency",
         ]));
 

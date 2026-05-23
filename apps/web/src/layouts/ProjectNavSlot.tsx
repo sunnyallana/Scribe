@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { ExportMenuItems } from '../components/ProjectActions/ExportMenuItems';
 import { api, type ApiError } from '../lib/api';
 import { useProjectChrome } from '../stores/projectChrome';
 
@@ -126,6 +127,8 @@ function ProjectMenu({ project, openSettings, t }: ProjectMenuProps) {
             <Copy className="h-3.5 w-3.5" aria-hidden="true" />
             {duplicateMutation.isPending ? t('project.duplicating') : t('project.duplicate')}
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <ExportMenuItems />
           {openSettings !== null ? (
             <>
               <DropdownMenuSeparator />

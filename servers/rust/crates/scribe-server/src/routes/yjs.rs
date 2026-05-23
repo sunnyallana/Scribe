@@ -78,9 +78,15 @@ async fn upgrade(
     let read_only = matches!(role, MemberRole::Viewer | MemberRole::Commenter);
 
     let doc_id = format!("{}/{}", project_id, file_id);
-    ws.on_upgrade(move |socket| async move {
-        scribe_yjs::serve_socket_with_mode(socket, doc_id, registry, read_only).await
-    })
+    // Cap per-frame size. Yjs sync messages are normally a few KB; even
+    // the initial snap of a large doc rarely exceeds a few hundred KB.
+    // 4 MiB leaves generous headroom while making it harder for a
+    // malicious client to exhaust server memory by sending huge frames.
+    ws.max_message_size(4 * 1024 * 1024)
+        .max_frame_size(1024 * 1024)
+        .on_upgrade(move |socket| async move {
+            scribe_yjs::serve_socket_with_mode(socket, doc_id, registry, read_only).await
+        })
 }
 
 fn api_error(err: ApiError) -> Response {

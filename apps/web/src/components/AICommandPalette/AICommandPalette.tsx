@@ -138,6 +138,9 @@ export function AICommandPalette({ open, onOpenChange, selection, onInsert }: AI
                 </label>
                 <input
                   id="ai-option"
+                  name="ai-option"
+                  type="text"
+                  autoComplete="off"
                   className="w-full rounded-md border bg-background p-2 text-sm"
                   value={optionValue}
                   onChange={(e) => { setOptionValue(e.target.value); }}

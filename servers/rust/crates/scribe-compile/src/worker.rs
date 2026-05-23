@@ -31,13 +31,15 @@ use tokio::task::JoinHandle;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
+use crate::engine::{run_compile, EngineConfig};
 use crate::log_parser;
 use crate::queue::CompileQueue;
-use crate::tectonic::{run_tectonic, CompileOutcome, TectonicConfig};
+use crate::tectonic::CompileOutcome;
 
 /// Long-running options for the worker loop.
 pub struct WorkerConfig {
-    pub tectonic: TectonicConfig,
+    /// Engine to drive (Tectonic vs latexmk) and its per-engine knobs.
+    pub engine: EngineConfig,
     /// Working-directory root. Per-job scratch dirs are created underneath.
     /// Defaults to the OS temp dir.
     pub workdir_root: std::path::PathBuf,
@@ -46,7 +48,7 @@ pub struct WorkerConfig {
 impl Default for WorkerConfig {
     fn default() -> Self {
         Self {
-            tectonic: TectonicConfig::default(),
+            engine: EngineConfig::default(),
             workdir_root: std::env::temp_dir(),
         }
     }
@@ -167,7 +169,11 @@ impl Worker {
                             .find(|e| matches!(e.level, scribe_shared::CompileLogLevel::Error))
                             .map(|e| e.message.clone())
                             .unwrap_or_else(|| {
-                                format!("tectonic exited with code {}", compile.exit_code)
+                                format!(
+                                    "{} exited with code {}",
+                                    self.config.engine.kind.name(),
+                                    compile.exit_code,
+                                )
                             }),
                     )
                 } else {
@@ -283,10 +289,10 @@ impl Worker {
             "file materialization diff"
         );
 
-        // ---- run tectonic ----
+        // ---- run the compile engine ----
         let t_tex = std::time::Instant::now();
-        let outcome = run_tectonic(&self.config.tectonic, workdir, &payload.main_file).await;
-        let tectonic_ms = t_tex.elapsed().as_millis();
+        let outcome = run_compile(&self.config.engine, workdir, &payload.main_file).await;
+        let engine_ms = t_tex.elapsed().as_millis();
 
         let combined = format!("{}\n{}", outcome.stdout, outcome.stderr);
         let entries = log_parser::parse(&combined);
@@ -315,7 +321,7 @@ impl Worker {
             file_count,
             list_ms,
             download_ms,
-            tectonic_ms,
+            engine_ms,
             upload_ms,
             "compile phase timings"
         );
@@ -362,10 +368,16 @@ impl Worker {
         let pdf_path = workdir.join(format!("{base_name}.pdf"));
         let log_path = workdir.join(format!("{base_name}.log"));
         let synctex_path = workdir.join(format!("{base_name}.synctex.gz"));
+        // Cap each artifact read so a runaway compile (huge synctex,
+        // looping PDF) can't OOM the worker. Sizes chosen to leave
+        // generous headroom for real documents.
+        const MAX_PDF_BYTES: u64 = 256 * 1024 * 1024;  // 256 MiB
+        const MAX_LOG_BYTES: u64 = 32 * 1024 * 1024;   // 32 MiB
+        const MAX_SYNCTEX_BYTES: u64 = 128 * 1024 * 1024; // 128 MiB
         let (pdf, log_file, synctex) = tokio::join!(
-            fs::read(&pdf_path),
-            fs::read(&log_path),
-            fs::read(&synctex_path),
+            read_capped(&pdf_path, MAX_PDF_BYTES),
+            read_capped(&log_path, MAX_LOG_BYTES),
+            read_capped(&synctex_path, MAX_SYNCTEX_BYTES),
         );
 
         let pdf_bytes = pdf.ok();
@@ -416,12 +428,18 @@ impl Worker {
         tokio::spawn(async move {
             let log_fut = async {
                 if let Some(key) = log_key_bg.as_deref() {
+                    // The compile-artifacts bucket's allowlist matches
+                    // mime strings exactly. `text/plain; charset=utf-8`
+                    // didn't match the allowed `text/plain`, so the
+                    // upload silently 400'd. Drop the charset suffix —
+                    // log files are pure ASCII anyway, the charset
+                    // hint is decorative.
                     if let Err(err) = storage
                         .upload(
                             COMPILE_ARTIFACTS_BUCKET,
                             key,
                             Bytes::from(log_bytes),
-                            "text/plain; charset=utf-8",
+                            "text/plain",
                         )
                         .await
                     {
@@ -432,12 +450,17 @@ impl Worker {
             let synctex_fut = async {
                 if let (Some(key), Some(bytes)) = (synctex_key_bg.as_deref(), synctex_bytes) {
                     if !bytes.is_empty() {
+                        // `application/gzip` isn't on the bucket's
+                        // mime allowlist. `application/octet-stream` is
+                        // — and SyncTeX is opaque binary to everything
+                        // except the SyncTeX consumer anyway, so the
+                        // generic binary type is the right one.
                         if let Err(err) = storage
                             .upload(
                                 COMPILE_ARTIFACTS_BUCKET,
                                 key,
                                 Bytes::from(bytes),
-                                "application/gzip",
+                                "application/octet-stream",
                             )
                             .await
                         {
@@ -579,4 +602,24 @@ struct Artifacts {
 #[allow(dead_code)]
 fn _assert_job_id_visible(id: CompileJobId) {
     debug_assert_ne!(id.into_inner(), Uuid::nil());
+}
+
+/// Read a file into memory, refusing if `metadata().len()` exceeds
+/// `max_bytes`. Cheap stat-then-read rather than streaming, since these
+/// artifacts are small enough that streaming would just add complexity.
+async fn read_capped(path: &Path, max_bytes: u64) -> std::io::Result<Vec<u8>> {
+    let meta = fs::metadata(path).await?;
+    if meta.len() > max_bytes {
+        tracing::warn!(
+            file = %path.display(),
+            size = meta.len(),
+            cap = max_bytes,
+            "refusing to read artifact: exceeds cap",
+        );
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("artifact exceeds {max_bytes}-byte cap"),
+        ));
+    }
+    fs::read(path).await
 }

@@ -93,7 +93,7 @@ export function CompileLog({
           </Button>
         ) : null}
       </div>
-      <div className="flex-1 overflow-auto p-2">
+      <div className="scribe-scroll flex-1 overflow-auto p-2">
         {errorMessage !== null && errorMessage !== undefined ? (
           <p className="mb-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             {errorMessage}

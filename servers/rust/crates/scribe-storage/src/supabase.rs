@@ -221,14 +221,27 @@ async fn check_status(
     }
     let body = response.text().await.unwrap_or_default();
     let message = parse_error_message(&body).unwrap_or_else(|| body.clone());
-    let code = match status {
-        StatusCode::NOT_FOUND => ErrorCode::NotFound,
-        StatusCode::UNAUTHORIZED => ErrorCode::Unauthorized,
-        StatusCode::FORBIDDEN => ErrorCode::Forbidden,
-        StatusCode::CONFLICT => ErrorCode::Conflict,
-        StatusCode::PAYLOAD_TOO_LARGE => ErrorCode::PayloadTooLarge,
-        s if s.is_server_error() => ErrorCode::ServiceUnavailable,
-        _ => ErrorCode::Internal,
+    // Supabase Storage returns 400 with `{"error":"Object not found"}`
+    // (and `{"statusCode":"404"}`) for missing objects, instead of a
+    // plain HTTP 404. Treat that as NotFound so callers (e.g. the
+    // compile artifact-url route) surface a 404 to the SPA rather than
+    // a 500 when the synctex object hasn't been uploaded yet.
+    let looks_not_found = status == StatusCode::BAD_REQUEST
+        && (message.to_ascii_lowercase().contains("not found")
+            || body.contains("\"statusCode\":\"404\"")
+            || body.contains("\"statusCode\":404"));
+    let code = if looks_not_found {
+        ErrorCode::NotFound
+    } else {
+        match status {
+            StatusCode::NOT_FOUND => ErrorCode::NotFound,
+            StatusCode::UNAUTHORIZED => ErrorCode::Unauthorized,
+            StatusCode::FORBIDDEN => ErrorCode::Forbidden,
+            StatusCode::CONFLICT => ErrorCode::Conflict,
+            StatusCode::PAYLOAD_TOO_LARGE => ErrorCode::PayloadTooLarge,
+            s if s.is_server_error() => ErrorCode::ServiceUnavailable,
+            _ => ErrorCode::Internal,
+        }
     };
     Err(ApiError::new(code, format!("storage {op} ({status}): {message}")))
 }

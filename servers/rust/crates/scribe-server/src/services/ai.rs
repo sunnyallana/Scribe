@@ -144,11 +144,17 @@ impl AIService {
             .ok_or_else(|| ApiError::new(ErrorCode::Forbidden, "API key not set"))?;
 
         let system = system_prompt(input.feature);
-        let mut messages: Vec<ChatMessage> = Vec::new();
+        // Cap the history we forward to the upstream LLM. Long chat
+        // sessions can otherwise drag many MB of context through every
+        // request — costs money and risks hitting provider limits.
+        // Keep the most recent N turns (trim from the front).
+        const MAX_HISTORY_MESSAGES: usize = 40;
+        let history = input.history.unwrap_or_default();
+        let history_skip = history.len().saturating_sub(MAX_HISTORY_MESSAGES);
+        let mut messages: Vec<ChatMessage> =
+            Vec::with_capacity(history.len().min(MAX_HISTORY_MESSAGES) + 2);
         messages.push(ChatMessage { role: ChatRole::System, content: system.to_string() });
-        for h in input.history.unwrap_or_default() {
-            messages.push(h);
-        }
+        messages.extend(history.into_iter().skip(history_skip));
         if !input.selection.is_empty() {
             messages.push(ChatMessage { role: ChatRole::User, content: input.selection });
         }
@@ -207,27 +213,13 @@ impl AIService {
     }
 }
 
-// Helper: ai_config column reads come back as Option<JsonValue> where the
-// outer Option is "row missing", and the JsonValue may itself be Json
-// null. Flatten the two.
-trait FlattenJson {
-    fn flatten(self) -> Option<serde_json::Value>;
-}
-impl FlattenJson for Option<serde_json::Value> {
-    fn flatten(self) -> Option<serde_json::Value> {
-        match self {
-            None => None,
-            Some(v) if v.is_null() => None,
-            Some(v) => Some(v),
-        }
-    }
-}
-
 fn internal_db(err: sqlx::Error) -> ApiError {
-    ApiError::new(ErrorCode::Internal, format!("db: {err}"))
+    tracing::error!(?err, "database error in ai service");
+    ApiError::new(ErrorCode::Internal, "Database error")
 }
 fn internal_serde(err: serde_json::Error) -> ApiError {
-    ApiError::new(ErrorCode::Internal, format!("json: {err}"))
+    tracing::error!(?err, "serde error in ai service");
+    ApiError::new(ErrorCode::Internal, "Serialization error")
 }
 
 /// Provider used by the route layer so the AppState doesn't need to

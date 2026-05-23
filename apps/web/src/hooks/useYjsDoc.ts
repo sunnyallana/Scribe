@@ -53,8 +53,13 @@ export function useYjsDoc(
     void (async () => {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
-      if (token === undefined || cancelled) {
-        log.yjs.warn('useYjsDoc skipped: no session token or cancelled', { cancelled });
+      if (cancelled) {
+        // Expected when StrictMode runs the cleanup before the async
+        // IIFE resolves — the second mount will retry. Not an error.
+        return;
+      }
+      if (token === undefined) {
+        log.yjs.warn('useYjsDoc: no Supabase session token, skipping provider create');
         return;
       }
 
