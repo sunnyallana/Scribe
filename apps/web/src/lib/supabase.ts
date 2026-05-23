@@ -20,10 +20,64 @@ export const supabase = createClient<Database>(url, anonKey, {
   },
 });
 
-export const API_URL: string =
-  import.meta.env.VITE_API_URL !== undefined && import.meta.env.VITE_API_URL !== ''
-    ? import.meta.env.VITE_API_URL
-    : 'http://localhost:3000';
+/**
+ * Resolve the API origin the SPA talks to.
+ *
+ *   1. If the page is loaded over a host other than 127.0.0.1 /
+ *      localhost (e.g. a cloudflared tunnel or a phone hitting the
+ *      dev box's LAN IP), use SAME-ORIGIN paths so requests flow
+ *      through Vite's `/api` proxy. This avoids mixed-content
+ *      blocks on HTTPS tunnels and CORS pain.
+ *   2. Otherwise, honour the configured `VITE_API_URL` (typically
+ *      `http://127.0.0.1:3010` in dev). Falls back to a sensible
+ *      default if unset.
+ */
+function resolveApiUrl(): string {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    const isLocal =
+      host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+    if (!isLocal) {
+      // Empty string → fetches use relative paths → SPA's
+      // existing `${API_URL}/api/...` becomes `/api/...`, which
+      // the Vite proxy forwards to the Rust API on the host
+      // machine.
+      return '';
+    }
+  }
+  const env = import.meta.env.VITE_API_URL;
+  if (env !== undefined && env !== '') return env;
+  return 'http://localhost:3000';
+}
+
+export const API_URL: string = resolveApiUrl();
+
+/**
+ * Build a WebSocket origin from the API URL. Three cases:
+ *   1. `API_URL` is empty string → same-origin: derive from the
+ *      current `window.location` (and flip http(s) → ws(s)).
+ *   2. `API_URL` is an absolute URL → swap protocol.
+ *   3. SSR / no `window` → return `''` (callers won't open a WS
+ *      on the server anyway).
+ *
+ * Centralised here so the editor / compile / voice hooks all
+ * agree on the rule; previously each hook had its own copy that
+ * crashed on the empty-string case.
+ */
+export function wsOrigin(): string {
+  if (API_URL !== '') {
+    try {
+      const u = new URL(API_URL);
+      u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+      return u.toString().replace(/\/$/, '');
+    } catch {
+      // fall through to same-origin
+    }
+  }
+  if (typeof window === 'undefined') return '';
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${proto}//${window.location.host}`;
+}
 
 /**
  * Latest access token, kept in sync via `supabase.auth.onAuthStateChange`.

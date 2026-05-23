@@ -52,6 +52,7 @@ import { ImageViewer } from '../../components/ImageViewer/ImageViewer';
 import { OutlinePanel } from '../../components/Outline/OutlinePanel';
 import { LatexEditor, type LatexEditorImperativeHandle } from '../../components/Editor/LatexEditor';
 import { PresenceAvatars } from '../../components/Editor/PresenceAvatars';
+import { VoiceControls } from '../../components/Voice/VoiceControls';
 import { StatusBar, type CompileStatusKind } from '../../components/StatusBar/StatusBar';
 import { ReviewPanel } from '../../components/ReviewPanel/ReviewPanel';
 import { VersionHistory } from '../../components/VersionHistory/VersionHistory';
@@ -1117,6 +1118,8 @@ export function ProjectWorkspace({
         </div>
         <div className="flex items-center gap-1.5">
           <PresenceAvatars peers={yjs.peers} localUser={localUser} />
+          <div className="mx-1 h-4 w-px bg-border" aria-hidden="true" />
+          <VoiceControls projectId={projectId} />
           <div className="mx-1 h-4 w-px bg-border" aria-hidden="true" />
           {/* Wide layouts: every panel toggle inline. */}
           <div className="hidden items-center gap-0.5 xl:flex">

@@ -4,7 +4,7 @@ import { type Doc as YDoc, type Text as YText } from 'yjs';
 
 import { features } from '../lib/config';
 import { log } from '../lib/debug';
-import { API_URL, supabase } from '../lib/supabase';
+import { supabase, wsOrigin } from '../lib/supabase';
 
 export interface YjsDocHandle {
   readonly provider: ScribeYjsProvider | null;
@@ -15,10 +15,8 @@ export interface YjsDocHandle {
   readonly peers: readonly PresenceUser[];
 }
 
-function wsUrlFromApi(apiUrl: string): string {
-  const u = new URL(apiUrl);
-  u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${u.toString().replace(/\/$/, '')}/api/yjs`;
+function yjsWsUrl(): string {
+  return `${wsOrigin()}/api/yjs`;
 }
 
 /**
@@ -64,7 +62,7 @@ export function useYjsDoc(
       }
 
       const next = new ScribeYjsProvider({
-        url: wsUrlFromApi(API_URL),
+        url: yjsWsUrl(),
         docId: `${projectId}/${fileId}`,
         token,
         ...(userRef.current !== null ? { user: userRef.current } : {}),

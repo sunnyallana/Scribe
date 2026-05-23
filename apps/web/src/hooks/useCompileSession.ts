@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api, ApiError } from '../lib/api';
 import { log } from '../lib/debug';
-import { API_URL, supabase } from '../lib/supabase';
+import { supabase, wsOrigin } from '../lib/supabase';
 
 export interface CompileSessionState {
   readonly status: CompileJobStatus | 'idle';
@@ -40,12 +40,6 @@ const INITIAL: InternalState = {
   synctexUrl: null,
   errorMessage: null,
 };
-
-function wsUrlFromApi(apiUrl: string): string {
-  const u = new URL(apiUrl);
-  u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
-  return u.toString().replace(/\/$/, '');
-}
 
 export function useCompileSession(projectId: ProjectId | null): CompileSessionState {
   const [state, setState] = useState<InternalState>(INITIAL);
@@ -165,7 +159,7 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (token === undefined) return;
-      const url = `${wsUrlFromApi(API_URL)}/api/compiles/${jobId}/stream?token=${encodeURIComponent(token)}`;
+      const url = `${wsOrigin()}/api/compiles/${jobId}/stream?token=${encodeURIComponent(token)}`;
       const ws = new WebSocket(url);
       socketRef.current = ws;
       ws.onmessage = (event) => {
