@@ -69,7 +69,7 @@ cp .env.example .env
 pnpm gen:db
 
 # 4. Run server and web app in two terminals
-pnpm --filter @scribe/server dev       # http://localhost:3000
+cargo run --manifest-path servers/rust/Cargo.toml -p scribe-server    # http://localhost:3000
 pnpm --filter @scribe/web dev          # http://localhost:5173
 ```
 

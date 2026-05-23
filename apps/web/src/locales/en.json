@@ -139,6 +139,21 @@
     "selectFile": "Pick a file to view its contents."
   },
 
+  "export": {
+    "menuLabel": "Export & download",
+    "downloadZip": "Download as .zip",
+    "downloadPdf": "Download compiled PDF",
+    "exportMarkdown": "Export as Markdown (.md)",
+    "exportWord": "Export as Word (.docx)",
+    "compileFirst": "Compile first",
+    "zipFailed": "Couldn't download ZIP: {{error}}",
+    "pdfFailed": "Couldn't download PDF: {{error}}",
+    "markdownFailed": "Couldn't export as Markdown: {{error}}",
+    "wordFailed": "Couldn't export as Word: {{error}}",
+    "exportedAsMarkdown": "Exported as Markdown.",
+    "exportedAsWord": "Exported as Word document."
+  },
+
   "compile": {
     "runButton": "Compile",
     "running": "Compiling…",
@@ -159,6 +174,12 @@
     "pdfCanvas": "PDF preview",
     "inverseSyncHint": "Double-click to jump to source",
     "inverseSyncMiss": "Couldn't find a source location for that spot.",
+    "viewSwitcherLabel": "Preview view",
+    "viewPdf": "PDF",
+    "viewLog": "Log",
+    "loadingPdf": "Loading PDF viewer…",
+    "warningsBadge": "{{count}} warning(s)",
+    "errorsBadge": "{{count}} error(s)",
     "status": {
       "queued": "Queued",
       "running": "Running",
@@ -255,6 +276,9 @@
     "duplicated": "Project duplicated",
     "collapseSidebar": "Collapse sidebar",
     "expandSidebar": "Expand sidebar",
+    "morePanels": "More panels",
+    "showPreview": "Show preview",
+    "hidePreview": "Hide preview",
     "downloadZip": "Download as ZIP",
     "downloadStarted": "Download started",
     "newFile": "New file",

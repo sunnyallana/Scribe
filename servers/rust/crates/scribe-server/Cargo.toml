@@ -65,3 +65,5 @@ opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
 opentelemetry-otlp = { version = "0.27", features = ["grpc-tonic", "metrics", "trace"] }
 tracing-opentelemetry = "0.28"
 parking_lot.workspace = true
+# Auto-cleaned scratch directories for the per-request pandoc workdir.
+tempfile = "3.13"

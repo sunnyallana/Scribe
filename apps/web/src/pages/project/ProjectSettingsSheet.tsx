@@ -47,7 +47,13 @@ export function ProjectSettingsSheet({ project, onClosed }: ProjectSettingsSheet
 
       <Separator />
 
-      <div className="flex-1 space-y-6 overflow-auto py-4">
+      {/* `px-1` gives the input's focus ring (`ring-offset-2` + `ring-2`,
+          ~4px outside the element) room to render — otherwise the
+          scroll container clips it and the input visually hugs the
+          left wall of the settings sheet. `-mx-1` cancels the
+          padding for the section dividers so they still touch edge
+          to edge. */}
+      <div className="flex-1 space-y-6 overflow-auto px-1 py-4">
         <section>
           <h3 className="mb-3 text-sm font-semibold">{t('project.members')}</h3>
           <MembersPanel projectId={project.id} />

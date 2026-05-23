@@ -99,9 +99,55 @@ export function latexTheme(theme: ScribeEditorTheme): Extension {
   return [
     EditorView.theme(
       {
+        // The editor must be told to fill its parent and produce its
+        // OWN scrollbar — otherwise the parent's `overflow-hidden`
+        // clips the bottom of long files and the user has nothing to
+        // scroll. `&` is the `.cm-editor` root; `.cm-scroller` is the
+        // viewport CodeMirror renders into.
         '&': {
+          height: '100%',
           color: p.foreground,
           backgroundColor: p.background,
+        },
+        '.cm-scroller': {
+          // `auto` overflow shows the scrollbar only when the doc
+          // overflows. The parent container is `overflow-hidden` so
+          // this scroller is the only thing that scrolls.
+          overflow: 'auto',
+          // Avoid the iOS rubber-band jump on a sub-region scroll —
+          // makes vertical scrolling feel native on touch devices.
+          overscrollBehavior: 'contain',
+          // Thin native scrollbar (Firefox + modern engines that
+          // honour `scrollbar-*`). WebKit takes the rules below.
+          scrollbarWidth: 'thin',
+          scrollbarColor: `${isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.20)'} transparent`,
+        },
+        // WebKit-specific (Chrome / Edge / Safari). Float the thumb
+        // over a transparent track so the scrollbar reads as "part
+        // of the editor" rather than a system widget bolted on.
+        '.cm-scroller::-webkit-scrollbar': {
+          width: '10px',
+          height: '10px',
+        },
+        '.cm-scroller::-webkit-scrollbar-track': {
+          background: 'transparent',
+        },
+        '.cm-scroller::-webkit-scrollbar-thumb': {
+          backgroundColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.20)',
+          borderRadius: '8px',
+          // `border + background-clip: padding-box` is the standard
+          // trick for a "floating" thumb with internal padding around
+          // it — the border doesn't paint, it just inset-shrinks
+          // the visible thumb so it sits inside the gutter.
+          border: '2px solid transparent',
+          backgroundClip: 'padding-box',
+        },
+        '.cm-scroller::-webkit-scrollbar-thumb:hover': {
+          backgroundColor: isDark ? 'rgba(255,255,255,0.32)' : 'rgba(0,0,0,0.35)',
+          backgroundClip: 'padding-box',
+        },
+        '.cm-scroller::-webkit-scrollbar-corner': {
+          background: 'transparent',
         },
         '.cm-content': {
           caretColor: p.cursor,
@@ -109,6 +155,9 @@ export function latexTheme(theme: ScribeEditorTheme): Extension {
           fontSize: '14px',
           lineHeight: '1.6',
           padding: '12px 0',
+          // Trailing room so the last line isn't flush against the
+          // bottom edge — easier to read when scrolled to EOF.
+          paddingBottom: '40vh',
         },
         '.cm-cursor, .cm-dropCursor': { borderLeftColor: p.cursor },
         '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {

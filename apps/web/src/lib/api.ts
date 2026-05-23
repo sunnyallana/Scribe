@@ -67,7 +67,17 @@ async function fetchJson<T>(path: string, init: RequestInit = {}): Promise<T> {
       } catch {
         body = { code: 'internal', message: response.statusText };
       }
-      log.api.warn(`← ${method} ${path} ${response.status} (${ms}ms)`, body);
+      // 404s are typically "resource doesn't exist (yet)" — a regular
+      // control-flow outcome rather than a real failure. The compile
+      // synctex artifact race is the canonical example: pdf lands
+      // first, the SPA polls for synctex, gets a 404, retries. Don't
+      // turn that into a yellow warn on every compile. Other 4xx /
+      // 5xx still log at warn so genuine misconfig stays visible.
+      if (response.status === 404) {
+        log.api(`← ${method} ${path} 404 (${ms}ms)`, body);
+      } else {
+        log.api.warn(`← ${method} ${path} ${response.status} (${ms}ms)`, body);
+      }
       throw new ApiError(response.status, body);
     }
     log.api(`← ${method} ${path} ${response.status} (${ms}ms)`);
@@ -227,5 +237,54 @@ export const api = {
     details: (token: InviteToken): Promise<InviteDetails> => fetchJson(`/api/invites/${token}`),
     accept: (token: InviteToken): Promise<AcceptInviteResponse> =>
       fetchJson(`/api/invites/${token}/accept`, { method: 'POST' }),
+  },
+  exports: {
+    /** Server-side pandoc export. Returns the raw bytes + the
+     *  download filename the server suggested via Content-Disposition.
+     *  Throws an ApiError with the server's error message on failure
+     *  (most commonly: pandoc not installed → 503). */
+    run: async (
+      projectId: ProjectId,
+      format: 'md' | 'docx',
+    ): Promise<{ blob: Blob; filename: string | null }> => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers = new Headers();
+      if (session !== null) {
+        headers.set('Authorization', `Bearer ${session.access_token}`);
+      }
+      const path = `/api/projects/${projectId}/export?format=${format}`;
+      const t0 = performance.now();
+      log.api(`→ POST ${path}`);
+      const response = await fetch(`${API_URL}${path}`, { method: 'POST', headers });
+      const ms = Math.round(performance.now() - t0);
+      if (!response.ok) {
+        let body: ServiceError;
+        try {
+          body = (await response.json()) as ServiceError;
+        } catch {
+          body = { code: 'internal', message: response.statusText };
+        }
+        log.api.warn(`← POST ${path} ${response.status} (${ms}ms)`, body);
+        throw new ApiError(response.status, body);
+      }
+      log.api(`← POST ${path} ${response.status} (${ms}ms)`);
+      // Parse RFC-5987 `filename*=UTF-8''<encoded>` first, then the
+      // simpler `filename="..."`. The server emits both; either is fine.
+      const disposition = response.headers.get('content-disposition') ?? '';
+      let filename: string | null = null;
+      const rfc5987 = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+      if (rfc5987?.[1] !== undefined) {
+        try {
+          filename = decodeURIComponent(rfc5987[1]);
+        } catch {
+          filename = rfc5987[1];
+        }
+      } else {
+        const simple = /filename="([^"]+)"/i.exec(disposition);
+        filename = simple?.[1] ?? null;
+      }
+      const blob = await response.blob();
+      return { blob, filename };
+    },
   },
 };

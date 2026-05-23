@@ -62,43 +62,48 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
 
   const refreshArtifactUrls = useCallback(async (jobId: CompileJobId) => {
     try {
-      const [pdf, synctex] = await Promise.allSettled([
-        api.compiles.artifactUrl(jobId, 'pdf'),
-        api.compiles.artifactUrl(jobId, 'synctex'),
-      ]);
-      setState((s) => ({
-        ...s,
-        pdfUrl: pdf.status === 'fulfilled' ? pdf.value.url : s.pdfUrl,
-        synctexUrl: synctex.status === 'fulfilled' ? synctex.value.url : null,
-      }));
-      if (pdf.status === 'rejected') {
-        log.compile.warn('artifact-url fetch failed (pdf)', pdf.reason);
+      // PDF is on the critical path of the worker — it's uploaded
+      // synchronously, so by the time we see `Completed` the signed
+      // URL is definitely available.
+      const pdfResult = await api.compiles
+        .artifactUrl(jobId, 'pdf')
+        .then((res) => ({ ok: true as const, url: res.url }))
+        .catch((err: unknown) => ({ ok: false as const, err }));
+      if (pdfResult.ok) {
+        setState((s) => ({ ...s, pdfUrl: pdfResult.url }));
+      } else {
+        log.compile.warn('artifact-url fetch failed (pdf)', pdfResult.err);
       }
-      if (synctex.status === 'rejected') {
-        // Synctex is uploaded in the background after the PDF lands, so
-        // for a short window after compile-completion the artifact-url
-        // route legitimately 404s. Demote the noise; only warn on
-        // unexpected statuses.
-        const reason = synctex.reason as unknown;
-        const isExpected404 =
-          reason instanceof ApiError && reason.status === 404;
-        if (isExpected404) {
-          // Retry once after the typical upload window; if it still
-          // fails we'll fall through silently — synctex is non-critical.
-          window.setTimeout(() => {
-            void api.compiles
-              .artifactUrl(jobId, 'synctex')
-              .then((res) => { setState((s) => ({ ...s, synctexUrl: res.url })); })
-              .catch(() => { /* still not ready; ignore */ });
-          }, 750);
-        } else {
-          log.compile.warn('artifact-url fetch failed (synctex)', reason);
-        }
-      }
+
+      // Synctex is in a background tokio task — it lands a few
+      // hundred ms after the PDF. Wait a short beat before the first
+      // fetch so the bg upload finishes first: that turns "404 +
+      // retry-after-750ms" into "one successful 200" in the common
+      // case, removing the red "Failed to load resource" line from
+      // the browser console.
+      const trySynctex = (delay: number) => {
+        window.setTimeout(() => {
+          void api.compiles
+            .artifactUrl(jobId, 'synctex')
+            .then((res) => { setState((s) => ({ ...s, synctexUrl: res.url })); })
+            .catch((err: unknown) => {
+              if (err instanceof ApiError && err.status === 404) {
+                // Still racing; retry once more, then give up
+                // silently (synctex is non-critical).
+                if (delay < 1500) {
+                  trySynctex(delay * 2);
+                }
+              } else {
+                log.compile.warn('artifact-url fetch failed (synctex)', err);
+              }
+            });
+        }, delay);
+      };
+      trySynctex(600);
     } catch (err) {
-      // Best-effort path — both fetches errored before Promise.allSettled
-      // resolved. That's a programming error (allSettled itself doesn't
-      // reject) but log it so we'd notice if it ever happens.
+      // Belt-and-braces — both inner fetches already swallow their
+      // own errors, so this branch is only hit by a programming
+      // error. Log loudly so we'd notice.
       log.compile.error('refreshArtifactUrls unexpected throw', err);
     }
   }, []);

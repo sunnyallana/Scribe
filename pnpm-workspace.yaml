@@ -1,7 +1,6 @@
 packages:
   - 'apps/*'
   - 'packages/*'
-  - 'servers/node'
 allowBuilds:
   esbuild: true
   msgpackr-extract: false
