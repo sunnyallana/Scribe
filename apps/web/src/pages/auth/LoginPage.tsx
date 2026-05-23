@@ -8,6 +8,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/auth';
 
@@ -25,6 +26,7 @@ type MagicLinkValues = z.infer<typeof magicLinkSchema>;
 
 export function LoginPage() {
   const { t } = useTranslation();
+  useDocumentTitle(t('auth.signIn'));
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const from = params.get('from') ?? '/dashboard';

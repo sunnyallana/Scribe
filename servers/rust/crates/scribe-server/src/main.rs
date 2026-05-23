@@ -17,7 +17,7 @@ use anyhow::Context;
 use axum::Router;
 use scribe_ai::CryptoBox;
 use scribe_auth::TokenVerifier;
-use scribe_compile::{CompileQueue, Worker, WorkerConfig};
+use scribe_compile::{CompileQueue, EngineKind, LatexEngine, Worker, WorkerConfig};
 use scribe_storage::SupabaseStorage;
 use scribe_yjs::{DocRegistry, PgPersistence};
 use tokio::sync::Notify;
@@ -194,19 +194,56 @@ async fn main() -> anyhow::Result<()> {
         compile_queue.clone(),
     ) {
         let mut worker_cfg = WorkerConfig::default();
+        // Honour the engine selector. Unrecognised values silently
+        // fall back to the default (Tectonic) — the option is logged
+        // below so misconfig is visible at startup.
+        if let Some(name) = config.compile_engine.as_deref().filter(|s| !s.is_empty()) {
+            if let Some(kind) = EngineKind::from_str(name) {
+                worker_cfg.engine.kind = kind;
+            } else {
+                warn!(
+                    requested = name,
+                    "unknown compile_engine; falling back to tectonic"
+                );
+            }
+        }
+        // Tectonic-specific knobs (no-op when running latexmk).
         if let Some(bin) = config.tectonic_bin.as_deref().filter(|s| !s.is_empty()) {
-            worker_cfg.tectonic.binary = bin.to_string();
+            worker_cfg.engine.tectonic.binary = bin.to_string();
         }
         if let Some(ms) = config.compile_timeout_ms {
-            worker_cfg.tectonic.timeout = std::time::Duration::from_millis(ms);
+            let timeout = std::time::Duration::from_millis(ms);
+            worker_cfg.engine.tectonic.timeout = timeout;
+            worker_cfg.engine.latexmk.timeout = timeout;
         }
         if let Some(dir) = config.tectonic_cache_dir.as_deref().filter(|s| !s.is_empty()) {
-            worker_cfg.tectonic.cache_dir = Some(std::path::PathBuf::from(dir));
+            worker_cfg.engine.tectonic.cache_dir = Some(std::path::PathBuf::from(dir));
         }
-        info!(
-            "compile worker using tectonic: {} (cache: {:?})",
-            worker_cfg.tectonic.binary, worker_cfg.tectonic.cache_dir
-        );
+        // latexmk-specific knobs.
+        if let Some(bin) = config.latexmk_bin.as_deref().filter(|s| !s.is_empty()) {
+            worker_cfg.engine.latexmk.binary = bin.to_string();
+        }
+        if let Some(eng) = config.latex_engine.as_deref().filter(|s| !s.is_empty()) {
+            if let Some(parsed) = LatexEngine::from_str(eng) {
+                worker_cfg.engine.latexmk.engine = parsed;
+            } else {
+                warn!(requested = eng, "unknown latex_engine; using pdflatex");
+            }
+        }
+        match worker_cfg.engine.kind {
+            EngineKind::Tectonic => info!(
+                engine = "tectonic",
+                binary = %worker_cfg.engine.tectonic.binary,
+                cache_dir = ?worker_cfg.engine.tectonic.cache_dir,
+                "compile worker ready"
+            ),
+            EngineKind::Latexmk => info!(
+                engine = "latexmk",
+                binary = %worker_cfg.engine.latexmk.binary,
+                latex = ?worker_cfg.engine.latexmk.engine,
+                "compile worker ready (Overleaf-style pipeline)"
+            ),
+        }
         let worker = Worker {
             queue: (*queue).clone(),
             db: db.pool().clone(),
@@ -319,6 +356,7 @@ fn build_router(
         .merge(routes::yjs::router())
         .merge(routes::compiles::router())
         .merge(routes::ai::router())
+        .merge(routes::exports::router())
         .layer(from_fn(rate_limit::per_user));
 
     let api = infra.merge(api).layer(from_fn(rate_limit::per_ip))

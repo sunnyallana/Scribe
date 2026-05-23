@@ -326,12 +326,44 @@ export function scribeYjsBinding(opts: ScribeYjsCollab): Extension {
         });
         entries.sort((a, b) => a[0] - b[0]);
 
+        // Yjs awareness keys every connection by clientID, so the same
+        // user with the project open in two tabs shows up twice. Pick
+        // the most-recently-active connection per `userId` so we draw
+        // one cursor per human, not one per tab. `awareness.meta` is
+        // a Map<clientID, { clock, lastUpdated }> kept in sync by the
+        // y-protocols/awareness module — `lastUpdated` is the wall-
+        // clock ms of the last state mutation, which is exactly the
+        // "which tab is the user currently typing in" signal.
+        const meta = awareness.meta;
+        const bestByUser = new Map<string, { clientId: number; lastUpdated: number }>();
         for (const [clientId, state] of entries) {
           if (clientId === localId) continue;
           const user = state.user;
           if (user === undefined) continue;
+          if (user.userId === undefined) continue;
           // Skip peers in a different file (cursors would land at
           // meaningless offsets in this doc).
+          if (
+            filePath !== undefined &&
+            user.currentFile !== undefined &&
+            user.currentFile !== filePath
+          ) {
+            continue;
+          }
+          const lastUpdated = meta.get(clientId)?.lastUpdated ?? 0;
+          const existing = bestByUser.get(user.userId);
+          if (existing === undefined || lastUpdated > existing.lastUpdated) {
+            bestByUser.set(user.userId, { clientId, lastUpdated });
+          }
+        }
+        const winners = new Set<number>();
+        for (const v of bestByUser.values()) winners.add(v.clientId);
+
+        for (const [clientId, state] of entries) {
+          if (clientId === localId) continue;
+          if (!winners.has(clientId)) continue;
+          const user = state.user;
+          if (user === undefined) continue;
           if (
             filePath !== undefined &&
             user.currentFile !== undefined &&

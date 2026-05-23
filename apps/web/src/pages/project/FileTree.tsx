@@ -518,6 +518,8 @@ export function FileTree({ projectId, files, selectedFileId, onSelect }: FileTre
           <input
             ref={uploadInputRef}
             type="file"
+            id="file-tree-upload"
+            name="file-tree-upload"
             accept=".tex,.bib,.cls,.sty,.bst,.tikz,.latex,.md,.txt,.csv,.json,.png,.jpg,.jpeg,.gif,.webp,.svg,.pdf,.eps,.zip"
             className="hidden"
             onChange={handleUploadChange}
