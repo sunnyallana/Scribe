@@ -42,7 +42,25 @@ export function PreviewPanel({
   downloadFilename,
 }: PreviewPanelProps) {
   const { t } = useTranslation();
-  const [view, setView] = useState<View>('pdf');
+  // Persisted across reloads — the user's chosen tab (PDF vs Log)
+  // is a stable per-user preference, not a per-document one.
+  const [view, setView] = useState<View>(() => {
+    if (typeof window === 'undefined') return 'pdf';
+    try {
+      const raw = window.localStorage.getItem('scribe:preview:view');
+      if (raw === 'log' || raw === 'pdf') return raw;
+    } catch {
+      /* ignore */
+    }
+    return 'pdf';
+  });
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('scribe:preview:view', view);
+    } catch {
+      /* ignore */
+    }
+  }, [view]);
 
   const { entries, status, errorMessage } = compileSession;
 

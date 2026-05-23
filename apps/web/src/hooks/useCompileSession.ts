@@ -60,6 +60,53 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
 
   useEffect(() => cleanupSocket, [cleanupSocket]);
 
+  // On project mount, recover the LAST compile so the user comes
+  // back to a populated PDF + log instead of an empty "no compile
+  // yet" pane. We pull the most recent job from the server, seed
+  // the state from its row (status, entries, error_message), then
+  // resolve the artifact URLs — all of that is cheap (one list
+  // call + one signed-URL call). If the most recent job is still
+  // in-flight, we just hold the snapshot we have; the user can
+  // recompile to take over the stream.
+  useEffect(() => {
+    if (projectId === null) {
+      setState(INITIAL);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const jobs = await api.compiles.list(projectId);
+        if (cancelled || jobs.length === 0) return;
+        const latest = jobs[0];
+        if (latest === undefined) return;
+        setState((s) => ({
+          ...s,
+          job: latest,
+          status: latest.status,
+          entries: latest.entries ?? [],
+          errorMessage: latest.errorMessage ?? null,
+        }));
+        // Only ask for artifact URLs when the job actually
+        // produced one (a failed compile leaves pdf_key null,
+        // so no signing call is necessary or useful).
+        if (latest.pdfKey !== null) {
+          void refreshArtifactUrlsRef.current(latest.id);
+        }
+      } catch (err) {
+        log.compile.warn('failed to restore last compile', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [projectId]);
+
+  // Forward-ref so the bootstrap effect above can call the
+  // memoised `refreshArtifactUrls` without listing it as a dep
+  // (its identity depends on `setState`, which would loop).
+  const refreshArtifactUrlsRef = useRef<(jobId: CompileJobId) => Promise<void>>(
+    async () => { /* set below */ },
+  );
+
   const refreshArtifactUrls = useCallback(async (jobId: CompileJobId) => {
     try {
       // PDF is on the critical path of the worker — it's uploaded
@@ -107,6 +154,10 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
       log.compile.error('refreshArtifactUrls unexpected throw', err);
     }
   }, []);
+  // Keep the ref aligned with the latest `refreshArtifactUrls`
+  // identity so the bootstrap effect can call it without the
+  // closure going stale.
+  refreshArtifactUrlsRef.current = refreshArtifactUrls;
 
   const openStream = useCallback(
     async (jobId: CompileJobId) => {
