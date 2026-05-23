@@ -55,6 +55,19 @@ export function VoiceControls({ projectId }: VoiceControlsProps) {
     ? voice.peers.length
     : (peersQuery.data?.peers.length ?? 0);
 
+  // Active-speaker awareness: anyone currently transmitting voice.
+  // Drives a soft emerald ring on the call button so the user sees
+  // "voice is flowing" without watching avatars. We only count
+  // *remote* speakers here — the local pulse-dot below already
+  // signals self-transmission.
+  const remoteSpeaking = (() => {
+    if (!live) return false;
+    for (const id of voice.speakingConnIds) {
+      if (id !== 'local') return true;
+    }
+    return false;
+  })();
+
   // Call button click → toggle membership. In `connecting` we
   // ignore clicks to avoid mid-flight cancellation races.
   const onCallClick = () => {
@@ -86,7 +99,9 @@ export function VoiceControls({ projectId }: VoiceControlsProps) {
       <Button
         variant={live ? 'default' : 'ghost'}
         size="icon"
-        className="relative h-7 w-7"
+        className={`relative h-7 w-7 transition-shadow ${
+          remoteSpeaking ? 'ring-2 ring-emerald-400 ring-offset-1 ring-offset-background' : ''
+        }`}
         // Tooltip carries the "N on call" hint too, so hovering
         // the icon (even when we're not in the room) tells you
         // exactly who/how-many to expect when you join.
@@ -110,11 +125,18 @@ export function VoiceControls({ projectId }: VoiceControlsProps) {
         )}
         {/* Live + unmuted indicator — small pulsing emerald dot on
             the call button so the user can see "I'm transmitting"
-            at a glance even without looking at the mic icon. */}
+            at a glance even without looking at the mic icon. The
+            dot brightens + grows when your voice is actually
+            crossing the speaking threshold, giving a continuous
+            mic-level cue. */}
         {live && voice.micEnabled ? (
           <span
             aria-hidden="true"
-            className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"
+            className={`absolute -right-0.5 -top-0.5 rounded-full transition-all ${
+              voice.localSpeaking
+                ? 'h-2 w-2 bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]'
+                : 'h-1.5 w-1.5 animate-pulse bg-emerald-500'
+            }`}
           />
         ) : null}
         {/* Active-call count badge — visible whenever someone else
