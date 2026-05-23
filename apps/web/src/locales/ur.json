@@ -1,0 +1,121 @@
+{
+  "appName": "سکرائب",
+  "appTagline": "سب کے لیے باہم مل کر LaTeX کی ترمیم",
+
+  "theme": {
+    "label": "تھیم",
+    "light": "ہلکا",
+    "dark": "گہرا",
+    "highContrast": "اعلیٰ کنٹراسٹ"
+  },
+
+  "common": {
+    "cancel": "منسوخ",
+    "save": "محفوظ کریں",
+    "delete": "حذف کریں",
+    "loading": "لوڈ ہو رہا ہے",
+    "back": "واپس",
+    "continue": "جاری رکھیں",
+    "create": "بنائیں",
+    "rename": "نام تبدیل کریں",
+    "upload": "اپ لوڈ",
+    "search": "تلاش",
+    "close": "بند کریں",
+    "tryAgain": "دوبارہ کوشش کریں",
+    "comingSoon": "جلد آرہا ہے",
+    "openProject": "پروجیکٹ کھولیں",
+    "download": "ڈاؤن لوڈ"
+  },
+
+  "collab": {
+    "presenceLabel": "موجود لوگ",
+    "compile": "کمپائل"
+  },
+
+  "command": {
+    "title": "کمانڈ پیلیٹ",
+    "placeholder": "کمانڈ لکھیں…",
+    "groupActions": "اقدامات",
+    "groupPanels": "پینل",
+    "groupFiles": "فائلیں",
+    "compile": "کمپائل",
+    "aiAssist": "AI مدد…",
+    "snapshotNow": "اسنیپ شاٹ لیں",
+    "toggleOutline": "خاکہ دکھائیں/چھپائیں",
+    "toggleReview": "تبصرے دکھائیں/چھپائیں",
+    "toggleHistory": "ورژن تاریخ دکھائیں/چھپائیں",
+    "toggleBibliography": "کتابیات دکھائیں/چھپائیں",
+    "toggleAIChat": "AI چیٹ دکھائیں/چھپائیں",
+    "toggleMath": "ریاضی علامات دکھائیں/چھپائیں"
+  },
+
+  "compile": {
+    "runButton": "کمپائل",
+    "running": "کمپائل ہو رہا ہے…",
+    "saved": "محفوظ ہوا",
+    "noPdf": "PDF دیکھنے کے لیے کمپائل کریں۔",
+    "openTexFile": "ترمیم شروع کرنے کے لیے فائل ٹری سے .tex فائل کھولیں۔",
+    "viewPdf": "PDF",
+    "viewLog": "لاگ"
+  },
+
+  "auth": {
+    "signIn": "لاگ اِن",
+    "signOut": "لاگ آؤٹ",
+    "signUp": "اکاؤنٹ بنائیں",
+    "email": "ای میل",
+    "password": "پاس ورڈ",
+    "forgotPassword": "پاس ورڈ بھول گئے؟",
+    "magicLinkSent": "ہم نے آپ کی ای میل پر میجک لنک بھیج دیا ہے۔"
+  },
+
+  "dashboard": {
+    "title": "آپ کے پروجیکٹس",
+    "subtitle": "اپنے LaTeX پروجیکٹس بنائیں، کھولیں اور منظم کریں۔",
+    "newProject": "نیا پروجیکٹ",
+    "emptyTitle": "ابھی تک کوئی پروجیکٹ نہیں",
+    "loadError": "پروجیکٹس لوڈ نہیں ہو سکے۔"
+  },
+
+  "project": {
+    "actions": "پروجیکٹ کے اقدامات",
+    "rename": "نام تبدیل کریں",
+    "duplicate": "نقل بنائیں",
+    "projectSettings": "پروجیکٹ سیٹنگز",
+    "members": "اراکین",
+    "collapseSidebar": "سائڈ بار سکیڑیں",
+    "expandSidebar": "سائڈ بار پھیلائیں",
+    "morePanels": "مزید پینل",
+    "showPreview": "پیش منظر دکھائیں",
+    "hidePreview": "پیش منظر چھپائیں"
+  },
+
+  "export": {
+    "menuLabel": "ایکسپورٹ اور ڈاؤن لوڈ",
+    "downloadZip": ".zip کے طور پر ڈاؤن لوڈ",
+    "downloadPdf": "کمپائل شدہ PDF ڈاؤن لوڈ",
+    "exportMarkdown": "Markdown (.md) کے طور پر ایکسپورٹ",
+    "exportWord": "Word (.docx) کے طور پر ایکسپورٹ"
+  },
+
+  "image": {
+    "loading": "تصویر لوڈ ہو رہی ہے…",
+    "fit": "پین میں فٹ"
+  },
+
+  "errors": {
+    "generic": "کچھ غلط ہو گیا۔ براہ کرم دوبارہ کوشش کریں۔",
+    "network": "سرور تک نہیں پہنچا جا سکا۔",
+    "somethingWentWrong": "کچھ غلط ہو گیا",
+    "backToDashboard": "ڈیش بورڈ پر واپس",
+    "couldntLoadProject": "اس پروجیکٹ کو لوڈ نہیں کیا جا سکا",
+    "couldntLoadDashboard": "آپ کے پروجیکٹس لوڈ نہیں ہو سکے",
+    "pageNotFound": "صفحہ نہیں ملا"
+  },
+
+  "settings": {
+    "title": "سیٹنگز",
+    "language": "زبان",
+    "languageHint": "زبان فوراً تبدیل ہو جاتی ہے۔"
+  }
+}

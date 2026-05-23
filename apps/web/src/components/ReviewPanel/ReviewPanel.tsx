@@ -2,7 +2,7 @@ import { type Comment, type ProjectFile, type ProjectId, type ProjectMember } fr
 import { Avatar, AvatarFallback, Button, Skeleton } from '@scribe/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Loader2, MessageSquarePlus, Trash2, X } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
@@ -11,11 +11,33 @@ import { api, type ApiError } from '../../lib/api';
 import { MentionTextarea } from './MentionTextarea';
 import { parseBody } from './mentions';
 
+interface EditorSelection {
+  readonly from: { readonly line: number; readonly column: number };
+  readonly to: { readonly line: number; readonly column: number };
+  readonly text: string;
+}
+
 interface ReviewPanelProps {
   readonly projectId: ProjectId;
+  /** Full project file list — we need it to look up the path for a
+   *  comment's `fileId` so the jump button can navigate cross-file.
+   *  The earlier impl only carried `selectedFile`, which meant
+   *  jumping to a comment in *any other* file silently no-op'd. */
+  readonly files: readonly ProjectFile[];
   readonly selectedFile: ProjectFile | null;
   readonly currentLine?: number;
-  readonly onJumpTo: (filePath: string, line: number) => void;
+  /** Pull the editor's current selection range when the user clicks
+   *  "Add comment". Returning null = the editor isn't mounted (e.g.
+   *  the active file is non-textual). */
+  readonly getEditorSelection?: () => EditorSelection | null;
+  /** Jump to a (file, range, snippet) tuple — opens the file and
+   *  re-highlights the original block. */
+  readonly onJumpToRange: (
+    filePath: string,
+    from: { line: number; column: number },
+    to: { line: number; column: number },
+    snippet: string | null,
+  ) => void;
   readonly onClose: () => void;
 }
 
@@ -60,15 +82,46 @@ function initialsFor(name: string | null): string {
 
 export function ReviewPanel({
   projectId,
+  files,
   selectedFile,
   currentLine,
-  onJumpTo,
+  getEditorSelection,
+  onJumpToRange,
   onClose,
 }: ReviewPanelProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState('');
   const [replyTo, setReplyTo] = useState<string | null>(null);
+
+  // Helper used by the "jump to comment" button on each card. Resolves
+  // the comment's `fileId` against the project's file list (the old
+  // impl passed an empty path, which is the root-cause of the
+  // can't-go-to-line bug) and forwards to the workspace's range
+  // navigator with the comment's anchor + snippet.
+  const fileById = useMemo(() => {
+    const map = new Map<string, ProjectFile>();
+    for (const f of files) map.set(f.id, f);
+    return map;
+  }, [files]);
+  const jumpToComment = useCallback(
+    (c: Comment) => {
+      if (c.fileId === null) return;
+      const target = fileById.get(c.fileId);
+      if (target === undefined) return;
+      const startLine = c.anchorLine ?? 1;
+      const startCol = c.anchorColumn ?? 0;
+      const endLine = c.anchorEndLine ?? startLine;
+      const endCol = c.anchorEndColumn ?? startCol;
+      onJumpToRange(
+        target.path,
+        { line: startLine, column: startCol },
+        { line: endLine, column: endCol },
+        c.anchorSnippet,
+      );
+    },
+    [fileById, onJumpToRange],
+  );
 
   const commentsQuery = useQuery<Comment[], ApiError>({
     queryKey: ['comments', projectId],
@@ -81,14 +134,47 @@ export function ReviewPanel({
   });
   const members = membersQuery.data ?? [];
 
-  const createMutation = useMutation<Comment, ApiError, { body: string; parentId?: string }>({
-    mutationFn: ({ body, parentId }) =>
-      api.comments.create(projectId, {
+  // Snippets are capped at the DB constraint (1024 chars). Long
+  // selections still capture the first 1024 — enough to uniquely
+  // identify the block within almost any source file. Newlines
+  // are preserved so the snippet survives the indexOf() lookup
+  // back in the editor.
+  const SNIPPET_MAX = 1024;
+  const createMutation = useMutation<
+    Comment,
+    ApiError,
+    { body: string; parentId?: string }
+  >({
+    mutationFn: ({ body, parentId }) => {
+      const sel = parentId === undefined ? getEditorSelection?.() ?? null : null;
+      // Treat a non-empty highlighted selection as a true range.
+      // No-selection (cursor only) degenerates to a point anchor at
+      // the current cursor line/column.
+      const hasRange = sel !== null && sel.text.length > 0;
+      const anchorLine = sel !== null ? sel.from.line : currentLine;
+      const anchorColumn = sel !== null ? sel.from.column : 0;
+      const anchorEndLine = hasRange ? sel.to.line : anchorLine;
+      const anchorEndColumn = hasRange ? sel.to.column : anchorColumn;
+      const snippet = hasRange ? sel.text.slice(0, SNIPPET_MAX) : undefined;
+      return api.comments.create(projectId, {
         body,
         ...(parentId !== undefined ? { parentId: parentId as never } : {}),
         ...(selectedFile !== null ? { fileId: selectedFile.id } : {}),
-        ...(currentLine !== undefined && parentId === undefined ? { anchorLine: currentLine } : {}),
-      }),
+        ...(anchorLine !== undefined && parentId === undefined
+          ? { anchorLine }
+          : {}),
+        ...(anchorColumn !== undefined && parentId === undefined
+          ? { anchorColumn }
+          : {}),
+        ...(anchorEndLine !== undefined && parentId === undefined
+          ? { anchorEndLine }
+          : {}),
+        ...(anchorEndColumn !== undefined && parentId === undefined
+          ? { anchorEndColumn }
+          : {}),
+        ...(snippet !== undefined ? { anchorSnippet: snippet } : {}),
+      });
+    },
     onSuccess: async () => {
       setDraft('');
       setReplyTo(null);
@@ -148,7 +234,7 @@ export function ReviewPanel({
               <CommentCard
                 comment={thread.root}
                 isRoot
-                onJumpTo={onJumpTo}
+                onJump={jumpToComment}
                 onReply={() => { setReplyTo(thread.root.id); }}
                 onResolve={() => {
                   resolveMutation.mutate({
@@ -169,7 +255,7 @@ export function ReviewPanel({
                       key={reply.id}
                       comment={reply}
                       isRoot={false}
-                      onJumpTo={onJumpTo}
+                      onJump={jumpToComment}
                       onResolve={() => {
                         resolveMutation.mutate({
                           id: reply.id,
@@ -225,6 +311,15 @@ export function ReviewPanel({
       <div className="border-t p-3">
         {replyTo === null ? (
           <>
+            {/* Live-preview of what'll be anchored. Reading the
+                selection inside render is a cheap call into the
+                view — no setState in render, just a synchronous
+                ref read each time we re-render. */}
+            <CommentDraftHint
+              selectedFile={selectedFile}
+              {...(currentLine !== undefined ? { currentLine } : {})}
+              {...(getEditorSelection !== undefined ? { getEditorSelection } : {})}
+            />
             <MentionTextarea
               rows={3}
               placeholder={
@@ -263,16 +358,66 @@ export function ReviewPanel({
   );
 }
 
+interface CommentDraftHintProps {
+  readonly selectedFile: ProjectFile | null;
+  readonly currentLine?: number;
+  readonly getEditorSelection?: () => EditorSelection | null;
+}
+
+/**
+ * Tiny banner above the "new comment" textarea showing what'll be
+ * anchored when the user clicks Add. Reads the editor selection
+ * synchronously each render — cheap, no re-render plumbing
+ * required.
+ */
+function CommentDraftHint({
+  selectedFile,
+  currentLine,
+  getEditorSelection,
+}: CommentDraftHintProps) {
+  const { t } = useTranslation();
+  if (selectedFile === null) return null;
+  const sel = getEditorSelection?.() ?? null;
+  const hasRange = sel !== null && sel.text.length > 0;
+  if (hasRange) {
+    // Truncate the preview so a paragraph-long selection doesn't
+    // dominate the panel.
+    const preview = sel.text.length > 80 ? `${sel.text.slice(0, 80)}…` : sel.text;
+    return (
+      <p
+        className="mb-2 truncate rounded-sm bg-primary/10 px-2 py-1 text-[10px] text-primary"
+        title={sel.text}
+      >
+        {t('review.anchorPreviewBlock', {
+          fromLine: sel.from.line,
+          toLine: sel.to.line,
+          preview,
+        })}
+      </p>
+    );
+  }
+  return (
+    <p className="mb-2 text-[10px] text-muted-foreground">
+      {t('review.anchorPreviewLine', {
+        file: selectedFile.path,
+        line: currentLine ?? 1,
+      })}
+    </p>
+  );
+}
+
 interface CommentCardProps {
   readonly comment: Comment;
   readonly isRoot: boolean;
-  readonly onJumpTo?: (filePath: string, line: number) => void;
+  /** Range-aware jump callback. Receives the comment itself so the
+   *  workspace can resolve file path, range, and snippet from it. */
+  readonly onJump?: (c: Comment) => void;
   readonly onReply?: () => void;
   readonly onResolve: () => void;
   readonly onDelete: () => void;
 }
 
-function CommentCard({ comment, isRoot, onJumpTo, onReply, onResolve, onDelete }: CommentCardProps) {
+function CommentCard({ comment, isRoot, onJump, onReply, onResolve, onDelete }: CommentCardProps) {
   const { t } = useTranslation();
   return (
     <div className="flex gap-2">
@@ -322,15 +467,19 @@ function CommentCard({ comment, isRoot, onJumpTo, onReply, onResolve, onDelete }
         </p>
         <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
           <span>{new Date(comment.createdAt).toLocaleString()}</span>
-          {isRoot && comment.anchorLine !== null && onJumpTo !== undefined && comment.fileId !== null ? (
+          {isRoot && comment.anchorLine !== null && onJump !== undefined && comment.fileId !== null ? (
             <button
               type="button"
               className="underline decoration-dotted underline-offset-2 hover:text-foreground"
-              onClick={() => {
-                onJumpTo('', comment.anchorLine ?? 1);
-              }}
+              onClick={() => { onJump(comment); }}
+              // Show the snippet text on hover when it exists — it
+              // disambiguates which block this comment is on, useful
+              // when several comments share a line range.
+              title={comment.anchorSnippet ?? undefined}
             >
-              {t('review.jumpToLine', { line: comment.anchorLine })}
+              {comment.anchorSnippet !== null && comment.anchorSnippet.length > 0
+                ? t('review.jumpToBlock')
+                : t('review.jumpToLine', { line: comment.anchorLine })}
             </button>
           ) : null}
           {isRoot && onReply !== undefined ? (

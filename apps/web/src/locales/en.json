@@ -25,7 +25,13 @@
     "close": "Close",
     "tryAgain": "Try again",
     "comingSoon": "Coming soon",
-    "openProject": "Open project"
+    "openProject": "Open project",
+    "download": "Download"
+  },
+  "image": {
+    "loading": "Loading image…",
+    "loadFailed": "Couldn't load image: {{error}}",
+    "fit": "Fit to pane"
   },
 
   "collab": {
@@ -88,6 +94,9 @@
     "reopen": "Reopen",
     "deleteConfirm": "Delete this comment?",
     "jumpToLine": "L{{line}}",
+    "jumpToBlock": "Jump to block",
+    "anchorPreviewBlock": "Anchored to L{{fromLine}}–{{toLine}}: “{{preview}}”",
+    "anchorPreviewLine": "Anchored to {{file}}:L{{line}}",
     "unknownAuthor": "Unknown author"
   },
 
@@ -174,6 +183,11 @@
     "pdfCanvas": "PDF preview",
     "inverseSyncHint": "Double-click to jump to source",
     "inverseSyncMiss": "Couldn't find a source location for that spot.",
+    "inverseSyncBblNeedsCompile": "Compile the project once so bibliography links can be resolved.",
+    "inverseSyncBblNoBib": "No .bib file in this project — citations can't be navigated.",
+    "inverseSyncBblKeyMiss": "Couldn't find the citation key for that bibliography entry.",
+    "inverseSyncBblEntryMiss": "Cite key “{{key}}” isn't in any project .bib file.",
+    "inverseSyncBblFetchFailed": "Couldn't load the bibliography file. Try recompiling.",
     "viewSwitcherLabel": "Preview view",
     "viewPdf": "PDF",
     "viewLog": "Log",
@@ -417,7 +431,12 @@
 
   "errors": {
     "generic": "Something went wrong. Please try again.",
-    "network": "Couldn't reach the server."
+    "network": "Couldn't reach the server.",
+    "somethingWentWrong": "Something went wrong",
+    "backToDashboard": "Back to dashboard",
+    "couldntLoadProject": "Couldn't load this project",
+    "couldntLoadDashboard": "Couldn't load your projects",
+    "pageNotFound": "Page not found"
   },
 
   "error": {

@@ -368,21 +368,31 @@ impl Worker {
         let pdf_path = workdir.join(format!("{base_name}.pdf"));
         let log_path = workdir.join(format!("{base_name}.log"));
         let synctex_path = workdir.join(format!("{base_name}.synctex.gz"));
+        // `<base>.bbl` is the BibTeX/biber output that pdflatex
+        // consumes — we upload it so the SPA can do `.bbl → .bib`
+        // reverse lookup for bibliography clicks (SyncTeX maps
+        // citation markers to .bbl line numbers; we need the .bbl
+        // contents to translate those line numbers back to cite
+        // keys we can find in references.bib).
+        let bbl_path = workdir.join(format!("{base_name}.bbl"));
         // Cap each artifact read so a runaway compile (huge synctex,
         // looping PDF) can't OOM the worker. Sizes chosen to leave
         // generous headroom for real documents.
         const MAX_PDF_BYTES: u64 = 256 * 1024 * 1024;  // 256 MiB
         const MAX_LOG_BYTES: u64 = 32 * 1024 * 1024;   // 32 MiB
         const MAX_SYNCTEX_BYTES: u64 = 128 * 1024 * 1024; // 128 MiB
-        let (pdf, log_file, synctex) = tokio::join!(
+        const MAX_BBL_BYTES: u64 = 16 * 1024 * 1024;   // 16 MiB
+        let (pdf, log_file, synctex, bbl) = tokio::join!(
             read_capped(&pdf_path, MAX_PDF_BYTES),
             read_capped(&log_path, MAX_LOG_BYTES),
             read_capped(&synctex_path, MAX_SYNCTEX_BYTES),
+            read_capped(&bbl_path, MAX_BBL_BYTES),
         );
 
         let pdf_bytes = pdf.ok();
         let log_bytes = log_file.ok().unwrap_or_else(|| combined_log.as_bytes().to_vec());
         let synctex_bytes = synctex.ok();
+        let bbl_bytes = bbl.ok();
 
         let job_id_str = job_id.to_string();
 
@@ -417,6 +427,17 @@ impl Worker {
             .as_ref()
             .filter(|b| !b.is_empty())
             .map(|_| compile_artifact_key(project, &job_id_str, "main.synctex.gz"));
+
+        // The .bbl key follows the same convention as the others;
+        // we don't store it in the DB row because the route can
+        // reconstruct it from (project, job_id) — keeping the
+        // schema migration-free. Missing-object 404s on the SPA's
+        // artifact-url request are already handled gracefully
+        // (bib-less projects naturally produce no .bbl).
+        let bbl_key_for_upload = bbl_bytes
+            .as_ref()
+            .filter(|b| !b.is_empty())
+            .map(|_| compile_artifact_key(project, &job_id_str, "main.bbl"));
 
         // Spawn the secondary uploads. Their keys were already written to
         // the row by `finish_success`; the SPA's `artifact-url?kind=log`
@@ -469,8 +490,27 @@ impl Worker {
                     }
                 }
             };
+            let bbl_fut = async {
+                if let (Some(key), Some(bytes)) = (bbl_key_for_upload, bbl_bytes) {
+                    if !bytes.is_empty() {
+                        // .bbl is plain ASCII TeX — same mime
+                        // story as the log.
+                        if let Err(err) = storage
+                            .upload(
+                                COMPILE_ARTIFACTS_BUCKET,
+                                &key,
+                                Bytes::from(bytes),
+                                "text/plain",
+                            )
+                            .await
+                        {
+                            warn!(%job_id, ?err, "bbl upload failed");
+                        }
+                    }
+                }
+            };
             // Concurrent — they share the HTTP/2 connection to Supabase.
-            let _ = tokio::join!(log_fut, synctex_fut);
+            let _ = tokio::join!(log_fut, synctex_fut, bbl_fut);
         });
 
         Artifacts { pdf_key, log_key, synctex_key }
