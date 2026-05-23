@@ -1,0 +1,67 @@
+[package]
+name = "scribe-server"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "scribe-server"
+path = "src/main.rs"
+
+[dependencies]
+scribe-shared = { path = "../scribe-shared" }
+scribe-auth = { path = "../scribe-auth" }
+scribe-storage = { path = "../scribe-storage" }
+scribe-yjs = { path = "../scribe-yjs" }
+scribe-compile = { path = "../scribe-compile" }
+scribe-ai = { path = "../scribe-ai" }
+
+# Async runtime + HTTP
+tokio.workspace = true
+axum.workspace = true
+tower.workspace = true
+tower-http = { workspace = true, features = ["fs"] }
+hyper.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Errors + logging
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# Config
+figment.workspace = true
+dotenvy.workspace = true
+
+# DB
+sqlx.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+
+# Misc
+bytes.workspace = true
+base64.workspace = true
+futures.workspace = true
+redis.workspace = true
+sha2 = "0.10"
+dashmap.workspace = true
+# Drop-in faster allocator. Wins ~15–25% on Windows heap workloads vs
+# the default. Linked statically so no separate runtime to deploy.
+mimalloc = { version = "0.1", default-features = false }
+# In-process L1 cache layer. Sits in front of Redis so warm-hot reads
+# never even cross localhost. Concurrent, lock-free reads.
+moka = { version = "0.12", features = ["future"] }
+# Prometheus / OpenTelemetry observability.
+metrics = "0.24"
+metrics-exporter-prometheus = { version = "0.16", default-features = false }
+opentelemetry = "0.27"
+opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.27", features = ["grpc-tonic", "metrics", "trace"] }
+tracing-opentelemetry = "0.28"
+parking_lot.workspace = true

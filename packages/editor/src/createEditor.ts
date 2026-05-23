@@ -13,13 +13,12 @@ import {
   lineNumbers,
   rectangularSelection,
 } from '@codemirror/view';
-import { yCollab, yUndoManagerKeymap } from 'y-codemirror.next';
-
 import { type AutocompleteSources, createLatexAutocomplete, extractLabels } from './autocomplete.js';
 import { autoCloseEnv } from './extensions/auto-close-env.js';
 import { flashLineExtension, flashLineOnView } from './extensions/flash-line.js';
 import { ruler } from './extensions/ruler.js';
 import { wordCountExtension } from './extensions/word-count.js';
+import { fromYjs, scribeYjsBinding } from './extensions/yjs-binding.js';
 import { latexLanguageSupport } from './latex-language.js';
 import { latexTheme, type ScribeEditorTheme } from './theme.js';
 
@@ -48,10 +47,10 @@ export interface ScribeEditorOptions {
   /** Optional extra extensions appended after the defaults. */
   readonly extraExtensions?: readonly Extension[];
   /**
-   * When provided, the editor binds to the Y.Text via y-codemirror.next.
-   * The Y.Text becomes the source of truth — initialContent is ignored if
-   * the Y.Text already has content (collab session was already started by
-   * another peer).
+   * When provided, the editor binds to the Y.Text via the custom
+   * `scribeYjsBinding` extension. Y.Text becomes the source of truth —
+   * initialContent is ignored if the Y.Text already has content (collab
+   * session was already started by another peer).
    */
   readonly collab?: ScribeEditorCollab;
 }
@@ -91,7 +90,18 @@ export function createScribeEditor(opts: ScribeEditorOptions): ScribeEditorHandl
 
   const changeListener = EditorView.updateListener.of((update) => {
     if (update.docChanged && opts.onChange !== undefined) {
-      opts.onChange(update.state.doc.toString());
+      // Skip remote-origin transactions (initial yText snap + every
+      // peer keystroke that the binding mirrored into our editor).
+      // Those don't represent user intent, so they shouldn't trigger
+      // autosave or any other "user-edited" downstream effect —
+      // doing otherwise spams the file-write endpoint and gives
+      // viewers a stream of 403s.
+      const isRemote = update.transactions.some(
+        (tr) => tr.annotation(fromYjs) === true,
+      );
+      if (!isRemote) {
+        opts.onChange(update.state.doc.toString());
+      }
     }
     if (update.selectionSet && opts.onCursor !== undefined) {
       const head = update.state.selection.main.head;
@@ -153,8 +163,16 @@ export function createScribeEditor(opts: ScribeEditorOptions): ScribeEditorHandl
   ];
 
   if (opts.collab !== undefined) {
-    extensions.push(yCollab(opts.collab.yText, opts.collab.awareness));
-    extensions.push(keymap.of(yUndoManagerKeymap));
+    // Custom binding — see `extensions/yjs-binding.ts` for the contract
+    // (origin tagging + annotation to break echo loops). We dropped
+    // `y-codemirror.next` because v0.3.5 was silently failing to mirror
+    // CodeMirror transactions back into Y.Text in this stack.
+    extensions.push(
+      scribeYjsBinding({
+        yText: opts.collab.yText,
+        awareness: opts.collab.awareness,
+      }),
+    );
   }
 
   if (rulerColumn > 0) {
@@ -165,9 +183,10 @@ export function createScribeEditor(opts: ScribeEditorOptions): ScribeEditorHandl
     extensions.push(...opts.extraExtensions);
   }
 
-  // With a Y.Text binding, y-codemirror.next replaces the document with
-  // the Y.Text contents on attach. We pass an empty initial doc to avoid
-  // the initial content being inserted into Yjs as a "user edit".
+  // With a Y.Text binding, `scribeYjsBinding` snaps the editor doc to
+  // the Y.Text contents on attach. We pass an empty initial doc so the
+  // ProjectWorkspace's stale `initialContent` prop doesn't get pushed
+  // into Y.Text as a phantom "user edit" before the snap.
   const initialDoc = opts.collab !== undefined ? '' : opts.initialContent;
 
   const state = EditorState.create({

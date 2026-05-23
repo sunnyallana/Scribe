@@ -1,8 +1,9 @@
 packages:
   - 'apps/*'
   - 'packages/*'
-  - 'server'
+  - 'servers/node'
 allowBuilds:
   esbuild: true
+  msgpackr-extract: false
 ignoredBuiltDependencies:
   - msgpackr-extract

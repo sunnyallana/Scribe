@@ -1,6 +1,7 @@
 import { config as loadDotenv } from 'dotenv';
 
-loadDotenv({ path: ['../.env', '.env'], quiet: true });
+// Check repo-root .env first (we're at <repo>/servers/node/), then a colocated one.
+loadDotenv({ path: ['../../.env', '../.env', '.env'], quiet: true });
 
 import { buildApp } from './app.js';
 import { loadEnv } from './config.js';

@@ -7,6 +7,8 @@ import {
   removeAwarenessStates,
 } from 'y-protocols/awareness';
 import {
+  messageYjsSyncStep2,
+  messageYjsUpdate,
   readSyncMessage,
   writeSyncStep1,
   writeUpdate,
@@ -191,8 +193,22 @@ export class ScribeYjsProvider {
           const encoder = encoding.createEncoder();
           encoding.writeVarUint(encoder, MESSAGE_SYNC);
           const syncMessageType = readSyncMessage(decoder, encoder, this.doc, this);
-          // syncMessageType === 2 (sync step 2) means full state arrived.
-          if (syncMessageType === 2 && !this.synced) {
+          // y-protocols constants:
+          //   messageYjsSyncStep1 = 0  (state-vector request)
+          //   messageYjsSyncStep2 = 1  (full state response — what we want)
+          //   messageYjsUpdate    = 2  (incremental change)
+          //
+          // Previously we compared against the magic number `2`, which
+          // is `messageYjsUpdate` — so `synced` only flipped to true on
+          // the FIRST keystroke from a peer, never on the initial state
+          // load. With no co-editor that update never arrived, so the
+          // collab-timeout fallback always fired at 2.5 s, leaving the
+          // editor in solo mode and silently disabling live sync.
+          if (
+            (syncMessageType === messageYjsSyncStep2 ||
+              syncMessageType === messageYjsUpdate) &&
+            !this.synced
+          ) {
             this.synced = true;
             this.emitter.emit('synced', { synced: true });
           }
@@ -251,8 +267,22 @@ export class ScribeYjsProvider {
   }
 
   private readonly handleDocUpdate = (update: Uint8Array, origin: unknown): void => {
-    if (origin === this) return; // applied by a remote sync; don't echo
-    if (this.socket?.readyState !== WebSocket.OPEN) return;
+    // Origin === this means this update came from `readSyncMessage`
+    // applying a remote frame we just received — already on the wire,
+    // don't echo it back.
+    if (origin === this) return;
+    if (this.socket?.readyState !== WebSocket.OPEN) {
+      // The editor is emitting updates but our socket is closed.
+      // Whoever pulls the editor's content via the autosave path will
+      // still persist it via HTTP; the WS broadcast is what's lost.
+      // eslint-disable-next-line no-console
+      console.warn('[Scribe:yjs] dropping outbound update — socket not open', {
+        readyState: this.socket?.readyState,
+        bytes: update.length,
+        docId: this.config.docId,
+      });
+      return;
+    }
     const encoder = encoding.createEncoder();
     encoding.writeVarUint(encoder, MESSAGE_SYNC);
     writeUpdate(encoder, update);

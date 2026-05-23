@@ -62,11 +62,11 @@ export function DashboardPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   return (
-    <div className="container max-w-6xl py-8">
-      <div className="mb-8 flex items-center justify-between">
+    <div className="mx-auto w-full max-w-6xl px-6 py-6">
+      <div className="mb-6 flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{t('dashboard.title')}</h1>
-          <p className="text-sm text-muted-foreground">{t('dashboard.subtitle')}</p>
+          <h1 className="font-serif text-3xl font-normal tracking-tight">{t('dashboard.title')}</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">{t('dashboard.subtitle')}</p>
         </div>
         <Button
           onClick={() => {

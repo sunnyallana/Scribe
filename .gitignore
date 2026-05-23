@@ -63,3 +63,26 @@ supabase/.temp/
 # Temporary
 tmp/
 *.tmp
+
+# Rust
+servers/rust/target/
+**/*.rs.bk
+**/Cargo.lock.bak
+
+# Local runtime artifacts that shouldn't be tracked.
+# `dump.rdb` is Redis's RDB snapshot, `redis.pid` is the daemon PID
+# file, `runtime.*.log` are server stdout/stderr captures, and the
+# `recover-from-yjs.mjs` / `yjs-pingpong-test.mjs` files are throwaway
+# debug scripts that landed in the repo during a debug session.
+dump.rdb
+servers/rust/redis.pid
+servers/rust/runtime.out.log
+servers/rust/runtime.err.log
+servers/rust/redis.out.log
+servers/rust/redis.err.log
+apps/web/dev.out.log
+apps/web/dev.err.log
+
+# Scribe runtime config — copy of `scribe.config.toml.example`.
+# Tracked is fine but most devs keep theirs gitignored.
+scribe.config.toml

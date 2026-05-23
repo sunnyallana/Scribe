@@ -1,7 +1,7 @@
 import { type Project, type ProjectFile, projectIdSchema } from '@scribe/shared';
 import { Button, Sheet, SheetContent, SheetTrigger } from '@scribe/ui';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronsLeft, ChevronsRight, Download, Loader2, Settings as SettingsIcon } from 'lucide-react';
+import { ChevronsLeft, Download, Loader2, Settings as SettingsIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
@@ -10,6 +10,7 @@ import { type ImperativePanelHandle, Panel, PanelGroup } from 'react-resizable-p
 import { Splitter } from '../../components/Layout/Splitter';
 import { api, type ApiError } from '../../lib/api';
 import { supabase } from '../../lib/supabase';
+import { useProjectChrome } from '../../stores/projectChrome';
 
 import { FileTree } from './FileTree';
 import { ProjectSettingsSheet } from './ProjectSettingsSheet';
@@ -57,6 +58,19 @@ export function ProjectPage() {
     if (mainFile !== undefined) setSelectedFileId(mainFile.id);
   }, [filesQuery.data, project?.mainFile, selectedFileId]);
 
+  // Publish the active project + a hook for opening the settings sheet
+  // so the AppShell can render the project name + actions in the navbar.
+  const setChrome = useProjectChrome((s) => s.set);
+  const clearChrome = useProjectChrome((s) => s.clear);
+  useEffect(() => {
+    if (project === undefined) return;
+    setChrome({
+      project,
+      openSettings: () => { setSettingsOpen(true); },
+    });
+    return () => { clearChrome(); };
+  }, [project, setChrome, clearChrome]);
+
   function toggleSidebar() {
     const panel = sidebarRef.current;
     if (panel === null) return;
@@ -92,7 +106,7 @@ export function ProjectPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-[calc(100vh-3.5rem)] items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden="true" />
       </div>
     );
@@ -110,7 +124,7 @@ export function ProjectPage() {
   const selectedFile = files.find((f) => f.id === selectedFileId) ?? null;
 
   return (
-    <div className="h-[calc(100vh-3.5rem)]">
+    <div className="h-full">
       <PanelGroup
         direction="horizontal"
         autoSaveId="scribe:project-layout"
@@ -184,26 +198,14 @@ export function ProjectPage() {
         </Panel>
         <Splitter orientation="vertical" />
         <Panel>
-          <div className="relative h-full">
-            {sidebarCollapsed ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute left-1 top-1 z-20 h-7 w-7"
-                onClick={toggleSidebar}
-                aria-label={t('project.expandSidebar')}
-                title={t('project.expandSidebar')}
-              >
-                <ChevronsRight className="h-4 w-4" />
-              </Button>
-            ) : null}
-            <ProjectWorkspace
-              project={project}
-              files={files}
-              selectedFile={selectedFile}
-              onSelectFile={(file) => { setSelectedFileId(file.id); }}
-            />
-          </div>
+          <ProjectWorkspace
+            project={project}
+            files={files}
+            selectedFile={selectedFile}
+            onSelectFile={(file) => { setSelectedFileId(file.id); }}
+            sidebarCollapsed={sidebarCollapsed}
+            onExpandSidebar={toggleSidebar}
+          />
         </Panel>
       </PanelGroup>
     </div>
