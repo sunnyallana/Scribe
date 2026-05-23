@@ -46,7 +46,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 
 # Auth
-jsonwebtoken = "9"
+jsonwebtoken = "10"
 
 # HTTP client. Enable `gzip` + `brotli` so Supabase Storage responses
 # with Content-Encoding land decompressed in our buffers — without it
