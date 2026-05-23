@@ -247,6 +247,12 @@
     "deleteFileConfirm": "Delete {{path}}?",
     "editorPlaceholder": "The editor lands in Phase 2. Phase 1 wires up files, projects, and collaborators.",
     "projectSettings": "Project settings",
+    "actions": "Project actions",
+    "rename": "Rename project",
+    "renamed": "Project renamed",
+    "duplicate": "Duplicate",
+    "duplicating": "Duplicating…",
+    "duplicated": "Project duplicated",
     "collapseSidebar": "Collapse sidebar",
     "expandSidebar": "Expand sidebar",
     "downloadZip": "Download as ZIP",
@@ -317,7 +323,13 @@
       "commenter": "Commenter",
       "viewer": "Viewer"
     },
-    "removeConfirm": "Remove this member?"
+    "removeConfirm": "Remove this member?",
+    "readOnly": "read-only",
+    "copyLink": "Copy invite link",
+    "linkCopied": "Invite link copied to clipboard",
+    "linkAutoCopied": "Invite link copied — paste it into chat or email.",
+    "copyLinkFallback": "Copy this invite link:",
+    "roleUpdated": "Role updated"
   },
 
   "invite": {

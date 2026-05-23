@@ -9,11 +9,16 @@ import {
 import { useTheme } from '@scribe/ui';
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 
+import { log } from '../../lib/debug';
+
 import type { CompileLogEntry } from '@scribe/compiler-client';
 
 export interface LatexEditorImperativeHandle {
   insertAtCursor: (text: string) => void;
   getSelection: () => string;
+  /** Snapshot the editor's current view doc as a UTF-8 string. Used by
+   *  autosave to avoid relying on possibly-stale React `next` closures. */
+  getContent: () => string;
   gotoLine: (line: number, options?: { readonly flash?: boolean }) => void;
   focus: () => void;
 }
@@ -60,15 +65,29 @@ export const LatexEditor = forwardRef<LatexEditorImperativeHandle, LatexEditorPr
       () => ({
         insertAtCursor: (text) => { handleRef.current?.insertAtCursor(text); },
         getSelection: () => handleRef.current?.getSelection() ?? '',
+        getContent: () => handleRef.current?.getContent() ?? '',
         gotoLine: (line, options) => { handleRef.current?.gotoLine(line, options); },
         focus: () => { handleRef.current?.view.focus(); },
       }),
       [],
     );
 
-    const collabKey = collab !== null && collab !== undefined ? 'collab' : 'solo';
+    // Rebuild the editor when the file or the collab session changes.
+    // Watching `collab` (the object identity) — not a derived key — is
+    // critical: if the Yjs provider gets swapped (e.g. after a Supabase
+    // session refresh, or a transient disconnect that produced a fresh
+    // Y.Doc), the new yText/awareness must replace the old binding.
+    // Without this the editor stays bound to a Y.Doc nobody's writing
+    // to and live updates silently fail to appear.
     useEffect(() => {
       if (containerRef.current === null) return;
+      const hasCollab = collab !== null && collab !== undefined;
+      log.editor('mount editor', {
+        filePath,
+        readOnly: readOnly ?? false,
+        hasCollab,
+        initialBytes: initialContent.length,
+      });
       const editor = createScribeEditor({
         parent: containerRef.current,
         initialContent,
@@ -80,15 +99,16 @@ export const LatexEditor = forwardRef<LatexEditorImperativeHandle, LatexEditorPr
         onCompileRequest: onCompile,
         onSaveRequest: onSave,
         ...(onCursor !== undefined ? { onCursor } : {}),
-        ...(collab !== null && collab !== undefined ? { collab } : {}),
+        ...(hasCollab ? { collab } : {}),
       });
       handleRef.current = editor;
       return () => {
+        log.editor('unmount editor', { filePath });
         editor.destroy();
         handleRef.current = null;
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filePath, collabKey]);
+    }, [filePath, collab]);
 
     useEffect(() => {
       handleRef.current?.setAutocompleteSources(autocomplete);

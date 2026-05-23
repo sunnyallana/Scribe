@@ -20,6 +20,9 @@ export const projectMemberSchema = z.object({
   acceptedAt: z.string().nullable(),
   expiresAt: z.string(),
   pending: z.boolean(),
+  /** Populated only for pending invites — lets the owner-side UI offer
+   *  a copy-link affordance instead of relying on an email send. */
+  inviteToken: z.string().nullable().optional(),
 });
 export type ProjectMember = z.infer<typeof projectMemberSchema>;
 

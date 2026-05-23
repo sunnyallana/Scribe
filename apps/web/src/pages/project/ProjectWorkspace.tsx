@@ -13,6 +13,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BookText,
   CameraIcon,
+  ChevronsRight,
   Command,
   FileText,
   History,
@@ -27,6 +28,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Panel, PanelGroup } from 'react-resizable-panels';
 import { toast } from 'sonner';
+
+import { log } from '../../lib/debug';
 
 import { Splitter } from '../../components/Layout/Splitter';
 
@@ -47,6 +50,7 @@ import { useCompileSession } from '../../hooks/useCompileSession';
 import { lookup, lookupReverse, useSyncTeX } from '../../hooks/useSyncTeX';
 import { useYjsDoc } from '../../hooks/useYjsDoc';
 import { api, type ApiError } from '../../lib/api';
+import { API_URL } from '../../lib/supabase';
 import { useAuthStore } from '../../stores/auth';
 import { useSettings } from '../../stores/settings';
 
@@ -57,9 +61,15 @@ interface ProjectWorkspaceProps {
   readonly files: readonly ProjectFile[];
   readonly selectedFile: ProjectFile | null;
   readonly onSelectFile: (file: ProjectFile) => void;
+  readonly sidebarCollapsed?: boolean;
+  readonly onExpandSidebar?: () => void;
 }
 
-const SAVE_DEBOUNCE_MS = 2000;
+// Short debounce: 800ms is enough to coalesce a burst of keystrokes
+// but small enough that a refresh-after-typing rarely loses work.
+// Pair this with the `beforeunload` flush below for the edge case
+// where the user refreshes inside the debounce window.
+const SAVE_DEBOUNCE_MS = 800;
 const COLLAB_TIMEOUT_MS = 2500;
 
 function isTexFile(file: ProjectFile): boolean {
@@ -103,6 +113,8 @@ export function ProjectWorkspace({
   files,
   selectedFile,
   onSelectFile,
+  sidebarCollapsed = false,
+  onExpandSidebar,
 }: ProjectWorkspaceProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -116,6 +128,31 @@ export function ProjectWorkspace({
   const [rightPanel, setRightPanel] = useState<RightPanelId>(null);
   const [aiPaletteOpen, setAIPaletteOpen] = useState(false);
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
+
+  // Fetch the caller's role on this project so we can gate the editor.
+  // Read-only roles (viewer/commenter) get a non-writable CodeMirror — the
+  // server already drops their updates, but disabling at the UI layer
+  // avoids the "I typed something and it vanished" confusion.
+  const membersQuery = useQuery({
+    queryKey: ['members', projectId],
+    queryFn: () => api.members.list(projectId),
+  });
+  const myRole = useMemo<'owner' | 'editor' | 'commenter' | 'viewer' | null>(() => {
+    const me = (membersQuery.data ?? []).find(
+      (m) => m.userId !== null && m.userId === authUser?.id,
+    );
+    return me?.role ?? null;
+  }, [membersQuery.data, authUser?.id]);
+  const editorReadOnly = myRole === 'viewer' || myRole === 'commenter';
+  useEffect(() => {
+    if (myRole !== null) {
+      log.role(`resolved role for this session: ${myRole}`, {
+        projectId,
+        userId: authUser?.id,
+        readOnly: editorReadOnly,
+      });
+    }
+  }, [myRole, projectId, authUser?.id, editorReadOnly]);
 
   function toggleRightPanel(id: NonNullable<RightPanelId>) {
     setRightPanel((current) => (current === id ? null : id));
@@ -182,11 +219,21 @@ export function ProjectWorkspace({
 
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const writeMutation = useMutation<unknown, ApiError, { fileId: ProjectFile['id']; content: string }>({
-    mutationFn: ({ fileId, content }) => api.files.writeContent(projectId, fileId, content),
-    onSuccess: () => {
+    mutationFn: ({ fileId, content }) => {
+      log.save('autosave →', { fileId, bytes: content.length });
+      return api.files.writeContent(projectId, fileId, content);
+    },
+    onSuccess: (_data, variables) => {
+      log.save('autosave ok', { fileId: variables.fileId, bytes: variables.content.length });
       setLastSavedAt(Date.now());
     },
-    onError: (err) => {
+    onError: (err, variables) => {
+      log.save.error('autosave failed', {
+        fileId: variables.fileId,
+        bytes: variables.content.length,
+        status: err.status,
+        message: err.body.message,
+      });
       toast.error(err.body.message);
     },
   });
@@ -214,8 +261,19 @@ export function ProjectWorkspace({
   }, [selectedFile?.id]);
 
   useEffect(() => {
-    if (yjs.synced) return;
-    const id = window.setTimeout(() => { setCollabTimedOut(true); }, COLLAB_TIMEOUT_MS);
+    if (yjs.synced) {
+      // The earlier behavior left `collabTimedOut` stuck at `true`
+      // once the timeout fired, which meant a single slow handshake
+      // would put the editor in solo mode for the rest of the
+      // session — even after the WS reconnected. Clear the flag any
+      // time we're synced so a reconnect restores collab.
+      setCollabTimedOut(false);
+      return;
+    }
+    const id = window.setTimeout(() => {
+      log.yjs.warn('collab timed out after', COLLAB_TIMEOUT_MS, 'ms — falling back to solo until WS reconnects');
+      setCollabTimedOut(true);
+    }, COLLAB_TIMEOUT_MS);
     return () => { window.clearTimeout(id); };
   }, [yjs.synced, selectedFile?.id]);
 
@@ -264,12 +322,40 @@ export function ProjectWorkspace({
 
   const handleChange = useCallback(
     (next: string) => {
+      // Loud, verbose log so anyone debugging "edits don't persist"
+      // can see exactly what the editor reported to us per keystroke.
+      log.editor('onChange', {
+        bytes: next.length,
+        preview: next.length > 0 ? next.slice(0, 40) : '<empty>',
+      });
       setEditorContent(next);
       setLabels(extractLabelsFromText(next));
       if (selectedFile === null) return;
+      // Safety net: never autosave an empty body. CodeMirror + yCollab
+      // can fire a transient empty onChange during mount races (editor
+      // doc swapped to yText before the seed insert lands), and that
+      // empty value would silently overwrite the user's file in
+      // Storage. If they really want to empty the file, they can
+      // explicitly delete each character — onChange will keep firing
+      // with the latest non-empty buffer until the final delete, and
+      // by then a deliberate save shortcut works too.
+      if (next.length === 0) {
+        log.save.warn('blocked: refusing to autosave empty content', { fileId: selectedFile.id });
+        return;
+      }
       if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current);
+      const fileId = selectedFile.id;
       saveTimerRef.current = setTimeout(() => {
-        writeMutation.mutate({ fileId: selectedFile.id, content: next });
+        // Read the editor's CURRENT view content rather than relying
+        // on `next` from a possibly-stale closure. If the editor went
+        // through any transactions between handleChange firing and the
+        // debounce window expiring (e.g. a remote Yjs update applied
+        // after the user's keystroke), `next` would be the older
+        // post-keystroke value; the editor handle always returns the
+        // freshest view doc.
+        const live = editorRef.current?.getContent() ?? next;
+        log.save('autosave fire', { fileId, viewBytes: live.length, closureBytes: next.length });
+        writeMutation.mutate({ fileId, content: live });
       }, SAVE_DEBOUNCE_MS);
       if (liveCompile) {
         if (liveCompileTimerRef.current !== null) clearTimeout(liveCompileTimerRef.current);
@@ -285,8 +371,17 @@ export function ProjectWorkspace({
   const handleSave = useCallback(() => {
     if (selectedFile === null) return;
     if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current);
+    // Ctrl+S: always read the editor view directly. `editorContent`
+    // state can lag behind transient editor transactions and we never
+    // want a manual save to write a stale buffer.
+    const live = editorRef.current?.getContent() ?? editorContent;
+    log.save('manual save', { fileId: selectedFile.id, viewBytes: live.length });
+    if (live.length === 0) {
+      log.save.warn('blocked: manual save refused for empty buffer', { fileId: selectedFile.id });
+      return;
+    }
     writeMutation.mutate(
-      { fileId: selectedFile.id, content: editorContent },
+      { fileId: selectedFile.id, content: live },
       {
         onSuccess: () => { toast.success(t('compile.saved')); },
       },
@@ -294,19 +389,69 @@ export function ProjectWorkspace({
   }, [editorContent, selectedFile, writeMutation, t]);
 
   const handleCompile = useCallback(async () => {
-    if (selectedFile !== null) {
-      // Force-save before compile so the worker sees latest content.
+    if (selectedFile !== null && !editorReadOnly) {
+      // Owners + editors only: force-save before compile so the worker
+      // sees the latest content. Viewers/commenters skip this step
+      // entirely — the server would 403 their PUT and we'd then
+      // refuse to compile something we have full read access to. They
+      // can still kick off a compile of whatever the file currently
+      // contains in Storage.
       if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current);
-      try {
-        await api.files.writeContent(projectId, selectedFile.id, editorContent);
-      } catch (err) {
-        if (err instanceof Error) toast.error(err.message);
-        return;
+      const live = editorRef.current?.getContent() ?? editorContent;
+      if (live.length > 0) {
+        try {
+          await api.files.writeContent(projectId, selectedFile.id, live);
+        } catch (err) {
+          // Soft-fail: log the save error but still compile. A viewer
+          // who somehow got here (or any other write-blocked role)
+          // should still be able to render the persisted PDF.
+          log.compile.warn('pre-compile save failed; compiling anyway', err);
+        }
       }
     }
     await compileSession.compile(project.mainFile);
     await queryClient.invalidateQueries({ queryKey: ['compiles', projectId] });
-  }, [compileSession, editorContent, project.mainFile, projectId, queryClient, selectedFile]);
+  }, [compileSession, editorContent, editorReadOnly, project.mainFile, projectId, queryClient, selectedFile]);
+
+  // Flush any pending autosave when the user navigates away or
+  // refreshes inside the debounce window. `sendBeacon` is fire-and-
+  // forget but reliable during page unload — `fetch` calls get
+  // cancelled mid-flight otherwise.
+  useEffect(() => {
+    if (selectedFile === null) return;
+    const fileId = selectedFile.id;
+    const onUnload = () => {
+      const live = editorRef.current?.getContent() ?? '';
+      if (live.length === 0) return;
+      const url = `${API_URL}/api/projects/${projectId}/files/${fileId}/content`;
+      try {
+        // Pull the auth token from the persisted Supabase session in
+        // localStorage. We can't await `supabase.auth.getSession()` in
+        // unload handlers — the page is about to be killed.
+        const sbKey = Object.keys(localStorage).find((k) => k.startsWith('sb-') && k.endsWith('-auth-token'));
+        const session = sbKey !== undefined ? JSON.parse(localStorage.getItem(sbKey) ?? 'null') : null;
+        const accessToken: string | undefined = session?.access_token;
+        if (accessToken === undefined) return;
+        const blob = new Blob([JSON.stringify({ content: live })], { type: 'application/json' });
+        // `sendBeacon` doesn't let us set Authorization headers, so we
+        // append it as a query param fallback. Server already accepts
+        // `?token=` on the YJS route — extend the file route the same
+        // way OR just rely on a normal fetch with `keepalive: true`,
+        // which is supported in all evergreen browsers.
+        void fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+          body: blob,
+          keepalive: true,
+        });
+        log.save('beforeunload flush', { fileId, bytes: live.length });
+      } catch (err) {
+        log.save.error('beforeunload flush failed', err);
+      }
+    };
+    window.addEventListener('beforeunload', onUnload);
+    return () => { window.removeEventListener('beforeunload', onUnload); };
+  }, [projectId, selectedFile]);
 
   const handleJumpTo = useCallback(
     (filePath: string, line: number) => {
@@ -363,15 +508,19 @@ export function ProjectWorkspace({
     [collabTimedOut, yjs.yText, yjs.awareness],
   );
 
-  // Editor mounts once we have content to render:
-  //   • Collab path: Yjs synced and we've finished seeding Y.Text (or
-  //     confirmed it already has content), tracked by `editorPrimed`.
-  //   • Collab-off path (timeout fallback or no collab session): just wait
-  //     for fileContent to finish loading.
+  // Editor mounts once we have content to render. We delay mounting
+  // until *either* the Yjs provider is fully primed (`editorPrimed`)
+  // *or* we've given up on it (`collabTimedOut`). Without this guard
+  // the editor would mount in solo mode for the first ~100–1000 ms
+  // before the WS finishes syncing, then rebuild with yCollab — and
+  // the rebuild discards whatever the user typed in that window
+  // (since the post-rebuild seed only knows about the original
+  // file content, not the unsaved edits).
   const editorReadyNow =
     selectedFile !== null &&
     isEditableTextFile(selectedFile) &&
-    (collab !== null ? editorPrimed : !fileContent.isLoading);
+    !fileContent.isLoading &&
+    (editorPrimed || collabTimedOut);
 
   // Sticky: once we've shown the editor for a given file, don't fall back
   // to the spinner because `collab` flipped from null → set mid-load. The
@@ -497,11 +646,28 @@ export function ProjectWorkspace({
 
   const editorPanel = (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between gap-2 border-b bg-background px-3 py-2">
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="flex items-center justify-between gap-2 border-b bg-background px-3 py-1.5">
+        <div className="flex min-w-0 items-center gap-2">
+          {sidebarCollapsed && onExpandSidebar !== undefined ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0"
+              onClick={onExpandSidebar}
+              aria-label={t('project.expandSidebar')}
+              title={t('project.expandSidebar')}
+            >
+              <ChevronsRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          ) : null}
           <span className="truncate text-sm font-medium">
             {selectedFile?.path ?? t('compile.noFileSelected')}
           </span>
+          {editorReadOnly ? (
+            <span className="rounded-sm border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
+              {t('members.roles.viewer')} · {t('members.readOnly')}
+            </span>
+          ) : null}
           {saveStatusLabel !== null ? (
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
               {saveStatusLabel}
@@ -631,6 +797,7 @@ export function ProjectWorkspace({
             initialContent={fileContent.data?.content ?? ''}
             autocomplete={autocomplete}
             collab={collab}
+            readOnly={editorReadOnly}
             logEntries={logEntries.map((e) => ({
               level: e.level,
               message: e.message,
