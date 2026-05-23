@@ -70,6 +70,22 @@ export interface ScribeEditorHandle {
   insertAtCursor(text: string): void;
   /** Return the currently selected text (empty string if no selection). */
   getSelection(): string;
+  /** Return the current selection's start/end as 1-based (line, column).
+   *  When there's no selection, `from` and `to` point at the cursor. */
+  getSelectionRange(): {
+    readonly from: { readonly line: number; readonly column: number };
+    readonly to: { readonly line: number; readonly column: number };
+    readonly text: string;
+  };
+  /** Restore an editor selection from 1-based (line, column) pairs and
+   *  scroll it into view. Used by jump-to-comment to re-highlight the
+   *  exact block the comment was anchored to. Clamps positions to the
+   *  current doc so a stale comment from an older edit can't throw. */
+  selectRange(
+    from: { line: number; column: number },
+    to: { line: number; column: number },
+    options?: { readonly flash?: boolean },
+  ): void;
   /** Extract labels from the current document. */
   labels(): string[];
 }
@@ -242,6 +258,47 @@ export function createScribeEditor(opts: ScribeEditorOptions): ScribeEditorHandl
         scrollIntoView: true,
       });
       view.focus();
+    },
+    getSelectionRange() {
+      const range = view.state.selection.main;
+      const doc = view.state.doc;
+      const fromLine = doc.lineAt(range.from);
+      const toLine = doc.lineAt(range.to);
+      return {
+        from: {
+          line: fromLine.number,
+          column: range.from - fromLine.from,
+        },
+        to: {
+          line: toLine.number,
+          column: range.to - toLine.from,
+        },
+        text: view.state.sliceDoc(range.from, range.to),
+      };
+    },
+    selectRange(from, to, options) {
+      const doc = view.state.doc;
+      // Clamp every coordinate to the current doc so an out-of-date
+      // comment from an older edit can't blow up the dispatch.
+      const safeFromLine = Math.min(Math.max(from.line, 1), doc.lines);
+      const fromLineInfo = doc.line(safeFromLine);
+      const fromPos =
+        fromLineInfo.from + Math.min(Math.max(from.column, 0), fromLineInfo.length);
+      const safeToLine = Math.min(Math.max(to.line, 1), doc.lines);
+      const toLineInfo = doc.line(safeToLine);
+      const toPos =
+        toLineInfo.from + Math.min(Math.max(to.column, 0), toLineInfo.length);
+      // anchor is fromPos (range start), head is toPos (range end);
+      // CodeMirror handles inverted ranges fine.
+      view.dispatch({
+        selection: { anchor: fromPos, head: toPos },
+        scrollIntoView: true,
+        effects: EditorView.scrollIntoView(fromPos, { y: 'center' }),
+      });
+      view.focus();
+      if (options?.flash === true) {
+        flashLineOnView(view, safeFromLine);
+      }
     },
     getSelection() {
       const range = view.state.selection.main;

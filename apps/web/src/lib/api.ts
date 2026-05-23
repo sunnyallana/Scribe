@@ -175,8 +175,15 @@ export const api = {
       fetchJson(`/api/projects/${projectId}/compiles`),
     get: (jobId: CompileJobId): Promise<CompileJob> =>
       fetchJson(`/api/compiles/${jobId}`),
-    artifactUrl: (jobId: CompileJobId, kind: 'pdf' | 'log' | 'synctex'): Promise<{ url: string }> =>
+    artifactUrl: (jobId: CompileJobId, kind: 'pdf' | 'log' | 'synctex' | 'bbl'): Promise<{ url: string }> =>
       fetchJson(`/api/compiles/${jobId}/artifact-url?kind=${kind}`),
+  },
+  voice: {
+    /** Read-only snapshot of who's currently in the project's
+     *  voice room. Used by clients that aren't on the call to
+     *  show a "N on call" badge. */
+    peers: (projectId: ProjectId): Promise<{ peers: Array<{ connId: string; userId: string }> }> =>
+      fetchJson(`/api/projects/${projectId}/voice/peers`),
   },
   comments: {
     list: (projectId: ProjectId): Promise<Comment[]> =>

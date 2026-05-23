@@ -1,0 +1,121 @@
+{
+  "appName": "Scribe",
+  "appTagline": "Gemeinsames LaTeX-Editieren für alle",
+
+  "theme": {
+    "label": "Design",
+    "light": "Hell",
+    "dark": "Dunkel",
+    "highContrast": "Hoher Kontrast"
+  },
+
+  "common": {
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "delete": "Löschen",
+    "loading": "Wird geladen",
+    "back": "Zurück",
+    "continue": "Weiter",
+    "create": "Erstellen",
+    "rename": "Umbenennen",
+    "upload": "Hochladen",
+    "search": "Suchen",
+    "close": "Schließen",
+    "tryAgain": "Erneut versuchen",
+    "comingSoon": "Demnächst",
+    "openProject": "Projekt öffnen",
+    "download": "Herunterladen"
+  },
+
+  "collab": {
+    "presenceLabel": "Anwesende Personen",
+    "compile": "Kompilieren"
+  },
+
+  "command": {
+    "title": "Befehlspalette",
+    "placeholder": "Befehl eingeben…",
+    "groupActions": "Aktionen",
+    "groupPanels": "Bereiche",
+    "groupFiles": "Dateien",
+    "compile": "Kompilieren",
+    "aiAssist": "KI-Assistenz…",
+    "snapshotNow": "Schnappschuss erstellen",
+    "toggleOutline": "Gliederung umschalten",
+    "toggleReview": "Kommentare umschalten",
+    "toggleHistory": "Versionsverlauf umschalten",
+    "toggleBibliography": "Bibliografie umschalten",
+    "toggleAIChat": "KI-Chat umschalten",
+    "toggleMath": "Mathe-Symbole umschalten"
+  },
+
+  "compile": {
+    "runButton": "Kompilieren",
+    "running": "Kompilieren…",
+    "saved": "Gespeichert",
+    "noPdf": "Führen Sie eine Kompilierung aus, um das PDF zu sehen.",
+    "openTexFile": "Öffnen Sie eine .tex-Datei aus dem Dateibaum, um zu starten.",
+    "viewPdf": "PDF",
+    "viewLog": "Protokoll"
+  },
+
+  "auth": {
+    "signIn": "Anmelden",
+    "signOut": "Abmelden",
+    "signUp": "Registrieren",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "forgotPassword": "Passwort vergessen?",
+    "magicLinkSent": "Wir haben einen Magic-Link an Ihre E-Mail gesendet."
+  },
+
+  "dashboard": {
+    "title": "Ihre Projekte",
+    "subtitle": "Erstellen, öffnen und verwalten Sie Ihre LaTeX-Projekte.",
+    "newProject": "Neues Projekt",
+    "emptyTitle": "Noch keine Projekte",
+    "loadError": "Projekte konnten nicht geladen werden."
+  },
+
+  "project": {
+    "actions": "Projektaktionen",
+    "rename": "Umbenennen",
+    "duplicate": "Duplizieren",
+    "projectSettings": "Projekteinstellungen",
+    "members": "Mitglieder",
+    "collapseSidebar": "Seitenleiste einklappen",
+    "expandSidebar": "Seitenleiste ausklappen",
+    "morePanels": "Weitere Bereiche",
+    "showPreview": "Vorschau anzeigen",
+    "hidePreview": "Vorschau ausblenden"
+  },
+
+  "export": {
+    "menuLabel": "Exportieren & Herunterladen",
+    "downloadZip": "Als .zip herunterladen",
+    "downloadPdf": "Kompiliertes PDF herunterladen",
+    "exportMarkdown": "Als Markdown (.md) exportieren",
+    "exportWord": "Als Word (.docx) exportieren"
+  },
+
+  "image": {
+    "loading": "Bild wird geladen…",
+    "fit": "An Fenster anpassen"
+  },
+
+  "errors": {
+    "generic": "Etwas ist schiefgelaufen. Bitte erneut versuchen.",
+    "network": "Server nicht erreichbar.",
+    "somethingWentWrong": "Etwas ist schiefgelaufen",
+    "backToDashboard": "Zurück zum Dashboard",
+    "couldntLoadProject": "Projekt konnte nicht geladen werden",
+    "couldntLoadDashboard": "Projekte konnten nicht geladen werden",
+    "pageNotFound": "Seite nicht gefunden"
+  },
+
+  "settings": {
+    "title": "Einstellungen",
+    "language": "Sprache",
+    "languageHint": "Die Sprache wird sofort übernommen."
+  }
+}

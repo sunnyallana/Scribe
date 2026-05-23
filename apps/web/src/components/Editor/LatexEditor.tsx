@@ -20,6 +20,17 @@ export interface LatexEditorImperativeHandle {
    *  autosave to avoid relying on possibly-stale React `next` closures. */
   getContent: () => string;
   gotoLine: (line: number, options?: { readonly flash?: boolean }) => void;
+  /** Range-aware versions used by the Reviews / comments flow. */
+  getSelectionRange: () => {
+    readonly from: { readonly line: number; readonly column: number };
+    readonly to: { readonly line: number; readonly column: number };
+    readonly text: string;
+  };
+  selectRange: (
+    from: { line: number; column: number },
+    to: { line: number; column: number },
+    options?: { readonly flash?: boolean },
+  ) => void;
   focus: () => void;
 }
 
@@ -82,6 +93,15 @@ export const LatexEditor = forwardRef<LatexEditorImperativeHandle, LatexEditorPr
         getSelection: () => handleRef.current?.getSelection() ?? '',
         getContent: () => handleRef.current?.getContent() ?? '',
         gotoLine: (line, options) => { handleRef.current?.gotoLine(line, options); },
+        getSelectionRange: () =>
+          handleRef.current?.getSelectionRange() ?? {
+            from: { line: 1, column: 0 },
+            to: { line: 1, column: 0 },
+            text: '',
+          },
+        selectRange: (from, to, options) => {
+          handleRef.current?.selectRange(from, to, options);
+        },
         focus: () => { handleRef.current?.view.focus(); },
       }),
       [],

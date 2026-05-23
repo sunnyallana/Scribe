@@ -24,7 +24,7 @@ use scribe_shared::{
     ApiError, ApiResult, CompileJob, CompileJobId, CompileLogStreamMessage, CreateCompileJobInput,
     ErrorCode, ProjectId,
 };
-use scribe_storage::{Storage, COMPILE_ARTIFACTS_BUCKET};
+use scribe_storage::{compile_artifact_key, Storage, COMPILE_ARTIFACTS_BUCKET};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 use uuid::Uuid;
@@ -98,12 +98,23 @@ async fn artifact_url(
     let job = svc.get(user.id, CompileJobId::new(job_id)).await?;
     let kind = query.kind.as_deref().unwrap_or("pdf");
     let key = match kind {
-        "pdf" => job.pdf_key,
-        "log" => job.log_key,
-        "synctex" => job.synctex_key,
+        "pdf" => job
+            .pdf_key
+            .ok_or_else(|| ApiError::not_found("No pdf artifact for this job"))?,
+        "log" => job
+            .log_key
+            .ok_or_else(|| ApiError::not_found("No log artifact for this job"))?,
+        "synctex" => job
+            .synctex_key
+            .ok_or_else(|| ApiError::not_found("No synctex artifact for this job"))?,
+        // .bbl uses a convention-based key — the worker uploads to
+        // `{project}/{job}/main.bbl` whenever a bbl exists. The
+        // job row doesn't carry a `bbl_key` column (avoiding a
+        // schema migration); if the object isn't in storage the
+        // sign call returns 404 and the SPA handles it gracefully.
+        "bbl" => compile_artifact_key(job.project_id, &job_id.to_string(), "main.bbl"),
         other => return Err(ApiError::validation(format!("unknown kind: {other}"))),
     };
-    let key = key.ok_or_else(|| ApiError::not_found(format!("No {kind} artifact for this job")))?;
     let storage = state
         .inner
         .storage

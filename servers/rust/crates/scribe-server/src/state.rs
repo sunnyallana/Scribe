@@ -9,6 +9,7 @@ use scribe_storage::SupabaseStorage;
 
 use crate::db::Db;
 use crate::response_cache::ResponseCache;
+use crate::voice::VoiceHub;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -31,6 +32,9 @@ pub struct AppStateInner {
     /// Always present; a disabled instance is returned when REDIS_URL
     /// is missing so handlers don't need to special-case it.
     pub response_cache: ResponseCache,
+    /// Per-project voice signaling hub. Always present — the hub
+    /// itself holds no resources until a peer connects.
+    pub voice_hub: VoiceHub,
 }
 
 impl AppState {
@@ -48,6 +52,7 @@ impl AppState {
                 compile_queue,
                 ai_crypto,
                 response_cache,
+                voice_hub: VoiceHub::new(),
             }),
         }
     }

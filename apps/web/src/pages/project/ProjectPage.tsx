@@ -16,6 +16,7 @@ import { useParams } from 'react-router-dom';
 import { type ImperativePanelHandle, Panel, PanelGroup } from 'react-resizable-panels';
 
 import { Splitter } from '../../components/Layout/Splitter';
+import { PageError } from '../../components/PageError/PageError';
 import { ExportMenuItems } from '../../components/ProjectActions/ExportMenuItems';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -46,11 +47,7 @@ export function ProjectPage() {
     if (!isMobileLayout && mobileSidebarOpen) setMobileSidebarOpen(false);
   }, [isMobileLayout, mobileSidebarOpen]);
 
-  const {
-    data: project,
-    isLoading,
-    error,
-  } = useQuery<Project, ApiError>({
+  const projectQuery = useQuery<Project, ApiError>({
     queryKey: ['project', projectId],
     enabled: projectId !== null,
     queryFn: () => {
@@ -58,6 +55,7 @@ export function ProjectPage() {
       return api.projects.get(projectId);
     },
   });
+  const { data: project, isLoading, error } = projectQuery;
 
   useDocumentTitle(project?.name ?? null);
 
@@ -118,9 +116,11 @@ export function ProjectPage() {
 
   if (error !== null || project === undefined || projectId === null) {
     return (
-      <div className="container py-8">
-        <p className="text-sm text-destructive">{error?.body.message ?? t('errors.generic')}</p>
-      </div>
+      <PageError
+        title={t('errors.couldntLoadProject')}
+        {...(error?.body.message !== undefined ? { description: error.body.message } : {})}
+        onRetry={() => { void projectQuery.refetch(); }}
+      />
     );
   }
 
