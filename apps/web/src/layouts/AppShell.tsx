@@ -23,7 +23,10 @@ export function AppShell() {
     typeof metaName === 'string' && metaName !== '' ? metaName : (user?.email ?? '');
 
   return (
-    <div className="flex min-h-screen flex-col">
+    // h-screen + overflow-hidden on the shell so the page never produces
+    // a window-level scrollbar. Pages that legitimately scroll (Dashboard,
+    // Settings) do it inside `<main>` via overflow-auto below.
+    <div className="flex h-screen flex-col overflow-hidden">
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
         <div className="flex h-11 items-center gap-3 px-4">
           <Link
@@ -56,7 +59,7 @@ export function AppShell() {
           </div>
         </div>
       </header>
-      <main className="flex-1">
+      <main className="min-h-0 flex-1 overflow-auto">
         <Outlet />
       </main>
     </div>

@@ -16,13 +16,13 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
 use scribe_auth::TokenVerifier;
-use scribe_shared::{ApiError, ErrorCode, ProjectId};
+use scribe_shared::{ApiError, ErrorCode, MemberRole, ProjectId};
 use scribe_yjs::DocRegistry;
 use serde::Deserialize;
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::services::membership::assert_member;
+use crate::services::membership::require_role;
 use crate::state::AppState;
 
 #[derive(Deserialize)]
@@ -67,13 +67,19 @@ async fn upgrade(
     let Some(db) = state.db() else {
         return api_error(ApiError::new(ErrorCode::ServiceUnavailable, "database not configured"));
     };
-    if let Err(err) = assert_member(db.pool(), user.id, ProjectId::new(project_id)).await {
-        return api_error(err);
-    }
+    // Resolve the caller's role on this project. NotFound bubbles up if
+    // they aren't a member (which is what we want — same response shape
+    // as `assert_member` previously gave us). Owners + editors get a
+    // writable socket; viewers / commenters get read-only.
+    let role = match require_role(db.pool(), user.id, ProjectId::new(project_id)).await {
+        Ok(r) => r,
+        Err(err) => return api_error(err),
+    };
+    let read_only = matches!(role, MemberRole::Viewer | MemberRole::Commenter);
 
     let doc_id = format!("{}/{}", project_id, file_id);
     ws.on_upgrade(move |socket| async move {
-        scribe_yjs::serve_socket(socket, doc_id, registry).await
+        scribe_yjs::serve_socket_with_mode(socket, doc_id, registry, read_only).await
     })
 }
 

@@ -40,7 +40,7 @@ impl MemberService {
             select m.id, m.project_id, m.user_id, m.invited_email,
                    u.display_name, u.avatar_url, u.email as user_email,
                    m.role, m.invited_at, m.invite_accepted_at,
-                   m.invite_expires_at
+                   m.invite_expires_at, m.invite_token
             from public.project_members m
             left join public.users u on u.id = m.user_id
             where m.project_id = $1
@@ -89,7 +89,7 @@ impl MemberService {
                       (select display_name from public.users where id = $2) as display_name,
                       (select avatar_url   from public.users where id = $2) as avatar_url,
                       (select email        from public.users where id = $2) as user_email,
-                      role, invited_at, invite_accepted_at, invite_expires_at
+                      role, invited_at, invite_accepted_at, invite_expires_at, invite_token
             "#,
         )
         .bind(project.into_inner())
@@ -127,7 +127,7 @@ impl MemberService {
                       (select display_name from public.users where id = m.user_id) as display_name,
                       (select avatar_url   from public.users where id = m.user_id) as avatar_url,
                       (select email        from public.users where id = m.user_id) as user_email,
-                      m.role, m.invited_at, m.invite_accepted_at, m.invite_expires_at
+                      m.role, m.invited_at, m.invite_accepted_at, m.invite_expires_at, m.invite_token
             "#,
         )
         .bind(input.role.as_str())
@@ -186,6 +186,10 @@ fn row_to_member(row: sqlx::postgres::PgRow) -> ProjectMember {
     let user_email: Option<String> = row.get("user_email");
     let email = user_email.or(invited_email);
     let accepted_at: Option<DateTime<Utc>> = row.get("invite_accepted_at");
+    let pending = accepted_at.is_none();
+    // Only surface the token while the invite is still pending — once
+    // accepted, the token is dead weight and there's no UI use for it.
+    let invite_token: Option<String> = if pending { row.get("invite_token") } else { None };
     ProjectMember {
         id: MemberId::new(row.get::<Uuid, _>("id")),
         project_id: ProjectId::new(row.get::<Uuid, _>("project_id")),
@@ -197,7 +201,8 @@ fn row_to_member(row: sqlx::postgres::PgRow) -> ProjectMember {
         invited_at: row.get::<DateTime<Utc>, _>("invited_at"),
         accepted_at,
         expires_at: row.get::<DateTime<Utc>, _>("invite_expires_at"),
-        pending: accepted_at.is_none(),
+        pending,
+        invite_token,
     }
 }
 

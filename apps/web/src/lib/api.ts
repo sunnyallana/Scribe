@@ -30,6 +30,7 @@ import {
   type VersionPayload,
 } from '@scribe/shared';
 
+import { log } from './debug';
 import { API_URL, supabase } from './supabase';
 
 export class ApiError extends Error {
@@ -53,18 +54,39 @@ async function fetchJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (init.body !== undefined && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
-  const response = await fetch(`${API_URL}${path}`, { ...init, headers });
-  if (!response.ok) {
-    let body: ServiceError;
-    try {
-      body = (await response.json()) as ServiceError;
-    } catch {
-      body = { code: 'internal', message: response.statusText };
+  const method = init.method ?? 'GET';
+  const t0 = performance.now();
+  log.api(`→ ${method} ${path}`);
+  try {
+    const response = await fetch(`${API_URL}${path}`, { ...init, headers });
+    const ms = Math.round(performance.now() - t0);
+    if (!response.ok) {
+      let body: ServiceError;
+      try {
+        body = (await response.json()) as ServiceError;
+      } catch {
+        body = { code: 'internal', message: response.statusText };
+      }
+      log.api.warn(`← ${method} ${path} ${response.status} (${ms}ms)`, body);
+      throw new ApiError(response.status, body);
     }
-    throw new ApiError(response.status, body);
+    log.api(`← ${method} ${path} ${response.status} (${ms}ms)`);
+    if (response.status === 204) return undefined as T;
+    return (await response.json()) as T;
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    const ms = Math.round(performance.now() - t0);
+    log.api.error(`✗ ${method} ${path} network error (${ms}ms)`, err);
+    // Wrap raw network failures (DNS, CORS, abort, server-down) in an
+    // ApiError so every `onError: (err) => err.body.message` site in
+    // the SPA keeps working instead of crashing with
+    // "Cannot read properties of undefined (reading 'message')".
+    // `internal` is the only ServiceErrorCode that fits — there's no
+    // dedicated `network` code today and adding one would mean a
+    // schema/version bump.
+    const message = err instanceof Error ? err.message : String(err);
+    throw new ApiError(0, { code: 'internal', message: `Network error: ${message}` });
   }
-  if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
 }
 
 export interface UserProfile {

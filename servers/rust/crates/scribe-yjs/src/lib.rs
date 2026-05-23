@@ -19,4 +19,4 @@ pub mod socket;
 
 pub use persistence::{PersistenceError, PgPersistence, YjsPersistence};
 pub use shared_doc::{ConnId, DocRegistry, SharedDoc};
-pub use socket::serve_socket;
+pub use socket::{serve_socket, serve_socket_with_mode};

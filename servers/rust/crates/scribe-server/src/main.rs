@@ -39,17 +39,30 @@ use state::AppState;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Telemetry must come up before anything that emits spans.
-    let _telemetry = telemetry::init();
+    // .env is optional in production (env vars come from the runtime); we
+    // load it best-effort for local development. Must run before
+    // `AppConfig::from_env` so the file's vars are visible.
+    let _ = dotenvy::dotenv();
+
+    // Load config FIRST so the telemetry layer can pick up env-aware
+    // defaults (debug vs info, json vs compact). Before this we don't
+    // emit any spans worth keeping.
+    let config = AppConfig::from_env().context("loading app config")?;
+    let bind: SocketAddr = config.bind_addr().context("resolving bind address")?;
+
+    let _telemetry = telemetry::init(config.env, config.features.debug_logging);
     // Metrics recorder is global — set it before anyone fires a
     // `metrics::counter!()` macro.
     let metrics_handle = metrics::install_recorder();
-    // .env is optional in production (env vars come from the runtime); we
-    // load it best-effort for local development.
-    let _ = dotenvy::dotenv();
-
-    let config = AppConfig::from_env().context("loading app config")?;
-    let bind: SocketAddr = config.bind_addr().context("resolving bind address")?;
+    info!(
+        env = ?config.env,
+        cache_enabled = config.features.cache_enabled,
+        client_cache_headers = config.features.client_cache_headers,
+        yjs_realtime = config.features.yjs_realtime,
+        compile_worker = config.features.compile_worker,
+        rate_limiting = config.features.rate_limiting,
+        "feature flags resolved"
+    );
 
     let db = match config.database_url.as_deref() {
         Some(url) if !url.is_empty() => match Db::connect(url).await {
@@ -112,20 +125,44 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
-    // The response cache piggy-backs on Redis. Handed out disabled when
-    // REDIS_URL isn't set so handlers don't have to branch.
-    let response_cache = match config.redis_url.as_deref().filter(|u| !u.is_empty()) {
-        Some(url) => match redis::Client::open(url) {
-            Ok(client) => {
-                info!("response cache enabled (redis)");
-                response_cache::ResponseCache::new(Some(Arc::new(client)))
+    // Response cache wiring: gated by the `cache_enabled` feature flag
+    // AND the presence of a usable REDIS_URL. When the flag is off
+    // (default in dev) we hand out a fully-disabled cache regardless
+    // of Redis — short-circuits every cached_json call to the origin
+    // and emits `Cache-Control: no-store` so browsers don't cache
+    // either. Tied at the wiring layer so handlers never branch on it.
+    let response_cache = if !config.features.cache_enabled {
+        info!("response cache disabled by feature flag");
+        response_cache::ResponseCache::with_flags(None, false, config.features.client_cache_headers)
+    } else {
+        match config.redis_url.as_deref().filter(|u| !u.is_empty()) {
+            Some(url) => match redis::Client::open(url) {
+                Ok(client) => {
+                    info!("response cache enabled (redis)");
+                    response_cache::ResponseCache::with_flags(
+                        Some(Arc::new(client)),
+                        true,
+                        config.features.client_cache_headers,
+                    )
+                }
+                Err(err) => {
+                    warn!(?err, "response cache: invalid REDIS_URL; running L1-only");
+                    response_cache::ResponseCache::with_flags(
+                        None,
+                        true,
+                        config.features.client_cache_headers,
+                    )
+                }
+            },
+            None => {
+                warn!("response cache: REDIS_URL not set; running L1-only");
+                response_cache::ResponseCache::with_flags(
+                    None,
+                    true,
+                    config.features.client_cache_headers,
+                )
             }
-            Err(err) => {
-                warn!(?err, "response cache disabled: invalid REDIS_URL");
-                response_cache::ResponseCache::disabled()
-            }
-        },
-        None => response_cache::ResponseCache::disabled(),
+        }
     };
 
     let state = AppState::new(

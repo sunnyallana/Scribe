@@ -19,7 +19,7 @@ import {
   Skeleton,
 } from '@scribe/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, X } from 'lucide-react';
+import { Link2, Loader2, X } from 'lucide-react';
 import { Controller, useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -31,7 +31,10 @@ interface MembersPanelProps {
   readonly projectId: ProjectId;
 }
 
-const INVITE_ROLES: readonly InviteRole[] = ['editor', 'commenter', 'viewer'];
+// We expose editor + viewer to owners — the DB also supports `commenter`
+// but the product is sticking to a 3-tier model (Owner / Editor / Viewer).
+// Existing commenter rows still parse and render fine.
+const INVITE_ROLES: readonly InviteRole[] = ['editor', 'viewer'];
 
 function initials(member: ProjectMember): string {
   if (member.displayName !== null && member.displayName.trim() !== '') {
@@ -46,6 +49,22 @@ function initials(member: ProjectMember): string {
   return (member.email ?? '?').slice(0, 1).toUpperCase();
 }
 
+function inviteUrl(token: string): string {
+  return `${window.location.origin}/invite/${token}`;
+}
+
+async function copyInviteLink(token: string, t: (k: string) => string): Promise<void> {
+  const url = inviteUrl(token);
+  try {
+    await navigator.clipboard.writeText(url);
+    toast.success(t('members.linkCopied'));
+  } catch {
+    // Fallback: prompt so the user can grab the URL manually if the
+    // browser blocked clipboard access (older Safari, insecure context).
+    window.prompt(t('members.copyLinkFallback'), url);
+  }
+}
+
 export function MembersPanel({ projectId }: MembersPanelProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -56,6 +75,12 @@ export function MembersPanel({ projectId }: MembersPanelProps) {
     queryFn: () => api.members.list(projectId),
   });
 
+  // The acting user is an owner if they appear in the members list with
+  // role='owner'. We use this to gate the role-change + remove + invite UI.
+  const isOwner = (members ?? []).some(
+    (m) => m.userId !== null && m.userId === currentUser?.id && m.role === 'owner',
+  );
+
   const inviteForm = useForm<InviteMemberInput>({
     resolver: zodResolver(inviteMemberInputSchema),
     defaultValues: { email: '', role: 'editor' },
@@ -63,10 +88,24 @@ export function MembersPanel({ projectId }: MembersPanelProps) {
 
   const inviteMutation = useMutation<ProjectMember, ApiError, InviteMemberInput>({
     mutationFn: (input) => api.members.invite(projectId, input),
-    onSuccess: async (_, variables) => {
+    onSuccess: async (member, variables) => {
       await queryClient.invalidateQueries({ queryKey: ['members', projectId] });
       inviteForm.reset({ email: '', role: 'editor' });
-      toast.success(t('members.inviteSent', { email: variables.email }));
+      const token = member.inviteToken ?? null;
+      if (token !== null && token !== undefined) {
+        // Auto-copy the link and toast with a "copy again" action so the
+        // owner can paste-and-send without a second click.
+        await copyInviteLink(token, t);
+        toast.success(t('members.inviteSent', { email: variables.email }), {
+          description: t('members.linkAutoCopied'),
+          action: {
+            label: t('members.copyLink'),
+            onClick: () => { void copyInviteLink(token, t); },
+          },
+        });
+      } else {
+        toast.success(t('members.inviteSent', { email: variables.email }));
+      }
     },
     onError: (error) => {
       toast.error(error.body.message);
@@ -83,53 +122,68 @@ export function MembersPanel({ projectId }: MembersPanelProps) {
     },
   });
 
+  const roleMutation = useMutation<
+    ProjectMember,
+    ApiError,
+    { member: ProjectMember; role: InviteRole }
+  >({
+    mutationFn: ({ member, role }) => api.members.updateRole(projectId, member.id, { role }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['members', projectId] });
+      toast.success(t('members.roleUpdated'));
+    },
+    onError: (error) => { toast.error(error.body.message); },
+  });
+
   return (
     <div className="space-y-4">
-      <form
-        onSubmit={inviteForm.handleSubmit((values) => {
-          inviteMutation.mutate(values);
-        })}
-        className="flex flex-wrap items-start gap-2"
-        noValidate
-      >
-        <div className="flex-1 min-w-[200px] space-y-1">
-          <Input
-            type="email"
-            placeholder={t('members.invitePlaceholder')}
-            {...inviteForm.register('email')}
-            aria-label={t('auth.email')}
+      {isOwner ? (
+        <form
+          onSubmit={inviteForm.handleSubmit((values) => {
+            inviteMutation.mutate(values);
+          })}
+          className="flex flex-wrap items-start gap-2"
+          noValidate
+        >
+          <div className="flex-1 min-w-[200px] space-y-1">
+            <Input
+              type="email"
+              placeholder={t('members.invitePlaceholder')}
+              {...inviteForm.register('email')}
+              aria-label={t('auth.email')}
+            />
+            {inviteForm.formState.errors.email !== undefined && (
+              <p className="text-xs text-destructive">
+                {inviteForm.formState.errors.email.message}
+              </p>
+            )}
+          </div>
+          <Controller
+            control={inviteForm.control}
+            name="role"
+            render={({ field }) => (
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {INVITE_ROLES.map((role) => (
+                    <SelectItem key={role} value={role}>
+                      {t(`members.roles.${role}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           />
-          {inviteForm.formState.errors.email !== undefined && (
-            <p className="text-xs text-destructive">
-              {inviteForm.formState.errors.email.message}
-            </p>
-          )}
-        </div>
-        <Controller
-          control={inviteForm.control}
-          name="role"
-          render={({ field }) => (
-            <Select value={field.value} onValueChange={field.onChange}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {INVITE_ROLES.map((role) => (
-                  <SelectItem key={role} value={role}>
-                    {t(`members.roles.${role}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        />
-        <Button type="submit" disabled={inviteMutation.isPending}>
-          {inviteMutation.isPending && (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          )}
-          {t('members.inviteButton')}
-        </Button>
-      </form>
+          <Button type="submit" disabled={inviteMutation.isPending}>
+            {inviteMutation.isPending && (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            )}
+            {t('members.inviteButton')}
+          </Button>
+        </form>
+      ) : null}
 
       {isLoading ? (
         <div className="space-y-2">
@@ -143,7 +197,11 @@ export function MembersPanel({ projectId }: MembersPanelProps) {
         <ul className="space-y-2">
           {members.map((member) => {
             const isSelf = member.userId !== null && member.userId === currentUser?.id;
-            const canRemove = member.role !== 'owner' && !isSelf;
+            const isMemberOwner = member.role === 'owner';
+            const canRemove = isOwner && !isMemberOwner && !isSelf;
+            const canChangeRole = isOwner && !isMemberOwner && !isSelf;
+            const hasInviteLink =
+              member.pending && typeof member.inviteToken === 'string' && member.inviteToken !== '';
             return (
               <li
                 key={member.id}
@@ -168,9 +226,46 @@ export function MembersPanel({ projectId }: MembersPanelProps) {
                     )}
                   </p>
                 </div>
-                <span className="text-xs text-muted-foreground">
-                  {t(`members.roles.${member.role}`)}
-                </span>
+
+                {canChangeRole ? (
+                  <Select
+                    value={member.role === 'commenter' ? 'editor' : member.role}
+                    onValueChange={(next) => {
+                      if (next === member.role) return;
+                      roleMutation.mutate({ member, role: next as InviteRole });
+                    }}
+                  >
+                    <SelectTrigger className="h-7 w-24 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INVITE_ROLES.map((role) => (
+                        <SelectItem key={role} value={role}>
+                          {t(`members.roles.${role}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    {t(`members.roles.${member.role}`)}
+                  </span>
+                )}
+
+                {hasInviteLink ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void copyInviteLink(member.inviteToken!, t);
+                    }}
+                    className="text-muted-foreground hover:text-foreground"
+                    aria-label={t('members.copyLink')}
+                    title={t('members.copyLink')}
+                  >
+                    <Link2 className="h-4 w-4" />
+                  </button>
+                ) : null}
+
                 {canRemove && (
                   <button
                     type="button"

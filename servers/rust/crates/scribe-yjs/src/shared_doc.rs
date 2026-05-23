@@ -19,7 +19,7 @@ use bytes::Bytes;
 use dashmap::DashMap;
 use parking_lot::Mutex;
 use tokio::sync::mpsc;
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 use y_sync::awareness::Awareness;
 use yrs::{Doc, ReadTxn, Transact};
@@ -144,6 +144,13 @@ impl SharedDoc {
         if let Err(err) = self.persistence.store_update(&self.doc_id, bytes).await {
             warn!(?err, doc_id = %self.doc_id, "yjs persist failed");
         }
+        info!(
+            doc_id = %self.doc_id,
+            from = ?from,
+            update_bytes = bytes.len(),
+            peer_count = self.conns.len(),
+            "yjs update persisted + broadcast"
+        );
         self.broadcast(Some(from), encoded_message);
     }
 
