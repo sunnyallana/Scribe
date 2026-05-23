@@ -307,10 +307,49 @@ impl ShareService {
         }
 
         info!(project_id = %project_id, %user, role = %share_role.as_str(), "share link redeemed");
+        // Best-effort: notify the project owner that someone joined
+        // via share link. Owner gets visibility into who's accessing
+        // their project without checking the members panel manually.
+        self.notify_share_redeemed(user, ProjectId::new(project_id), share_role).await;
         Ok(RedeemShareResponse {
             project_id: ProjectId::new(project_id),
             role: share_role,
         })
+    }
+
+    async fn notify_share_redeemed(&self, actor: UserId, project: ProjectId, role: ShareRole) {
+        let notifs = super::notifications::NotificationService::new(self.pool.clone());
+        // Owner + actor display lookups in one round-trip.
+        let row = sqlx::query(
+            r#"
+            select p.owner_id, p.name as project_name, u.display_name as actor_name
+            from public.projects p
+            left join public.users u on u.id = $2
+            where p.id = $1
+            "#,
+        )
+        .bind(project.into_inner())
+        .bind(actor.into_inner())
+        .fetch_optional(&self.pool)
+        .await;
+        let Ok(Some(row)) = row else { return; };
+        let owner_id: Uuid = match row.try_get("owner_id") { Ok(v) => v, Err(_) => return };
+        if owner_id == actor.into_inner() { return; }
+        let project_name: Option<String> = row.try_get("project_name").ok();
+        let actor_name: Option<String> = row.try_get::<Option<String>, _>("actor_name").ok().flatten();
+        let mut payload = serde_json::Map::new();
+        payload.insert("projectId".into(), serde_json::Value::String(project.into_inner().to_string()));
+        if let Some(n) = project_name { payload.insert("projectName".into(), serde_json::Value::String(n)); }
+        if let Some(n) = actor_name { payload.insert("actorName".into(), serde_json::Value::String(n)); }
+        payload.insert("actorId".into(), serde_json::Value::String(actor.into_inner().to_string()));
+        payload.insert("role".into(), serde_json::Value::String(role.as_str().to_string()));
+        notifs
+            .emit(
+                UserId::new(owner_id),
+                scribe_shared::NotificationKind::ShareRedeemed,
+                serde_json::Value::Object(payload),
+            )
+            .await;
     }
 }
 
