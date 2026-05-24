@@ -1,5 +1,4 @@
 import { Avatar, AvatarFallback } from '@scribe/ui';
-import type { ProjectMember } from '@scribe/shared';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -9,6 +8,8 @@ import {
   insertMentionToken,
   type MentionTriggerState,
 } from './mentions';
+
+import type { ProjectMember } from '@scribe/shared';
 
 interface MentionTextareaProps {
   readonly value: string;

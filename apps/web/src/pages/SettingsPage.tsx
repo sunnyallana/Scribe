@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+
 import { AISettingsTab } from './settings/AISettingsTab';
 import { EditorSettingsTab } from './settings/EditorSettingsTab';
 import { ProfileSettingsTab } from './settings/ProfileSettingsTab';
@@ -37,9 +38,9 @@ export function SettingsPage() {
     // Fall back to the dashboard for direct-URL entry / when
     // history is empty (length 1 is just the current entry).
     if (window.history.length > 1) {
-      navigate(-1);
+      void navigate(-1);
     } else {
-      navigate('/dashboard');
+      void navigate('/dashboard');
     }
   }, [navigate]);
 

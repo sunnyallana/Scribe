@@ -256,11 +256,11 @@ export function MembersPanel({ projectId }: MembersPanelProps) {
                   </span>
                 )}
 
-                {hasInviteLink ? (
+                {hasInviteLink && member.inviteToken !== null && member.inviteToken !== undefined ? (
                   <button
                     type="button"
                     onClick={() => {
-                      void copyInviteLink(member.inviteToken!, t);
+                      void copyInviteLink(member.inviteToken ?? '', t);
                     }}
                     className="text-muted-foreground hover:text-foreground"
                     aria-label={t('members.copyLink')}

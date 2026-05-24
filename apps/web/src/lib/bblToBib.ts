@@ -30,7 +30,7 @@
  *  brackets balanced one level deep, which covers `\protect`).
  */
 const BIBITEM_REGEX =
-  /\\bibitem\s*(?:\[(?:[^\[\]]|\[[^\]]*\])*\])?\s*\{\s*([^,}\s]+)\s*\}/;
+  /\\bibitem\s*(?:\[(?:[^[\]]|\[[^\]]*\])*\])?\s*\{\s*([^,}\s]+)\s*\}/;
 
 /**
  * Find the cite-key for an inverse-lookup landing in a `.bbl`. The

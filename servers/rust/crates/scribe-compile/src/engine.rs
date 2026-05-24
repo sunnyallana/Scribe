@@ -26,7 +26,7 @@ pub enum EngineKind {
 }
 
 impl EngineKind {
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse_name(s: &str) -> Option<Self> {
         match s.trim().to_ascii_lowercase().as_str() {
             "tectonic" => Some(Self::Tectonic),
             "latexmk" | "overleaf" => Some(Self::Latexmk),
@@ -45,21 +45,11 @@ impl EngineKind {
 /// All knobs the worker needs to drive *whichever* engine is selected.
 /// Holds both engine configs so switching at runtime is a one-line
 /// change rather than a re-wire.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct EngineConfig {
     pub kind: EngineKind,
     pub tectonic: TectonicConfig,
     pub latexmk: LatexmkConfig,
-}
-
-impl Default for EngineConfig {
-    fn default() -> Self {
-        Self {
-            kind: EngineKind::default(),
-            tectonic: TectonicConfig::default(),
-            latexmk: LatexmkConfig::default(),
-        }
-    }
 }
 
 /// Single dispatch entry point used by the worker. Picks the right

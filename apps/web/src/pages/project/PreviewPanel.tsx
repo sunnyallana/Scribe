@@ -4,8 +4,9 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { CompileLog } from '../../components/CompileLog/CompileLog';
-import type { CompileSessionState } from '../../hooks/useCompileSession';
 import { useSettings } from '../../stores/settings';
+
+import type { CompileSessionState } from '../../hooks/useCompileSession';
 
 // PDFPreview pulls in pdfjs-dist (~150 KB) plus a worker bundle, so we
 // keep it lazy — the preview panel only renders after a compile.

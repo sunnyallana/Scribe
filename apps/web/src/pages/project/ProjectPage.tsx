@@ -18,8 +18,8 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronsLeft, Download, Loader2, Settings as SettingsIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
 import { type ImperativePanelHandle, Panel, PanelGroup } from 'react-resizable-panels';
+import { useParams } from 'react-router-dom';
 
 import { Splitter } from '../../components/Layout/Splitter';
 import { PageError } from '../../components/PageError/PageError';

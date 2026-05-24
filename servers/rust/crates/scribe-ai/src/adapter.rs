@@ -6,10 +6,10 @@
 //! Three concrete implementations cover all six providers the Node
 //! server supports:
 //!
-//!   * [`openai`]    — `openai`, `ollama`, `lmstudio`, `openai-compatible`
-//!                      (they all speak the OpenAI Chat Completions API)
-//!   * [`anthropic`] — `anthropic` (Claude Messages API)
-//!   * [`gemini`]    — `gemini` (Google AI Studio API)
+//! * [`openai`] — `openai`, `ollama`, `lmstudio`, `openai-compatible`
+//!   (they all speak the OpenAI Chat Completions API)
+//! * [`anthropic`] — `anthropic` (Claude Messages API)
+//! * [`gemini`] — `gemini` (Google AI Studio API)
 
 use async_trait::async_trait;
 use bytes::Bytes;

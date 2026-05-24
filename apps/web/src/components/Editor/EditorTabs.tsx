@@ -109,6 +109,13 @@ export function EditorTabs({ tabs, activeFileId, onSelect, onClose }: EditorTabs
                 e.stopPropagation();
                 onClose(file);
               }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onClose(file);
+                }
+              }}
               className={`ml-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm transition-opacity hover:bg-muted ${
                 isActive ? 'opacity-70' : 'opacity-0 group-hover:opacity-70'
               }`}

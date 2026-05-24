@@ -8,9 +8,10 @@ use serde::{Deserialize, Serialize};
 use crate::files::FileType;
 use crate::ids::{FileId, ProjectId, UserId};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum CompilerEngine {
+    #[default]
     Tectonic,
     Pdflatex,
     Xelatex,
@@ -38,27 +39,16 @@ impl CompilerEngine {
     }
 }
 
-impl Default for CompilerEngine {
-    fn default() -> Self {
-        Self::Tectonic
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ProjectTemplate {
+    #[default]
     Blank,
     Article,
     Report,
     Beamer,
     Cv,
     Letter,
-}
-
-impl Default for ProjectTemplate {
-    fn default() -> Self {
-        Self::Blank
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

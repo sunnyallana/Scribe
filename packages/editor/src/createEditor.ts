@@ -13,6 +13,7 @@ import {
   lineNumbers,
   rectangularSelection,
 } from '@codemirror/view';
+
 import { type AutocompleteSources, createLatexAutocomplete, extractLabels } from './autocomplete.js';
 import { autoCloseEnv } from './extensions/auto-close-env.js';
 import { flashLineExtension, flashLineOnView } from './extensions/flash-line.js';
