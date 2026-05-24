@@ -895,7 +895,40 @@ That should be one focused session. Phase 1 begins next.
 > TeX log-file parsing, and cross-platform setup/run scripts. Only §12 row 6.6
 > (GitHub sync) remains, blocked on external OAuth setup.
 >
-> **Next action:** execute Phase 6 — Tauri desktop wrapper + offline sync.
+> **Phase 6: plumbing complete (May 2026).** Tauri 2 scaffolded at
+> `apps/desktop/src-tauri/` as a standalone Cargo crate (no ties to the
+> `servers/rust/` workspace). Window-menu defined in Rust (File/Edit/View/
+> Project/Tools/Help) with menu events forwarded to the SPA as a `menu`
+> event. Local compile pipeline (`compile.rs`) auto-detects tectonic →
+> latexmk → pdflatex from `$PATH` and streams stdout/stderr to the
+> webview as `compile:log`. SQLite mirror in `<app_local_data_dir>/
+> scribe.db` via `sqlx` with `tauri-plugin-fs` for scoped file I/O;
+> `migrations/001_init.sql` defines `projects`, `project_files` (mirror
+> + `dirty` / `last_synced_at`), `yjs_updates`, and `sync_state`. Sync
+> engine in `sync.rs` exposes `sync_apply_remote_files` (last-write-
+> wins with dirty-collision detection → `SyncConflict[]`),
+> `sync_apply_remote_content`, `sync_resolve_make_copy`, and
+> `sync_mark_file_clean`; the SPA's `SyncManager` (`lib/sync.ts`)
+> drives pull→push cycles and renders `SyncConflictModal` for the
+> hard cases. Deep links via `tauri-plugin-deep-link` (scheme
+> `scribe://`); `useDeepLinkRouter` hook routes `scribe://invite/<token>`
+> through React Router. Auto-updater via `tauri-plugin-updater`
+> wrapped in `updates.rs` (`check_for_updates`, `install_update`); no
+> endpoint/pubkey baked into `tauri.conf.json` — release flow runs
+> `tauri signer generate` and adds them at bundle time. All four
+> pipeline gates pass: cargo check, web typecheck, web lint (new files
+> warning-free), and vite build.
+>
+> **What's not wired yet:** the desktop primitives are shipped but the
+> existing `useFileTree` / `useYjsDoc` / `useCompileSession` hooks
+> still target the server-online path. Mounting `useDeepLinkRouter`
+> in `App.tsx`, branching the compile session on `isTauri()`, and
+> persisting Yjs updates through `desktopDb.yjs.append` are the
+> integration steps; expect them in a Phase 6.5 polish pass alongside
+> a real `pnpm tauri dev` smoke test and a signed release bundle.
+>
+> **Next action:** Phase 6.5 polish — wire the desktop adapters into
+> the existing SPA hooks and run the first `tauri build` for Windows.
 
 ## 12. Overleaf-parity candidates (post-v1)
 
