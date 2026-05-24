@@ -69,19 +69,21 @@ if (Listening 6379) {
 # Using Start-Job rather than Start-Process lets us capture both
 # stdout + stderr through Receive-Job into the same prefixed stream.
 Info "Starting Rust API..."
+# `$using:RepoRoot` is PowerShell's idiomatic way to ship an outer-scope
+# variable into a Start-Job script block. PSScriptAnalyzer flags the
+# `param(...) + -ArgumentList` alternative as
+# PSUseUsingScopeModifierInNewRunspaces; this form keeps it quiet.
 $apiJob = Start-Job -Name 'scribe-api' -ScriptBlock {
-  param($root)
-  Set-Location $root
+  Set-Location $using:RepoRoot
   & cargo run --manifest-path "servers\rust\Cargo.toml" -p scribe-server 2>&1
-} -ArgumentList $RepoRoot
+}
 
 Info "Starting Vite SPA on :5173..."
 $webJob = Start-Job -Name 'scribe-web' -ScriptBlock {
-  param($root)
-  Set-Location $root
+  Set-Location $using:RepoRoot
   $env:CI = 'true'
   & pnpm --filter @scribe/web dev 2>&1
-} -ArgumentList $RepoRoot
+}
 
 Write-Host ""
 Write-Host "Up." -ForegroundColor Green
