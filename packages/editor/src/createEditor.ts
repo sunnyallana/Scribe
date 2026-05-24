@@ -106,7 +106,9 @@ export interface ScribeEditorHandle {
 const DEFAULT_RULER = 80;
 
 export function createScribeEditor(opts: ScribeEditorOptions): ScribeEditorHandle {
-  const theme = opts.theme ?? 'light';
+  // `opts.theme` is accepted on the interface for backward compat but
+  // no longer drives the palette — colours flow through CSS vars on
+  // `:root`, see `theme.ts` + `globals.css`.
   const readOnly = opts.readOnly === true;
   const rulerColumn = opts.rulerColumn ?? DEFAULT_RULER;
 
@@ -189,7 +191,7 @@ export function createScribeEditor(opts: ScribeEditorOptions): ScribeEditorHandl
     wordCountExtension(),
     flashLineExtension(),
     lintGutter(),
-    latexTheme(theme),
+    latexTheme(),
     readOnlyCompartment.of(EditorState.readOnly.of(readOnly)),
     changeListener,
   ];
