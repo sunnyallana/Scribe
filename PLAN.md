@@ -847,7 +847,7 @@ That should be one focused session. Phase 1 begins next.
 > pdf.js preview panel; forward SyncTeX (server-uploaded `.synctex.gz` is gunzipped
 > and parsed client-side via `DecompressionStream`); compile-log entries flow back
 > as editor gutter diagnostics. `compile_jobs` table + retention trigger added.
-> **Phase 3: complete (minus Track Changes).** Yjs collaboration: Postgres-backed
+> **Phase 3: complete.** Yjs collaboration: Postgres-backed
 > persistence (`yjs_updates` table, base64 update rows, compaction beyond N=100
 > updates), Fastify WebSocket sync server (`server/src/yjs/*`) with JWT auth and
 > project-membership gating, `@scribe/yjs-provider` client with reconnect + awareness,
@@ -856,9 +856,10 @@ That should be one focused session. Phase 1 begins next.
 > RLS, service, routes) and React `ReviewPanel` with threaded replies + resolve.
 > Version history backend (`project_versions` table, snapshot JSON in
 > `version-snapshots` Storage bucket, list/get/restore routes) and React
-> `VersionHistory` panel with diff-match-patch preview. Track Changes is deferred
-> per Section 11 — the design (Y.Text "suggestion" attribute decorations) is sound
-> but its implementation cost exceeded the Phase 3 budget; ship as Phase 3.5.
+> `VersionHistory` panel with diff-match-patch preview. Track Changes shipped in
+> May 2026 as a narrower MVP: suggestion comments with `replacement_text` + Apply,
+> covered under §12 row 6.4. The full Y.Text custom-attribute decoration layer
+> remains a future-phase candidate.
 > **Phase 4: complete.** `@scribe/ai` package with `AIAdapter` interface and six
 > adapters (OpenAI, Anthropic, Gemini, Ollama, LM Studio, OpenAI-compatible), a
 > curated prompt library (improve/grammar/summarize/expand/complete/translate/
@@ -880,12 +881,19 @@ That should be one focused session. Phase 1 begins next.
 > filter, swapped into `NewProjectDialog` to replace the bare select. Settings
 > turned into a tabbed page (Profile / Editor / AI): profile updates display
 > name and avatar via Supabase `updateUser` + `public.users` mirror; editor
-> prefs (font size, ruler column, autocomplete/ghost-text/vim toggles) persist
-> via the existing zustand store. Stretch goals deferred per Section 11: GitHub
-> sync integration stub, Notifications backend, billing/Plan tab, auto-rendered
-> template thumbnails, "save existing project as template" route, Google/GitHub
-> OAuth provider config (requires external app creation). All four pipeline
-> gates pass.
+> prefs (font size, ruler column, autocomplete/ghost-text/vim/lint toggles)
+> persist via the existing zustand store. Stretch goals deferred per Section 11:
+> billing/Plan tab, auto-rendered template thumbnails, "save existing project as
+> template" route, Google/GitHub OAuth provider config (requires external app
+> creation). All four pipeline gates pass.
+>
+> **Phase 5.5 / 5.6: complete (May 2026).** Overleaf-parity sweep over §12:
+> shipped multi-file tabs, project-wide find/replace, citation lookup (CrossRef +
+> arXiv), shareable project links, notification inbox, community template gallery,
+> chktex live-lint with `Fix:` hints, equation/ref/cite hover preview, suggestion-
+> mode comments, real-time voice chat, plus the compile-engine fallback machinery,
+> TeX log-file parsing, and cross-platform setup/run scripts. Only §12 row 6.6
+> (GitHub sync) remains, blocked on external OAuth setup.
 >
 > **Next action:** execute Phase 6 — Tauri desktop wrapper + offline sync.
 
@@ -899,44 +907,60 @@ note + effort estimate so we can sequence by ratio later.
 
 | # | Feature | Why it matters | Effort | Status |
 |---|---|---|---|---|
-| 6.1 | **Multi-file editor tabs** | Today the editor shows one file at a time; real LaTeX work moves between `main.tex`, `sec/*.tex`, `references.bib` constantly. Tab strip above the editor, unsaved-dot indicator, middle-click to close, Ctrl+W shortcut. | M | not started |
-| 6.2 | **Project-wide Find & Replace** | CodeMirror's in-file search works (Ctrl+F); the missing piece is cross-file rename of `\foo` / labels / cite-keys. New right-panel "Search" tab with hit list per file and "replace in all" mutation. | M | not started |
-| 6.3 | **Citation lookup (DOI / CrossRef / arXiv)** | Users currently leave the app to grab BibTeX from CrossRef/Zotero. A "Search citation" panel that hits CrossRef + arXiv, formats the result, appends to the project's `.bib` file in one click. Huge academic-workflow win. | L–M | not started |
-| 6.4 | **Track changes / suggestion mode** | Yjs gives us multi-user editing; track changes is the "suggest mode" supervisors and journals need. CRDT custom-attribute decoration layer on top of the existing Y.Text binding. Most ambitious item — deserves its own dedicated phase. | H | not started |
-| 6.5 | **Project sharing via link** | One-click read-only or comment-only public URL — what people actually use day-to-day, distinct from email invites. Token-based bypass of auth on the `/project/:id` route with role pinned to viewer/commenter. | L–M | not started |
-| 6.6 | **Git / GitHub integration** | Push/pull to a GitHub repo. Lets users version-control + share via the world's biggest social network for code. Niche but loved by power users. Two layers: OAuth to GitHub, then a sync worker that diffs project-files against a repo. | H | not started |
-| 6.7 | **Template gallery from community** | Phase 5 shipped six built-in templates. A browsable catalogue (IEEE, ACM, NeurIPS, ICML, theses, CVs) is Overleaf's largest organic on-ramp. Could be a thin wrapper around the existing template loader plus a hosted JSON manifest of community contributions. | L–M | not started |
-| 6.8 | **Notification inbox** | Mentions, replies to comments, invite acceptances currently surface as transient toasts and vanish. Bell-icon dropdown with unread counts + read/unread state on a new `notifications` table. Makes the app "sticky" for collaborators. | M | not started |
-| 6.9 | **chktex linter integration** | Underline LaTeX style issues inline (over-bracketed eqs, `\over` vs `\frac`, double `~`, etc.). Server helper hooks into the compile pipeline; output flows through the existing `applyCompileDiagnostics` path. | M | not started |
-| 6.10 | **Equation/`\ref` hover preview** | Hover a `\ref{eq:foo}` → popover with the rendered equation; hover a `\cite{key}` → popover with the bib entry's authors/title. Uses the already-parsed `bibEntries` + a small KaTeX render. Small but instantly reads as "premium polish". | L–M | not started |
+| 6.1 | **Multi-file editor tabs** | Today the editor shows one file at a time; real LaTeX work moves between `main.tex`, `sec/*.tex`, `references.bib` constantly. Tab strip above the editor, unsaved-dot indicator, middle-click to close, Ctrl+W shortcut. | M | **v1 shipped 2026-05-24** |
+| 6.2 | **Project-wide Find & Replace** | CodeMirror's in-file search works (Ctrl+F); the missing piece is cross-file rename of `\foo` / labels / cite-keys. New right-panel "Search" tab with hit list per file and "replace in all" mutation. | M | **v1 shipped 2026-05-24** |
+| 6.3 | **Citation lookup (DOI / CrossRef / arXiv)** | Users currently leave the app to grab BibTeX from CrossRef/Zotero. A "Search citation" panel that hits CrossRef + arXiv, formats the result, appends to the project's `.bib` file in one click. Huge academic-workflow win. | L–M | **v1 shipped 2026-05-24** |
+| 6.4 | **Track changes / suggestion mode** | Yjs gives us multi-user editing; track changes is the "suggest mode" supervisors and journals need. CRDT custom-attribute decoration layer on top of the existing Y.Text binding. | H | **v1 shipped 2026-05-24** — narrower-scope MVP: suggestions are stored as comments with a `replacement_text` field; the reviewer hits Apply to overwrite the anchored range. The full Y.Text custom-attribute decoration layer is still on the table for a v2. |
+| 6.5 | **Project sharing via link** | One-click read-only or comment-only public URL — what people actually use day-to-day, distinct from email invites. Token-based bypass of auth on the `/project/:id` route with role pinned to viewer/commenter. | L–M | **v1 shipped 2026-05-24** — sign-in-required (not anonymous), redeems into a real `project_members` row, role-upgrade-only semantics |
+| 6.6 | **Git / GitHub integration** | Push/pull to a GitHub repo. Lets users version-control + share via the world's biggest social network for code. Niche but loved by power users. Two layers: OAuth to GitHub, then a sync worker that diffs project-files against a repo. | H | not started — deferred per the skip-external-config rule (OAuth app setup) |
+| 6.7 | **Template gallery from community** | Phase 5 shipped six built-in templates. A browsable catalogue (IEEE, ACM, NeurIPS, ICML, theses, CVs) is Overleaf's largest organic on-ramp. Could be a thin wrapper around the existing template loader plus a hosted JSON manifest of community contributions. | L–M | **v1 shipped 2026-05-24** — JSON manifest at `apps/web/public/community-templates.json` (IEEE, ACM, thesis, homework set, poster); client-side seed via existing `api.files.create` |
+| 6.8 | **Notification inbox** | Mentions, replies to comments, invite acceptances currently surface as transient toasts and vanish. Bell-icon dropdown with unread counts + read/unread state on a new `notifications` table. Makes the app "sticky" for collaborators. | M | **v1 shipped 2026-05-24** — emit hooks on comment mentions + replies + share-link redemptions |
+| 6.9 | **chktex linter integration** | Underline LaTeX style issues inline (over-bracketed eqs, `\over` vs `\frac`, double `~`, etc.). Server helper hooks into the compile pipeline; output flows through the existing `applyCompileDiagnostics` path. | M | **v1 shipped 2026-05-24** — runs both on compile AND debounced on typing-pause via new `/api/projects/:id/lint` endpoint; messages get pattern-matched `Fix:` hints; user toggle in Settings → Editor |
+| 6.10 | **Equation/`\ref` hover preview** | Hover a `\ref{eq:foo}` → popover with the rendered equation; hover a `\cite{key}` → popover with the bib entry's authors/title. Uses the already-parsed `bibEntries` + a small KaTeX render. Small but instantly reads as "premium polish". | L–M | **v1 shipped 2026-05-24** — CodeMirror `hoverTooltip` extension; pops raw LaTeX source for ref/eqref (KaTeX rendering deferred) and formatted bib entry for cite |
 | 6.11 | **Real-time voice chat** | Mic / speaker icons in the editor toolbar. WebRTC peer-to-peer mesh signalled over `/api/projects/:projectId/voice` (`scribe-server/src/voice/`). Browser-to-browser DTLS-SRTP for media — the server never touches audio bytes. Echo-cancel / noise-suppression via `getUserMedia` constraints. Per-peer mute broadcast + master speaker mute. Works up to ~5 participants on mesh; SFU upgrade deferred. | M | **v1 shipped 2026-05-24** |
 
-### Recommended sequencing (lowest-risk first)
+### What's still open
 
-A reasonable first slice that ships fast and is highly visible:
+The only remaining row is **6.6 Git/GitHub integration**, blocked on external OAuth-app
+setup (per the project's skip-external-config rule). Everything else from §12 shipped
+in May 2026.
 
-1. **Multi-file tabs** (6.1) — most-used UX gap.
-2. **Citation DOI lookup** (6.3) — biggest academic-workflow win for the smallest scope.
-3. **Project sharing via link** (6.5) — what users actually paste in chat.
+### Adjacent improvements landed alongside §12
 
-Track changes (6.4) and Git integration (6.6) are the most ambitious; they
-warrant their own bounded phase once the lower-effort wins are in.
+These weren't rows in the original table but are part of the same May 2026 push:
+
+- **Compile-engine fallback** — `COMPILE_FALLBACK_ENGINE` env var. When the primary engine
+  (tectonic / latexmk) returns non-zero, the worker re-runs with the fallback and uses
+  its outcome.
+- **TeX `.log` file parsing** — the parser was fed only stdout+stderr; Overfull/Underfull
+  `\hbox` warnings only land in the engine's `main.log` and were therefore invisible.
+  Now the worker also reads `main.log` (4 MiB cap) and feeds it through `log_parser`.
+- **Cross-platform setup + run scripts** — `./scripts/setup.{sh,ps1}` and
+  `./scripts/run.{sh,ps1}` covering Debian/Ubuntu apt, Fedora dnf, Arch pacman, macOS
+  Homebrew, and Windows winget. See `scripts/README.md`.
+- **Sticky compile duration** — the log panel now keeps the last successful duration
+  visible (parenthesised + dim) while a fresh compile runs, so the timing display never
+  goes blank post-compile.
 
 ### Things explicitly *not* in scope yet, to keep momentum
 The spec is maximalist; the following are intentionally deferred past v1.0:
 
 - **Inverse SyncTeX** (PDF click → editor line). Forward SyncTeX is in Phase 2; inverse
   is a stretch goal post-v1.
-- **Track Changes** (suggestion mode). Yjs collaboration + comments + version history
-  ship in Phase 3; Track Changes is deferred to Phase 3.5 once Yjs custom-attribute
-  decoration work in y-codemirror.next is scoped — keeping the realtime pieces clean
-  shipped before tackling that complexity.
+- **Full CRDT-based Track Changes** with per-character author attribution and a
+  decoration layer that diffs ranges. The May 2026 row 6.4 shipped a narrower MVP
+  (suggestion comments with `replacement_text` + Apply) that covers the supervisor-
+  proposes / author-accepts workflow; the full Y.Text custom-attribute layer remains
+  on the table for a future phase.
 - **GitHub sync integration** (Settings → Integrations). Stubbed UI in Phase 5; full
-  push/pull deferred.
+  push/pull deferred — blocked on external OAuth-app setup.
 - **Billing / Plan tab** in Settings. Shows "Self-hosted" badge only; SaaS billing is
   out of scope.
 - **Auto-rendered template thumbnails**. v1 ships with hand-curated PNGs.
 - **External KMS** for AI key encryption. Env-var master key for v1; KMS path
   documented but not implemented.
+- **KaTeX rendering inside hover popovers**. The 6.10 row ships the raw LaTeX source
+  of the surrounding equation block; rendering it as a real formula is a follow-up that
+  needs `katex` added to the SPA bundle.
 
 These can be revisited after v1.0 ships; doing so now would dilute the core experience.

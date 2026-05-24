@@ -57,8 +57,25 @@ and a Postgres connection string.
 - **Citation search** against CrossRef + arXiv from inside the app — one-click
   "Add to .bib" appends a formatted BibTeX entry to the project's bib file (or creates
   `references.bib` if there isn't one yet).
+- **Project-wide find & replace** in a dedicated right-panel tab — case-sensitive, whole-
+  word, regex toggles; results grouped per file; "Replace all" rewrites every affected
+  file in one operation.
+- **Hover preview** for `\ref{...}` / `\eqref{...}` / `\cite{...}` — pops the source of
+  the equation / figure / theorem block (with file:line) or the parsed bib entry, without
+  navigating away.
+- **Suggestion mode** for comments — propose a text replacement for an anchored range;
+  reviewers Apply (writes the replacement) or Dismiss. Lighter-weight than full track-
+  changes, but covers the "supervisor proposes, author accepts" workflow.
+- **Style-lint via chktex** runs on every keystroke pause (800 ms debounced) and on
+  compile. Warnings appear in a separate "Style lint" section in the log panel with
+  concrete `Fix:` hints; toggle off any time from Settings → Editor.
+- **Notification inbox** — bell icon in the nav with unread badge. Mentions, comment
+  replies, share-link redemptions show up as persistent notifications you can click into.
 - **Shareable project links** — owners issue a read-only or comment-only URL with optional
   expiry that any signed-in user can redeem to join the project, no email needed.
+- **Community template gallery** — IEEE conference, ACM article, multi-chapter thesis,
+  problem-set, conference poster, plus the six built-in templates. Loaded from a JSON
+  manifest in the SPA's public folder.
 - **Version snapshots** of the whole project, restorable in one click.
 - **AI assist** as inline rewrites, chat, and slash-command rephrasing — provider chosen
   per user, key encrypted at rest with AES-256-GCM, never leaves the server.
@@ -73,9 +90,20 @@ and a Postgres connection string.
 ### For self-hosters
 - **One binary** for the backend (`cargo run -p scribe-server`) — no Node runtime, no
   container choreography to get started.
-- **Switchable compile engine**: `tectonic` (single static binary, auto-fetched packages,
-  4 s warm compile) or `latexmk`-style multi-pass against a local TeX Live / MiKTeX
-  (~1.2 s warm). Toggled with one env var.
+- **One-shot setup scripts** — `./scripts/setup.sh` (Linux apt/dnf/pacman + macOS Homebrew)
+  or `.\scripts\setup.ps1` (Windows + winget) install every runtime dep and pre-build the
+  workspace. `./scripts/run.sh` / `.\scripts\run.ps1` brings up Redis + API + SPA with
+  prefixed log streams.
+- **Switchable compile engine with fallback**: `tectonic` (single static binary, auto-
+  fetched packages, ~4 s warm) or `latexmk`-style multi-pass against a local TeX Live /
+  MiKTeX (~1.5 s warm). Configure `COMPILE_ENGINE=…` and optionally
+  `COMPILE_FALLBACK_ENGINE=…` — when the primary returns non-zero, the worker auto-retries
+  with the fallback so a project that needs a package not in the tectonic bundle still
+  compiles via latexmk.
+- **Optional chktex integration** — set `CHKTEX_BIN=/path/to/chktex` and every compile
+  + every typing-pause runs a style-lint pass. Warnings come back with concrete `Fix:`
+  hints derived from the chktex message text (robust to chktex's per-version rule
+  renumbering).
 - **Pluggable storage** via the `Storage` trait — currently Supabase Storage; an S3
   adapter is a ~150-line module.
 - **Pluggable AI providers** via the same adapter pattern — bring your own endpoint.
@@ -135,56 +163,68 @@ and a Postgres connection string.
 
 ## Run it locally
 
-### Prerequisites
+### Fast path — use the bundled scripts
+
+```bash
+# Linux (Debian/Ubuntu/Fedora/Arch) or macOS
+./scripts/setup.sh        # installs Node 20+, pnpm, Rust, Redis, Tectonic, chktex
+./scripts/run.sh          # starts Redis + API + SPA with prefixed log streams
+
+# Windows 10/11 (PowerShell, requires winget)
+.\scripts\setup.ps1
+.\scripts\run.ps1
+```
+
+`setup` is idempotent (re-running skips anything already present) and copies
+`.env.example` → `.env` on first run; fill in the Supabase keys + `DATABASE_URL`
+before `run`. See [`scripts/README.md`](./scripts/README.md) for flags and per-distro
+notes.
+
+### Manual path
+
+#### Prerequisites
 
 - **Rust 1.75+** (`rustup default stable`)
 - **Node 20+** and **pnpm 11+**
-- **Docker** (used by the local Supabase CLI)
-- **Tectonic** binary on PATH (the [release page](https://tectonic-typesetting.github.io/) has prebuilds for every OS), *or* a local TeX Live / MiKTeX install if you'd rather drive `latexmk`
+- **Docker** (only if you want to run the local Supabase stack — the hosted Supabase
+  flow doesn't need it)
+- **Tectonic** binary on PATH (the [release page](https://tectonic-typesetting.github.io/)
+  has prebuilds for every OS), *or* a local TeX Live / MiKTeX install if you'd rather
+  drive `latexmk` — or both, and let the engine-fallback machinery handle either
 - **Pandoc 3+** if you want the Markdown / DOCX export feature
-- **Redis** running locally or a `REDIS_URL` (`docker run -p 6379:6379 redis:7-alpine` works)
+- **chktex** (ships with MiKTeX / TeX Live) for style linting — optional
+- **Redis** for the compile queue (`docker run -p 6379:6379 redis:7-alpine` works)
 
-### One-time setup
+#### One-time setup
 
 ```bash
 git clone https://github.com/sunnyallana/Scribe.git
 cd Scribe
 pnpm install
 
-# Spin up Supabase (Postgres + Auth + Storage + Studio + Inbucket mail catcher)
-pnpm supabase:start
-
-# Fill .env with the values `supabase status` prints
 cp .env.example .env
-# Edit .env — paste SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
-# SUPABASE_JWT_SECRET, VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY.
-
-# (optional) regenerate the DB types from the live schema
-pnpm gen:db
+# Edit .env: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
+# SUPABASE_JWT_SECRET, DATABASE_URL, VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY.
+# Optional: TECTONIC_BIN, LATEXMK_BIN, CHKTEX_BIN, AI_KEY_ENCRYPTION_KEY,
+# COMPILE_FALLBACK_ENGINE.
 ```
 
-### Day-to-day dev loop
+#### Day-to-day dev loop
 
 Two terminals:
 
 ```bash
-# Terminal 1 — API + compile worker + Yjs hub
+# Terminal 1 — API + compile worker + Yjs hub + voice signaling
 cargo run --manifest-path servers/rust/Cargo.toml -p scribe-server
-#   → http://localhost:3000  (or 3010 if set via env)
+#   → http://localhost:3000  (or whatever PORT in .env)
 
 # Terminal 2 — SPA with HMR
 pnpm --filter @scribe/web dev
 #   → http://localhost:5173
 ```
 
-Open `http://localhost:5173` and sign up. Invite emails go to **Inbucket**
-(`http://localhost:54324`) — no SMTP needed locally.
-
-### Stop everything
-
-```bash
-pnpm supabase:stop
-```
+Open `http://localhost:5173` and sign up. If you're using the local Supabase stack,
+invite emails go to **Inbucket** (`http://localhost:54324`) — no SMTP needed locally.
 
 ## Compile engines
 
@@ -194,10 +234,24 @@ server. Tradeoffs:
 | Engine | Cold | Warm | Setup |
 |---|---|---|---|
 | **Tectonic** | ~15 s (one-time CTAN bundle download) | ~4 s | Single binary, drops in anywhere |
-| **latexmk-style** (multi-pass) | ~5 s | ~1.2 s | Needs TeX Live or MiKTeX installed |
+| **latexmk-style** (multi-pass) | ~5 s | ~1.5 s | Needs TeX Live or MiKTeX installed |
 
 Both produce the same `.pdf` + `.synctex.gz` + `.log` artifact set; the SPA can't tell
 them apart.
+
+### Fallback
+
+Set `COMPILE_FALLBACK_ENGINE=` to the *other* engine and the worker will auto-retry
+when the primary returns non-zero. A common configuration on a workstation that has
+both installed:
+
+```
+COMPILE_ENGINE=latexmk           # fast warm rebuilds via MiKTeX/TeX Live
+COMPILE_FALLBACK_ENGINE=tectonic # safety net when a project misses a local package
+```
+
+The compile log reports the engine that produced the result; identical engine on both
+fields is ignored (no point running the same compile twice).
 
 ## Configuration
 
@@ -210,7 +264,10 @@ them apart.
 | `SUPABASE_JWT_SECRET` | Used to verify access tokens server-side |
 | `REDIS_URL` | Queue + L2 cache; falls back to in-process L1 only when unset |
 | `COMPILE_ENGINE` | `tectonic` (default) or `latexmk` |
+| `COMPILE_FALLBACK_ENGINE` | Engine the worker re-runs with when the primary fails. Set to the other engine for a self-healing pipeline. |
 | `TECTONIC_BIN`, `LATEXMK_BIN`, `LATEX_ENGINE`, `PANDOC_BIN` | Override binary paths |
+| `TECTONIC_CACHE_DIR` | Override tectonic's CTAN-bundle cache location. Usually unset — its OS default is already populated. |
+| `CHKTEX_BIN` | Path to `chktex`. When set, every compile + every typing pause runs a style-lint pass. Unset disables linting entirely. |
 | `SCRIBE_ENV` | `development` / `production` / `testing` — drives feature-flag defaults |
 | `SCRIBE_FEATURE_*` | Per-feature toggles (`CACHE_ENABLED`, `YJS_REALTIME`, `RATE_LIMITING`, etc.) |
 | `AI_KEY_ENCRYPTION_KEY` | Required for `/api/ai/*` — `openssl rand -base64 32` |
@@ -238,7 +295,12 @@ Scribe/
 │           ├── scribe-ai           AI provider adapters
 │           └── scribe-shared       Cross-crate types
 ├── supabase/                   Migrations + seed data
-├── scripts/                    One-off probes + migration helpers
+├── scripts/
+│   ├── setup.{sh,ps1}          Cross-platform one-shot install
+│   ├── run.{sh,ps1}            Start Redis + API + SPA together
+│   ├── migrations/             One-off DB migration runners
+│   ├── probes/                 Read-only DB / auth diagnostics
+│   └── utils/                  Misc helpers (demo walkthrough, JWT tester, …)
 ├── .env.example                All env vars + feature flags
 ├── PLAN.md                     Full roadmap + principles
 └── README.md
@@ -269,12 +331,12 @@ Scribe/
 | 4 | AI assistance (six providers, encrypted keys) | done |
 | 5 | Bibliography, templates, settings UI, exports | done |
 | 5.5 | Voice chat · multi-file tabs · citation lookup · shareable links · i18n | done |
+| 5.6 | Find/replace · hover preview · suggestion mode · chktex live-lint · notification inbox · community templates · compile-engine fallback | done |
 | 6 | Tauri desktop app + offline sync | in progress |
 | 7 | Docker self-hosting recipe + `CONTRIBUTING.md` | in progress |
 
-Post-v1 Overleaf-parity backlog (track-changes, project-wide find/replace, equation
-hover preview, chktex linting, GitHub sync, community templates, notification inbox) is
-tracked in `PLAN.md` §12.
+The only Overleaf-parity item still on the backlog is **GitHub sync** (OAuth + push/pull).
+See `PLAN.md` §12 for the full status table.
 
 ## License
 
