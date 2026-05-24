@@ -40,11 +40,15 @@ export const useSettings = create<SettingsState>()(
     (set) => ({
       language: 'en',
       editor: DEFAULT_EDITOR_PREFS,
-      setLanguage: (language) => { set({ language }); },
+      setLanguage: (language) => {
+        set({ language });
+      },
       setEditorPref: (key, value) => {
         set((state) => ({ editor: { ...state.editor, [key]: value } }));
       },
-      resetEditor: () => { set({ editor: DEFAULT_EDITOR_PREFS }); },
+      resetEditor: () => {
+        set({ editor: DEFAULT_EDITOR_PREFS });
+      },
     }),
     { name: 'scribe-settings', version: 3 },
   ),

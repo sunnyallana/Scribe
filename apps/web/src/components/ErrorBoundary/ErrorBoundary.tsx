@@ -18,13 +18,7 @@
 
 import { Button } from '@scribe/ui';
 import { AlertTriangle, ClipboardCheck, RefreshCw } from 'lucide-react';
-import {
-  Component,
-  type ErrorInfo,
-  type PropsWithChildren,
-  type ReactNode,
-  useState,
-} from 'react';
+import { Component, type ErrorInfo, type PropsWithChildren, type ReactNode, useState } from 'react';
 
 import { log } from '../../lib/debug';
 
@@ -104,7 +98,9 @@ function DefaultFallback({ scope, error, componentStack, reset }: FallbackParams
     try {
       await navigator.clipboard.writeText(diagnostics);
       setCopied(true);
-      window.setTimeout(() => { setCopied(false); }, 2000);
+      window.setTimeout(() => {
+        setCopied(false);
+      }, 2000);
     } catch {
       window.prompt('Copy diagnostics:', diagnostics);
     }
@@ -117,19 +113,23 @@ function DefaultFallback({ scope, error, componentStack, reset }: FallbackParams
     >
       <AlertTriangle className="h-8 w-8 text-destructive" aria-hidden="true" />
       <div className="space-y-1">
-        <p className="text-base font-semibold text-foreground">
-          The {scope} crashed.
-        </p>
+        <p className="text-base font-semibold text-foreground">The {scope} crashed.</p>
         <p className="max-w-md text-muted-foreground">
-          A render-tree error stopped this view from drawing. The rest of the
-          app is still usable. Copy the diagnostics if you want to file a bug.
+          A render-tree error stopped this view from drawing. The rest of the app is still usable.
+          Copy the diagnostics if you want to file a bug.
         </p>
       </div>
       <pre className="max-w-xl overflow-auto rounded border bg-muted/40 p-2 text-left text-xs">
         {error.message}
       </pre>
       <div className="flex gap-2">
-        <Button size="sm" variant="outline" onClick={() => { void copy(); }}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            void copy();
+          }}
+        >
           {copied ? (
             <>
               <ClipboardCheck className="h-3.5 w-3.5" aria-hidden="true" />

@@ -51,9 +51,7 @@ export function VoiceControls({ projectId }: VoiceControlsProps) {
   // Effective count of *other* people on the call. When we're in
   // the call ourselves, trust the local mesh state (real-time);
   // otherwise use the polled snapshot.
-  const othersOnCall = inRoom
-    ? voice.peers.length
-    : (peersQuery.data?.peers.length ?? 0);
+  const othersOnCall = inRoom ? voice.peers.length : (peersQuery.data?.peers.length ?? 0);
 
   // Active-speaker awareness: anyone currently transmitting voice.
   // Drives a soft emerald ring on the call button so the user sees
@@ -167,7 +165,9 @@ export function VoiceControls({ projectId }: VoiceControlsProps) {
             className="h-7 w-7 animate-in fade-in slide-in-from-left-2 duration-150"
             aria-label={voice.micEnabled ? t('voice.muteMic') : t('voice.unmuteMic')}
             title={voice.micEnabled ? t('voice.muteMic') : t('voice.unmuteMic')}
-            onClick={() => { voice.setMicEnabled(!voice.micEnabled); }}
+            onClick={() => {
+              voice.setMicEnabled(!voice.micEnabled);
+            }}
           >
             {voice.micEnabled ? (
               <Mic className="h-3.5 w-3.5" aria-hidden="true" />
@@ -181,7 +181,9 @@ export function VoiceControls({ projectId }: VoiceControlsProps) {
             className="h-7 w-7 animate-in fade-in slide-in-from-left-2 duration-150"
             aria-label={voice.speakerEnabled ? t('voice.muteSpeaker') : t('voice.unmuteSpeaker')}
             title={voice.speakerEnabled ? t('voice.muteSpeaker') : t('voice.unmuteSpeaker')}
-            onClick={() => { voice.setSpeakerEnabled(!voice.speakerEnabled); }}
+            onClick={() => {
+              voice.setSpeakerEnabled(!voice.speakerEnabled);
+            }}
           >
             {voice.speakerEnabled ? (
               <Volume2 className="h-3.5 w-3.5" aria-hidden="true" />

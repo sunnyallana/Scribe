@@ -45,8 +45,7 @@ function resolveApiUrl(): string {
     const inTauri = '__TAURI_INTERNALS__' in window;
     if (!inTauri) {
       const host = window.location.hostname;
-      const isLocal =
-        host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+      const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
       if (!isLocal) {
         // Browser tab on a tunnel / phone / LAN IP — same-origin
         // paths so requests flow through Vite's `/api` proxy.

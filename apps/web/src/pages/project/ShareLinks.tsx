@@ -1,16 +1,5 @@
-import {
-  type ProjectId,
-  type ShareLink,
-  type ShareRole,
-} from '@scribe/shared';
-import {
-  Button,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@scribe/ui';
+import { type ProjectId, type ShareLink, type ShareRole } from '@scribe/shared';
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@scribe/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, Link2, Loader2, Trash2 } from 'lucide-react';
 import { useState } from 'react';
@@ -78,7 +67,9 @@ export function ShareLinks({ projectId, isOwner }: ShareLinksProps) {
       await queryClient.invalidateQueries({ queryKey: ['share-links', projectId] });
       await copyShareLink(link.token, t('share.linkAutoCopied'));
     },
-    onError: (err) => { toast.error(err.body.message); },
+    onError: (err) => {
+      toast.error(err.body.message);
+    },
   });
 
   const revokeMutation = useMutation<unknown, ApiError, ShareLink>({
@@ -87,7 +78,9 @@ export function ShareLinks({ projectId, isOwner }: ShareLinksProps) {
       await queryClient.invalidateQueries({ queryKey: ['share-links', projectId] });
       toast.success(t('share.revoked'));
     },
-    onError: (err) => { toast.error(err.body.message); },
+    onError: (err) => {
+      toast.error(err.body.message);
+    },
   });
 
   if (!isOwner) return null;
@@ -95,7 +88,11 @@ export function ShareLinks({ projectId, isOwner }: ShareLinksProps) {
   const links = linksQuery.data ?? [];
   // Active = not revoked and not expired. We still show recently
   // revoked / expired ones for context, just disabled.
-  const active = links.filter((l) => l.revokedAt === null && (l.expiresAt === null || new Date(l.expiresAt).getTime() > Date.now()));
+  const active = links.filter(
+    (l) =>
+      l.revokedAt === null &&
+      (l.expiresAt === null || new Date(l.expiresAt).getTime() > Date.now()),
+  );
 
   return (
     <section className="space-y-2 rounded-md border bg-muted/30 p-3">
@@ -110,7 +107,12 @@ export function ShareLinks({ projectId, isOwner }: ShareLinksProps) {
       </header>
       <p className="text-xs text-muted-foreground">{t('share.description')}</p>
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={role} onValueChange={(v) => { setRole(v as ShareRole); }}>
+        <Select
+          value={role}
+          onValueChange={(v) => {
+            setRole(v as ShareRole);
+          }}
+        >
           <SelectTrigger className="h-8 w-32 text-xs">
             <SelectValue />
           </SelectTrigger>
@@ -122,7 +124,12 @@ export function ShareLinks({ projectId, isOwner }: ShareLinksProps) {
             ))}
           </SelectContent>
         </Select>
-        <Select value={expiry} onValueChange={(v) => { setExpiry(v as ExpiryChoice); }}>
+        <Select
+          value={expiry}
+          onValueChange={(v) => {
+            setExpiry(v as ExpiryChoice);
+          }}
+        >
           <SelectTrigger className="h-8 w-32 text-xs">
             <SelectValue />
           </SelectTrigger>
@@ -137,7 +144,9 @@ export function ShareLinks({ projectId, isOwner }: ShareLinksProps) {
         <Button
           type="button"
           size="sm"
-          onClick={() => { createMutation.mutate(); }}
+          onClick={() => {
+            createMutation.mutate();
+          }}
           disabled={createMutation.isPending}
           className="h-8 gap-1.5 text-xs"
         >
@@ -151,7 +160,8 @@ export function ShareLinks({ projectId, isOwner }: ShareLinksProps) {
         <ul className="space-y-1 pt-1">
           {links.map((link) => {
             const isRevoked = link.revokedAt !== null;
-            const isExpired = link.expiresAt !== null && new Date(link.expiresAt).getTime() <= Date.now();
+            const isExpired =
+              link.expiresAt !== null && new Date(link.expiresAt).getTime() <= Date.now();
             const dead = isRevoked || isExpired;
             return (
               <li
@@ -163,7 +173,10 @@ export function ShareLinks({ projectId, isOwner }: ShareLinksProps) {
                 <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase">
                   {t(`members.roles.${link.role}`)}
                 </span>
-                <span className="min-w-0 flex-1 truncate font-mono text-[10px]" title={shareUrl(link.token)}>
+                <span
+                  className="min-w-0 flex-1 truncate font-mono text-[10px]"
+                  title={shareUrl(link.token)}
+                >
                   {shareUrl(link.token)}
                 </span>
                 <span className="text-[10px] text-muted-foreground">
@@ -172,13 +185,17 @@ export function ShareLinks({ projectId, isOwner }: ShareLinksProps) {
                     : isExpired
                       ? t('share.expiredLabel')
                       : link.expiresAt !== null
-                        ? t('share.expiresOn', { date: new Date(link.expiresAt).toLocaleDateString() })
+                        ? t('share.expiresOn', {
+                            date: new Date(link.expiresAt).toLocaleDateString(),
+                          })
                         : t('share.expiry.never')}
                 </span>
                 {!dead ? (
                   <button
                     type="button"
-                    onClick={() => { void copyShareLink(link.token, t('share.linkCopied')); }}
+                    onClick={() => {
+                      void copyShareLink(link.token, t('share.linkCopied'));
+                    }}
                     className="text-muted-foreground hover:text-foreground"
                     aria-label={t('share.copyLink')}
                     title={t('share.copyLink')}

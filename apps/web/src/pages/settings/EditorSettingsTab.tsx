@@ -21,7 +21,9 @@ function Toggle({ checked, onChange, label, description, name }: ToggleProps) {
         name={name}
         type="checkbox"
         checked={checked}
-        onChange={(e) => { onChange(e.target.checked); }}
+        onChange={(e) => {
+          onChange(e.target.checked);
+        }}
         className="mt-0.5"
       />
       <span className="flex-1">
@@ -41,7 +43,9 @@ export function EditorSettingsTab() {
   const resetEditor = useSettings((s) => s.resetEditor);
 
   function bound<K extends keyof EditorPreferences>(key: K) {
-    return (value: EditorPreferences[K]) => { setEditorPref(key, value); };
+    return (value: EditorPreferences[K]) => {
+      setEditorPref(key, value);
+    };
   }
 
   return (
@@ -55,7 +59,9 @@ export function EditorSettingsTab() {
             min={10}
             max={24}
             value={editor.fontSize}
-            onChange={(e) => { bound('fontSize')(Number(e.target.value)); }}
+            onChange={(e) => {
+              bound('fontSize')(Number(e.target.value));
+            }}
           />
         </div>
         <div className="space-y-2">
@@ -66,7 +72,9 @@ export function EditorSettingsTab() {
             min={0}
             max={200}
             value={editor.rulerColumn}
-            onChange={(e) => { bound('rulerColumn')(Number(e.target.value)); }}
+            onChange={(e) => {
+              bound('rulerColumn')(Number(e.target.value));
+            }}
           />
           <p className="text-xs text-muted-foreground">{t('settings.editor.rulerColumnHint')}</p>
         </div>

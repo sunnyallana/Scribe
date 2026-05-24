@@ -19,7 +19,14 @@ if (!dbPassword) {
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const file = join(__dirname, '..', '..', 'supabase', 'migrations', '20260524000002_project_share_links.sql');
+const file = join(
+  __dirname,
+  '..',
+  '..',
+  'supabase',
+  'migrations',
+  '20260524000002_project_share_links.sql',
+);
 
 const cfg = {
   host: 'aws-1-ap-southeast-2.pooler.supabase.com',

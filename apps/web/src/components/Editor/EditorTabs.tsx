@@ -88,7 +88,9 @@ export function EditorTabs({ tabs, activeFileId, onSelect, onClose }: EditorTabs
                 onClose(file);
               }
             }}
-            onClick={() => { onSelect(file); }}
+            onClick={() => {
+              onSelect(file);
+            }}
             className={`group relative flex min-w-0 items-center gap-1.5 border-r px-2.5 text-xs transition-colors ${
               isActive
                 ? 'bg-background font-medium text-foreground'

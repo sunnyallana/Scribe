@@ -18,6 +18,11 @@ describe('computeWordCount', () => {
   });
 
   it('reports zero for empty input', () => {
-    expect(computeWordCount('')).toEqual({ words: 0, characters: 0, charactersNoSpaces: 0, lines: 0 });
+    expect(computeWordCount('')).toEqual({
+      words: 0,
+      characters: 0,
+      charactersNoSpaces: 0,
+      lines: 0,
+    });
   });
 });

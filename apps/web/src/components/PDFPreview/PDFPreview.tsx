@@ -112,7 +112,9 @@ export function PDFPreview({
   const [error, setError] = useState<string | null>(null);
   const docRef = useRef<pdfjs.PDFDocumentProxy | null>(null);
   /** Manual override for paged mode. `auto` picks based on page count. */
-  const [pageModePreference, setPageModePreference] = useState<'auto' | 'continuous' | 'paged'>('auto');
+  const [pageModePreference, setPageModePreference] = useState<'auto' | 'continuous' | 'paged'>(
+    'auto',
+  );
   /** Per-page logical (CSS pixel) dimensions at current zoom. Used to
    *  size placeholder boxes so scroll position is stable before render. */
   const [pageMetas, setPageMetas] = useState<readonly PageMeta[]>([]);
@@ -256,7 +258,10 @@ export function PDFPreview({
         const meta = pageMetas[i];
         if (meta !== undefined) offset += meta.height + PAGE_GAP;
       }
-      scroller.scrollTo({ top: offset - PAGE_GAP, behavior: opts?.instant === true ? 'auto' : 'smooth' });
+      scroller.scrollTo({
+        top: offset - PAGE_GAP,
+        behavior: opts?.instant === true ? 'auto' : 'smooth',
+      });
     },
     [pageCount, pageMetas, isPaged],
   );
@@ -313,7 +318,9 @@ export function PDFPreview({
             size="icon"
             className="h-7 w-7"
             aria-label="First page"
-            onClick={() => { scrollToPage(1); }}
+            onClick={() => {
+              scrollToPage(1);
+            }}
             disabled={currentPage <= 1 || loading || pageCount === 0}
           >
             <ChevronsLeft className="h-3.5 w-3.5" aria-hidden="true" />
@@ -323,7 +330,9 @@ export function PDFPreview({
             size="icon"
             className="h-7 w-7"
             aria-label={t('compile.prevPage')}
-            onClick={() => { scrollToPage(currentPage - 1); }}
+            onClick={() => {
+              scrollToPage(currentPage - 1);
+            }}
             disabled={currentPage <= 1 || loading || pageCount === 0}
           >
             <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
@@ -335,15 +344,17 @@ export function PDFPreview({
             inputMode="numeric"
             pattern="[0-9]*"
             value={jumpInput}
-            onChange={(e) => { setJumpInput(e.target.value); }}
-            onFocus={(e) => { e.target.select(); }}
+            onChange={(e) => {
+              setJumpInput(e.target.value);
+            }}
+            onFocus={(e) => {
+              e.target.select();
+            }}
             placeholder={currentPage.toString()}
             className="h-7 w-14 text-center text-xs tabular-nums"
             aria-label="Jump to page"
           />
-          <span className="text-xs tabular-nums text-muted-foreground">
-            / {pageCount || '—'}
-          </span>
+          <span className="text-xs tabular-nums text-muted-foreground">/ {pageCount || '—'}</span>
         </form>
         <div className="flex items-center gap-0.5">
           <Button
@@ -351,7 +362,9 @@ export function PDFPreview({
             size="icon"
             className="h-7 w-7"
             aria-label={t('compile.nextPage')}
-            onClick={() => { scrollToPage(currentPage + 1); }}
+            onClick={() => {
+              scrollToPage(currentPage + 1);
+            }}
             disabled={currentPage >= pageCount || loading || pageCount === 0}
           >
             <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -361,7 +374,9 @@ export function PDFPreview({
             size="icon"
             className="h-7 w-7"
             aria-label="Last page"
-            onClick={() => { scrollToPage(pageCount); }}
+            onClick={() => {
+              scrollToPage(pageCount);
+            }}
             disabled={currentPage >= pageCount || loading || pageCount === 0}
           >
             <ChevronsRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -375,7 +390,9 @@ export function PDFPreview({
             size="icon"
             className="h-7 w-7"
             aria-label={t('compile.zoomOut')}
-            onClick={() => { setZoomIndex((i) => Math.max(0, i - 1)); }}
+            onClick={() => {
+              setZoomIndex((i) => Math.max(0, i - 1));
+            }}
             disabled={zoomIndex === 0}
           >
             <ZoomOut className="h-3.5 w-3.5" aria-hidden="true" />
@@ -388,7 +405,9 @@ export function PDFPreview({
             size="icon"
             className="h-7 w-7"
             aria-label={t('compile.zoomIn')}
-            onClick={() => { setZoomIndex((i) => Math.min(ZOOM_LEVELS.length - 1, i + 1)); }}
+            onClick={() => {
+              setZoomIndex((i) => Math.min(ZOOM_LEVELS.length - 1, i + 1));
+            }}
             disabled={zoomIndex === ZOOM_LEVELS.length - 1}
           >
             <ZoomIn className="h-3.5 w-3.5" aria-hidden="true" />
@@ -464,10 +483,11 @@ export function PDFPreview({
                     width: meta.width,
                     height: meta.height,
                     marginBottom: pageNo === pageMetas.length ? 0 : PAGE_GAP,
-                    // Match the warm-paper canvas background so the
-                    // page edge doesn't show a bright-white slither
-                    // outside the rendered canvas at zoom transitions.
-                    backgroundColor: 'rgb(252, 251, 246)',
+                    // Pure white — the previous warm tint
+                    // (rgb(252, 251, 246)) read as yellowed paper
+                    // against the cool-grey desk. Page boundary is
+                    // still defined by the boxShadow stack below.
+                    backgroundColor: 'rgb(255, 255, 255)',
                     // Layered shadow: a thin warm ring just outside
                     // the page edge (defines the boundary without a
                     // pixel-hard line) + two soft drop shadows for
@@ -541,8 +561,7 @@ function PageCanvas({ doc, pageNumber, zoom, highlight, onInverseSync }: PageCan
         // dpr and `MIN_OVERSAMPLE` (2) so even commodity 1× monitors
         // get a 2× backing store that the browser then linear-filters
         // down — the same trick Overleaf uses for crisp glyph edges.
-        const nativeDpr =
-          typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1;
+        const nativeDpr = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1;
         const dpr = Math.max(nativeDpr, MIN_OVERSAMPLE);
         const renderViewport = page.getViewport({ scale: zoom * dpr });
         const layoutViewport = page.getViewport({ scale: zoom });
@@ -566,15 +585,12 @@ function PageCanvas({ doc, pageNumber, zoom, highlight, onInverseSync }: PageCan
         const task = page.render({
           canvasContext: ctx,
           viewport: renderViewport,
-          // Faintly warm "paper white" instead of #ffffff. Pure
-          // white pages against the slate desk are physically
-          // brighter than ambient room light at the same brightness
-          // setting — that's what makes the preview feel "sharp on
-          // eyes" after long sessions. #fcfbf6 is the warm-paper
-          // tint Overleaf / Apple Preview / Apple Books all use:
-          // basically white but with a hair of yellow so it reads
-          // like printed paper, not a backlit ad.
-          background: 'rgb(252, 251, 246)',
+          // Pure white page. The previous warm tint
+          // (rgb(252, 251, 246)) gave a yellowed-paper feel that
+          // clashed with the rest of the chrome — switch to clean
+          // white and let the surrounding `bg-stone-100` desk plus
+          // the wrapper's boxShadow provide the page boundary.
+          background: 'rgb(255, 255, 255)',
           // `display` = on-screen viewing intent — same as what
           // Chrome's built-in viewer uses; favours legibility over
           // print-fidelity.
@@ -597,7 +613,7 @@ function PageCanvas({ doc, pageNumber, zoom, highlight, onInverseSync }: PageCan
         ) {
           // Surface the error via console; the parent toolbar shows a
           // status banner on real failures.
-           
+
           console.warn(`PDF page ${pageNumber.toString()} render failed`, err);
         }
       }

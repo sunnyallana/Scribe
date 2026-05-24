@@ -4,7 +4,7 @@ A one-host Docker recipe for running Scribe on your own infrastructure. Designed
 a small team / lab; the same image scales out behind a reverse proxy when you
 outgrow it.
 
-> Looking for the *day-to-day developer* setup (hot-reload, no Docker)? Read
+> Looking for the _day-to-day developer_ setup (hot-reload, no Docker)? Read
 > [Run from source](../README.md#run-from-source) in the root README. This document
 > is for **deploying** an instance, not iterating on the code.
 
@@ -43,15 +43,15 @@ front for TLS — Scribe terminates plain HTTP inside the container.
 
 ## Prerequisites
 
-| Need | Version | Why |
-|---|---|---|
-| Docker | 24+ | Builds the image, runs the stack |
-| docker compose | v2 (the plugin, not the legacy script) | `docker compose up`, multi-service |
-| A Supabase project | latest | Auth, Postgres, Storage |
-| ~2 GB free disk | — | Image is ~600 MB, tectonic cache adds ~100 MB after the first compile |
-| A domain + TLS | optional | Required only if you want HTTPS / `scribe://invite/<token>` deep-link redirects to look professional |
+| Need               | Version                                | Why                                                                                                  |
+| ------------------ | -------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Docker             | 24+                                    | Builds the image, runs the stack                                                                     |
+| docker compose     | v2 (the plugin, not the legacy script) | `docker compose up`, multi-service                                                                   |
+| A Supabase project | latest                                 | Auth, Postgres, Storage                                                                              |
+| ~2 GB free disk    | —                                      | Image is ~600 MB, tectonic cache adds ~100 MB after the first compile                                |
+| A domain + TLS     | optional                               | Required only if you want HTTPS / `scribe://invite/<token>` deep-link redirects to look professional |
 
-You do *not* need Rust, Node, pnpm, or a TeX distribution installed on the host —
+You do _not_ need Rust, Node, pnpm, or a TeX distribution installed on the host —
 they all live inside the build container. The runtime image carries tectonic as a
 static binary.
 
@@ -126,7 +126,7 @@ CORS_ORIGIN=https://scribe.your-domain.tld
 values so anything you put in `.env` for those three is ignored — that's intentional.
 
 Every variable is documented inline in [`.env.example`](../.env.example); every
-*value source* (where to obtain it) is documented in [env-vars.md](./env-vars.md).
+_value source_ (where to obtain it) is documented in [env-vars.md](./env-vars.md).
 
 ---
 
@@ -242,12 +242,12 @@ boot if `sqlx` query checks fail against an older schema). Run
 
 Defaults to a single 2-vCPU / 2 GiB instance:
 
-| Workload | CPU | RAM |
-|---|---|---|
-| Idle | 0.05 vCPU | ~80 MiB |
-| One concurrent compile | 1 vCPU (tectonic CPU-bound) | ~250 MiB |
-| 4 concurrent compiles | ~2.5 vCPU | ~700 MiB |
-| Yjs hub with 20 active projects, ~50 collaborators | <0.1 vCPU | +50 MiB |
+| Workload                                           | CPU                         | RAM      |
+| -------------------------------------------------- | --------------------------- | -------- |
+| Idle                                               | 0.05 vCPU                   | ~80 MiB  |
+| One concurrent compile                             | 1 vCPU (tectonic CPU-bound) | ~250 MiB |
+| 4 concurrent compiles                              | ~2.5 vCPU                   | ~700 MiB |
+| Yjs hub with 20 active projects, ~50 collaborators | <0.1 vCPU                   | +50 MiB  |
 
 The compile worker dominates resource usage. If users mostly write rather than
 compile, you can comfortably host a small team on a $5–10 VPS. For heavy use, scale
@@ -259,19 +259,19 @@ worker picks each compile job, so concurrency is safe across replicas.
 
 ## Troubleshooting
 
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| App container restart-loops with `failed to verify JWT` | `SUPABASE_JWT_SECRET` mismatch | Recopy from Supabase → Settings → API → JWT Secret |
-| Boots, but compiling never finishes | Redis not reachable | `docker compose logs redis`; check `REDIS_URL` resolves inside the network |
-| Compile fails with `tectonic: package not found` for an exotic package | Bundle missing it | Set `COMPILE_FALLBACK_ENGINE=latexmk` and install MiKTeX/TeX Live on the host (then mount it into the container, or rebuild a custom image with TeX Live inside) |
-| WebSocket disconnects every ~30 s | Reverse proxy idle timeout | `nginx`: raise `proxy_read_timeout`; Caddy: default is fine; Cloudflare free tier caps at 100 s — sometimes you have to live with it |
-| `prepared statement already exists` on every query | `DATABASE_URL` uses the transaction pooler | Switch to the **session** pooler (port 5432) |
-| AI requests 503 immediately | `AI_KEY_ENCRYPTION_KEY` missing or non-base64 | `openssl rand -base64 32`, restart |
-| Big `.tex` upload fails with 413 | Reverse proxy body limit < `FILE_SIZE_MAX_BYTES` | Raise the proxy's `client_max_body_size` (nginx) or default request body limit (Caddy auto-handles this in v2.7+) |
+| Symptom                                                                | Likely cause                                     | Fix                                                                                                                                                              |
+| ---------------------------------------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App container restart-loops with `failed to verify JWT`                | `SUPABASE_JWT_SECRET` mismatch                   | Recopy from Supabase → Settings → API → JWT Secret                                                                                                               |
+| Boots, but compiling never finishes                                    | Redis not reachable                              | `docker compose logs redis`; check `REDIS_URL` resolves inside the network                                                                                       |
+| Compile fails with `tectonic: package not found` for an exotic package | Bundle missing it                                | Set `COMPILE_FALLBACK_ENGINE=latexmk` and install MiKTeX/TeX Live on the host (then mount it into the container, or rebuild a custom image with TeX Live inside) |
+| WebSocket disconnects every ~30 s                                      | Reverse proxy idle timeout                       | `nginx`: raise `proxy_read_timeout`; Caddy: default is fine; Cloudflare free tier caps at 100 s — sometimes you have to live with it                             |
+| `prepared statement already exists` on every query                     | `DATABASE_URL` uses the transaction pooler       | Switch to the **session** pooler (port 5432)                                                                                                                     |
+| AI requests 503 immediately                                            | `AI_KEY_ENCRYPTION_KEY` missing or non-base64    | `openssl rand -base64 32`, restart                                                                                                                               |
+| Big `.tex` upload fails with 413                                       | Reverse proxy body limit < `FILE_SIZE_MAX_BYTES` | Raise the proxy's `client_max_body_size` (nginx) or default request body limit (Caddy auto-handles this in v2.7+)                                                |
 
 ---
 
-## When to *not* use Docker
+## When to _not_ use Docker
 
 If you're running Scribe on a single laptop or dev machine, the source-based flow
 (`pnpm dev` + `cargo run`) is faster than rebuilding the Docker image on each

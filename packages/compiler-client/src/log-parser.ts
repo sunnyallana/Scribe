@@ -2,11 +2,14 @@ import type { CompileLogEntry } from './error-types.js';
 
 const FILE_PUSH = /\(([^()\s]+\.(?:tex|sty|cls|ltx|aux))/g;
 const ERROR_LINE = /^!\s*(.+)$/;
-const LATEX_WARNING = /^(LaTeX|Package|Class)\s+(\w*)\s*Warning:\s*(.+?)(?:\son\s+input\s+line\s+(\d+))?\.?$/i;
-const LATEX_INFO = /^(LaTeX|Package|Class)\s+(\w*)\s*Info:\s*(.+?)(?:\son\s+input\s+line\s+(\d+))?\.?$/i;
+const LATEX_WARNING =
+  /^(LaTeX|Package|Class)\s+(\w*)\s*Warning:\s*(.+?)(?:\son\s+input\s+line\s+(\d+))?\.?$/i;
+const LATEX_INFO =
+  /^(LaTeX|Package|Class)\s+(\w*)\s*Info:\s*(.+?)(?:\son\s+input\s+line\s+(\d+))?\.?$/i;
 const BAD_BOX = /^(Overfull|Underfull)\s+\\([hv])box.*?at\s+lines?\s+(\d+)(?:--(\d+))?/i;
 const ERROR_LINE_REF = /^l\.(\d+)(?:\s+(.*))?$/;
-const UNDEFINED_REF = /^(LaTeX|Package|Class)\s+Warning:\s+(Citation|Reference)\s+`([^']+)'\s+(?:on\s+page\s+\d+\s+)?undefined\s*(?:on\s+input\s+line\s+(\d+))?/i;
+const UNDEFINED_REF =
+  /^(LaTeX|Package|Class)\s+Warning:\s+(Citation|Reference)\s+`([^']+)'\s+(?:on\s+page\s+\d+\s+)?undefined\s*(?:on\s+input\s+line\s+(\d+))?/i;
 const TECTONIC_NOTE = /^(note|warning|error):\s+(.*)$/i;
 
 interface FileStackFrame {
@@ -81,7 +84,11 @@ export function parseCompileLog(log: string): CompileLogEntry[] {
       level: 'error',
       message: pendingError.message,
       ...(pendingError.file !== undefined ? { file: pendingError.file } : {}),
-      ...(line !== undefined ? { line } : pendingError.line !== undefined ? { line: pendingError.line } : {}),
+      ...(line !== undefined
+        ? { line }
+        : pendingError.line !== undefined
+          ? { line: pendingError.line }
+          : {}),
       raw: pendingError.raw,
     });
     pendingError = null;
@@ -117,7 +124,8 @@ export function parseCompileLog(log: string): CompileLogEntry[] {
       const lineNum = warn[4] !== undefined ? Number(warn[4]) : undefined;
       entries.push({
         level: 'warning',
-        message: `${warn[1] ?? 'LaTeX'}${warn[2] !== undefined && warn[2] !== '' ? ` (${warn[2]})` : ''}: ${warn[3] ?? ''}`.trim(),
+        message:
+          `${warn[1] ?? 'LaTeX'}${warn[2] !== undefined && warn[2] !== '' ? ` (${warn[2]})` : ''}: ${warn[3] ?? ''}`.trim(),
         ...(file !== undefined ? { file } : {}),
         ...(lineNum !== undefined ? { line: lineNum } : {}),
         raw: line,
@@ -145,7 +153,8 @@ export function parseCompileLog(log: string): CompileLogEntry[] {
       const lineNum = info[4] !== undefined ? Number(info[4]) : undefined;
       entries.push({
         level: 'info',
-        message: `${info[1] ?? 'LaTeX'}${info[2] !== undefined && info[2] !== '' ? ` (${info[2]})` : ''}: ${info[3] ?? ''}`.trim(),
+        message:
+          `${info[1] ?? 'LaTeX'}${info[2] !== undefined && info[2] !== '' ? ` (${info[2]})` : ''}: ${info[3] ?? ''}`.trim(),
         ...(file !== undefined ? { file } : {}),
         ...(lineNum !== undefined ? { line: lineNum } : {}),
         raw: line,

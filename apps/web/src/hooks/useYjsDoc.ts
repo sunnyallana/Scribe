@@ -128,7 +128,9 @@ export function useYjsDoc(
       };
       next.doc.on('update', persistUpdate);
 
-      next.on('status', ({ status }: { status: string }) => { log.ws(`status → ${status}`, { docId }); });
+      next.on('status', ({ status }: { status: string }) => {
+        log.ws(`status → ${status}`, { docId });
+      });
       next.on('synced', ({ synced: s }: { synced: boolean }) => {
         log.yjs(s ? 'synced' : 'unsynced', { docId });
         setSynced(s);

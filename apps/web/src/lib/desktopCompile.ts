@@ -115,10 +115,7 @@ export async function prepareDesktopWorkdir(
  * prefix and hand the result to pdf.js. Throws if the PDF is missing
  * (compile failed before the writer ran).
  */
-export async function readDesktopPdfBase64(
-  workdir: string,
-  mainFile: string,
-): Promise<string> {
+export async function readDesktopPdfBase64(workdir: string, mainFile: string): Promise<string> {
   return invoke<string>('compile_read_pdf_base64', { workdir, mainFile });
 }
 

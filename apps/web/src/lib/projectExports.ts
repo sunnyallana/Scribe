@@ -23,7 +23,9 @@ function triggerDownload(blob: Blob, filename: string): void {
   document.body.removeChild(a);
   // Microtask so the browser actually starts the download before we
   // revoke. Otherwise revoke can race with the click in some browsers.
-  setTimeout(() => { URL.revokeObjectURL(url); }, 0);
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 0);
 }
 
 /** Slug-ify a project name for use in a filename. Allowed chars only;
@@ -48,19 +50,13 @@ export async function downloadCompiledPdf(url: string, projectName: string): Pro
 /** Server-side LaTeX → Markdown export. Pandoc handles structure,
  *  citations, cross-refs, tables, custom commands, etc. — far higher
  *  fidelity than any in-browser regex pipeline could manage. */
-export async function exportAsMarkdown(
-  projectId: ProjectId,
-  projectName: string,
-): Promise<void> {
+export async function exportAsMarkdown(projectId: ProjectId, projectName: string): Promise<void> {
   const { blob, filename } = await api.exports.run(projectId, 'md');
   triggerDownload(blob, filename ?? `${safeFilename(projectName)}.md`);
 }
 
 /** Server-side LaTeX → DOCX export. */
-export async function exportAsWord(
-  projectId: ProjectId,
-  projectName: string,
-): Promise<void> {
+export async function exportAsWord(projectId: ProjectId, projectName: string): Promise<void> {
   const { blob, filename } = await api.exports.run(projectId, 'docx');
   triggerDownload(blob, filename ?? `${safeFilename(projectName)}.docx`);
 }

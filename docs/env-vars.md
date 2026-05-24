@@ -1,6 +1,6 @@
 # Environment Variables — Sourcing Guide
 
-This is the *where do I get this value* companion to [`.env.example`](../.env.example).
+This is the _where do I get this value_ companion to [`.env.example`](../.env.example).
 The example file documents every variable Scribe reads; this guide tells you where each
 value actually comes from. Variables marked **required** must be set before the API
 will start; everything else has a sensible default.
@@ -13,22 +13,22 @@ will start; everything else has a sensible default.
 
 ## Quick map
 
-| Variable | Where to get it | Required? |
-|---|---|---|
-| `DATABASE_URL` | Supabase → Project Settings → Database → Connection string → **Session pooler (5432)** | yes |
-| `SUPABASE_URL` | Supabase → Project Settings → API → **Project URL** | yes |
-| `SUPABASE_ANON_KEY` | Supabase → Project Settings → API → **anon / public** key | yes |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → **service_role** key | yes |
-| `SUPABASE_JWT_SECRET` | Supabase → Project Settings → API → **JWT Secret** (legacy "JWT Settings" tab on the old dashboard) | yes |
-| `VITE_SUPABASE_URL` | same value as `SUPABASE_URL` | yes |
-| `VITE_SUPABASE_ANON_KEY` | same value as `SUPABASE_ANON_KEY` | yes |
-| `VITE_API_URL` | URL the SPA should hit; `http://localhost:3000` for dev, your reverse-proxy origin in prod | yes |
-| `REDIS_URL` | Your Redis instance; `redis://127.0.0.1:6379` for a local Docker / native install | yes (compile queue won't start otherwise) |
-| `AI_KEY_ENCRYPTION_KEY` | `openssl rand -base64 32` (or `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`) | yes if any user enables AI |
-| `SMTP_*` | Your SMTP relay (Resend, Postmark, Mailgun, Gmail App Password, …) | optional — falls back to invites-by-link |
-| `COMPILE_ENGINE` / `COMPILE_FALLBACK_ENGINE` | `tectonic` or `latexmk` | optional, defaults to `tectonic` |
-| `TECTONIC_BIN` / `LATEXMK_BIN` | Absolute path to the binary if not on `$PATH` | optional |
-| `CHKTEX_BIN` | Path to `chktex` (ships with TeX Live / MiKTeX) | optional, off when unset |
+| Variable                                     | Where to get it                                                                                              | Required?                                 |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
+| `DATABASE_URL`                               | Supabase → Project Settings → Database → Connection string → **Session pooler (5432)**                       | yes                                       |
+| `SUPABASE_URL`                               | Supabase → Project Settings → API → **Project URL**                                                          | yes                                       |
+| `SUPABASE_ANON_KEY`                          | Supabase → Project Settings → API → **anon / public** key                                                    | yes                                       |
+| `SUPABASE_SERVICE_ROLE_KEY`                  | Supabase → Project Settings → API → **service_role** key                                                     | yes                                       |
+| `SUPABASE_JWT_SECRET`                        | Supabase → Project Settings → API → **JWT Secret** (legacy "JWT Settings" tab on the old dashboard)          | yes                                       |
+| `VITE_SUPABASE_URL`                          | same value as `SUPABASE_URL`                                                                                 | yes                                       |
+| `VITE_SUPABASE_ANON_KEY`                     | same value as `SUPABASE_ANON_KEY`                                                                            | yes                                       |
+| `VITE_API_URL`                               | URL the SPA should hit; `http://localhost:3000` for dev, your reverse-proxy origin in prod                   | yes                                       |
+| `REDIS_URL`                                  | Your Redis instance; `redis://127.0.0.1:6379` for a local Docker / native install                            | yes (compile queue won't start otherwise) |
+| `AI_KEY_ENCRYPTION_KEY`                      | `openssl rand -base64 32` (or `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`) | yes if any user enables AI                |
+| `SMTP_*`                                     | Your SMTP relay (Resend, Postmark, Mailgun, Gmail App Password, …)                                           | optional — falls back to invites-by-link  |
+| `COMPILE_ENGINE` / `COMPILE_FALLBACK_ENGINE` | `tectonic` or `latexmk`                                                                                      | optional, defaults to `tectonic`          |
+| `TECTONIC_BIN` / `LATEXMK_BIN`               | Absolute path to the binary if not on `$PATH`                                                                | optional                                  |
+| `CHKTEX_BIN`                                 | Path to `chktex` (ships with TeX Live / MiKTeX)                                                              | optional, off when unset                  |
 
 ---
 
@@ -44,8 +44,8 @@ finish provisioning before grabbing keys.
 
 **Settings → API**. Copy:
 
-- **Project URL** → `SUPABASE_URL` *and* `VITE_SUPABASE_URL`
-- **Project API keys → anon public** → `SUPABASE_ANON_KEY` *and* `VITE_SUPABASE_ANON_KEY`
+- **Project URL** → `SUPABASE_URL` _and_ `VITE_SUPABASE_URL`
+- **Project API keys → anon public** → `SUPABASE_ANON_KEY` _and_ `VITE_SUPABASE_ANON_KEY`
 - **Project API keys → service_role** → `SUPABASE_SERVICE_ROLE_KEY`
 
 The `service_role` key bypasses RLS. Treat it like a root password — it goes on the
@@ -132,13 +132,13 @@ just pick a value and back it up.
 
 Pick one:
 
-| Provider | Quick setup |
-|---|---|
-| **Resend** | Dashboard → API Keys → create. Use `smtp.resend.com:587`, user `resend`, pass = the API key. |
-| **Postmark** | Servers → SMTP credentials. Host `smtp.postmarkapp.com:587`. |
-| **Mailgun** | Sending → Domain settings → SMTP credentials. |
-| **Gmail / Workspace** | Account → Security → 2FA → App passwords. Host `smtp.gmail.com:465`, port `465`, SSL. |
-| **Local dev** | The Supabase CLI ships **Inbucket** on `http://localhost:54324`; configure `SMTP_HOST=127.0.0.1`, `SMTP_PORT=54325`. |
+| Provider              | Quick setup                                                                                                          |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Resend**            | Dashboard → API Keys → create. Use `smtp.resend.com:587`, user `resend`, pass = the API key.                         |
+| **Postmark**          | Servers → SMTP credentials. Host `smtp.postmarkapp.com:587`.                                                         |
+| **Mailgun**           | Sending → Domain settings → SMTP credentials.                                                                        |
+| **Gmail / Workspace** | Account → Security → 2FA → App passwords. Host `smtp.gmail.com:465`, port `465`, SSL.                                |
+| **Local dev**         | The Supabase CLI ships **Inbucket** on `http://localhost:54324`; configure `SMTP_HOST=127.0.0.1`, `SMTP_PORT=54325`. |
 
 Without SMTP, the invite flow still works — owners just copy the link out of the
 "Invite sent" toast and share it through their own channel. Read the toast text
@@ -168,13 +168,13 @@ in the Supabase project for the flow to land.
 Scribe finds compile engines via `$PATH` by default; override the location with
 `TECTONIC_BIN` / `LATEXMK_BIN` if they live elsewhere.
 
-| Binary | Install hint |
-|---|---|
-| `tectonic` | `cargo install tectonic` (cleanest), or download a static release from <https://tectonic-typesetting.github.io/en-US/install.html>. |
-| `latexmk` | Ships with TeX Live (`apt install texlive-latex-extra`) and MiKTeX. |
-| `pdflatex` / `xelatex` / `lualatex` | Same TeX Live / MiKTeX install. |
-| `chktex` | Same TeX Live / MiKTeX install. Optional but recommended. |
-| `pandoc` | <https://pandoc.org/installing.html>. Optional, only needed for the Markdown / DOCX export. |
+| Binary                              | Install hint                                                                                                                        |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `tectonic`                          | `cargo install tectonic` (cleanest), or download a static release from <https://tectonic-typesetting.github.io/en-US/install.html>. |
+| `latexmk`                           | Ships with TeX Live (`apt install texlive-latex-extra`) and MiKTeX.                                                                 |
+| `pdflatex` / `xelatex` / `lualatex` | Same TeX Live / MiKTeX install.                                                                                                     |
+| `chktex`                            | Same TeX Live / MiKTeX install. Optional but recommended.                                                                           |
+| `pandoc`                            | <https://pandoc.org/installing.html>. Optional, only needed for the Markdown / DOCX export.                                         |
 
 `scripts/setup.sh` / `scripts/setup.ps1` install all of these on a fresh box for
 their respective OS; see [`scripts/README.md`](../scripts/README.md).
@@ -183,11 +183,11 @@ their respective OS; see [`scripts/README.md`](../scripts/README.md).
 
 ## Observability (optional)
 
-| Variable | Source |
-|---|---|
+| Variable                      | Source                                                                                                                          |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Any OTLP-compatible collector — Honeycomb, Jaeger, Tempo, the OpenTelemetry Collector with a Datadog / New Relic exporter, etc. |
-| `OTEL_EXPORTER_OTLP_HEADERS` | Vendor-specific (e.g. `api-key=abc123` for Honeycomb). |
-| `SENTRY_DSN` | Sentry → Project Settings → Client Keys (DSN). |
+| `OTEL_EXPORTER_OTLP_HEADERS`  | Vendor-specific (e.g. `api-key=abc123` for Honeycomb).                                                                          |
+| `SENTRY_DSN`                  | Sentry → Project Settings → Client Keys (DSN).                                                                                  |
 
 Both default to off — the server falls back to stdout-only `tracing` logs.
 
@@ -216,7 +216,7 @@ error otherwise. Useful in CI as a smoke test before booting the full server.
   the wrong port (Docker maps `6379` by default, but custom compose files sometimes
   use `6380` to avoid conflicts).
 - **"prepared statement already exists" from sqlx** — `DATABASE_URL` is pointing at the
-  *transaction* pooler instead of the *session* pooler. Switch to port 5432.
+  _transaction_ pooler instead of the _session_ pooler. Switch to port 5432.
 - **"upload exceeds size limit" or random 413s** — your reverse proxy (nginx, Caddy,
   Cloudflare) has a smaller body limit than `FILE_SIZE_MAX_BYTES`. Match the two.
 - **AI features 503 with "AI not configured"** — set `AI_KEY_ENCRYPTION_KEY`; the AI

@@ -19,11 +19,15 @@ const counts = await c.query(`
 console.log('yjs_updates by doc_id:');
 for (const row of counts.rows) console.log(' ', row);
 
-const proj = await c.query("select id, name, owner_id, updated_at from public.projects order by updated_at desc limit 10");
+const proj = await c.query(
+  'select id, name, owner_id, updated_at from public.projects order by updated_at desc limit 10',
+);
 console.log('\nrecent projects:');
 for (const row of proj.rows) console.log(' ', row);
 
-const files = await c.query("select id, project_id, path, size_bytes from public.project_files order by updated_at desc limit 20");
+const files = await c.query(
+  'select id, project_id, path, size_bytes from public.project_files order by updated_at desc limit 20',
+);
 console.log('\nrecent files:');
 for (const row of files.rows) console.log(' ', row);
 

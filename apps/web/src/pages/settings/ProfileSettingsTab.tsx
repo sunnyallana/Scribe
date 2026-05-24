@@ -70,7 +70,9 @@ export function ProfileSettingsTab() {
         <Input
           id="profile-name"
           value={displayName}
-          onChange={(e) => { setDisplayName(e.target.value); }}
+          onChange={(e) => {
+            setDisplayName(e.target.value);
+          }}
           placeholder={t('settings.profile.displayNamePlaceholder')}
         />
       </div>
@@ -80,7 +82,9 @@ export function ProfileSettingsTab() {
           id="profile-avatar"
           type="url"
           value={avatarUrl}
-          onChange={(e) => { setAvatarUrl(e.target.value); }}
+          onChange={(e) => {
+            setAvatarUrl(e.target.value);
+          }}
           placeholder="https://…"
         />
       </div>
@@ -88,7 +92,9 @@ export function ProfileSettingsTab() {
         <Label htmlFor="profile-language">{t('settings.language')}</Label>
         <Select
           value={i18n.language}
-          onValueChange={(next) => { void i18n.changeLanguage(next); }}
+          onValueChange={(next) => {
+            void i18n.changeLanguage(next);
+          }}
         >
           <SelectTrigger id="profile-language" className="w-full max-w-xs">
             <SelectValue />

@@ -67,7 +67,9 @@ function ProjectMenu({ project, openSettings, t }: ProjectMenuProps) {
       setRenameOpen(false);
       toast.success(t('project.renamed'));
     },
-    onError: (err) => { toast.error(err.body.message); },
+    onError: (err) => {
+      toast.error(err.body.message);
+    },
   });
 
   const duplicateMutation = useMutation<{ id: string }, ApiError>({
@@ -77,7 +79,9 @@ function ProjectMenu({ project, openSettings, t }: ProjectMenuProps) {
       toast.success(t('project.duplicated'));
       void navigate(`/project/${copied.id}`);
     },
-    onError: (err) => { toast.error(err.body.message); },
+    onError: (err) => {
+      toast.error(err.body.message);
+    },
   });
 
   function submitRename() {
@@ -163,7 +167,9 @@ function ProjectMenu({ project, openSettings, t }: ProjectMenuProps) {
               // eslint-disable-next-line jsx-a11y/no-autofocus -- rename popover replaces the click target; user expects the cursor in the field they just opened
               autoFocus
               value={draftName}
-              onChange={(e) => { setDraftName(e.target.value); }}
+              onChange={(e) => {
+                setDraftName(e.target.value);
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') {
                   setRenameOpen(false);

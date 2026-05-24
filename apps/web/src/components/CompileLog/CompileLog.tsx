@@ -29,7 +29,10 @@ const LEVEL_ICON: Record<CompileLogEntry['level'], LucideIcon> = {
 
 const LEVEL_COLOR: Record<CompileLogEntry['level'], string> = {
   error: 'text-destructive',
-  warning: 'text-amber-500',
+  // amber-700 (#B45309) — ~7:1 contrast on white, AAA-grade; the
+  // previous amber-500 (#F59E0B) read as "highlighter" rather than
+  // "warning" and washed out against the light surface.
+  warning: 'text-amber-700 dark:text-amber-400',
   info: 'text-muted-foreground',
   debug: 'text-muted-foreground/70',
 };
@@ -53,7 +56,9 @@ function LogSection({
 }) {
   return (
     <section className="mb-2">
-      <header className={`mb-1 flex items-center gap-2 px-2 text-[10px] font-semibold uppercase tracking-wide ${tone === 'muted' ? 'text-muted-foreground/80' : 'text-muted-foreground'}`}>
+      <header
+        className={`mb-1 flex items-center gap-2 px-2 text-[10px] font-semibold uppercase tracking-wide ${tone === 'muted' ? 'text-muted-foreground/80' : 'text-muted-foreground'}`}
+      >
         <span>{label}</span>
         <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] tabular-nums">{count}</span>
       </header>
@@ -197,9 +202,7 @@ export function CompileLog({
           // we drop chktex entries from the rendered list entirely
           // — they stay in `entries` so flipping the toggle back on
           // shows them immediately without recompiling.
-          const lintEntries = lintEnabled
-            ? entries.filter((e) => e.source === 'chktex')
-            : [];
+          const lintEntries = lintEnabled ? entries.filter((e) => e.source === 'chktex') : [];
           if (compileEntries.length === 0 && lintEntries.length === 0) {
             return (
               <p className="px-3 py-2 text-xs text-muted-foreground">

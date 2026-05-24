@@ -180,7 +180,9 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
         log.compile.warn('failed to restore last compile', err);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [projectId]);
 
   // Desktop event-subscription cleanup. Each compile registers three
@@ -203,9 +205,9 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
   // Forward-ref so the bootstrap effect above can call the
   // memoised `refreshArtifactUrls` without listing it as a dep
   // (its identity depends on `setState`, which would loop).
-  const refreshArtifactUrlsRef = useRef<(jobId: CompileJobId) => Promise<void>>(
-    async () => { /* set below */ },
-  );
+  const refreshArtifactUrlsRef = useRef<(jobId: CompileJobId) => Promise<void>>(async () => {
+    /* set below */
+  });
 
   const refreshArtifactUrls = useCallback(async (jobId: CompileJobId) => {
     try {
@@ -232,7 +234,9 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
         window.setTimeout(() => {
           void api.compiles
             .artifactUrl(jobId, 'synctex')
-            .then((res) => { setState((s) => ({ ...s, synctexUrl: res.url })); })
+            .then((res) => {
+              setState((s) => ({ ...s, synctexUrl: res.url }));
+            })
             .catch((err: unknown) => {
               if (err instanceof ApiError && err.status === 404) {
                 // Still racing; retry once more, then give up
@@ -288,7 +292,10 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
               // row stayed frozen at its enqueue-time `durationMs:
               // null` until a manual refetch — i.e. the timing
               // never showed in the UI.
-              job: s.job !== null ? { ...s.job, status: msg.status, durationMs: msg.durationMs } : s.job,
+              job:
+                s.job !== null
+                  ? { ...s.job, status: msg.status, durationMs: msg.durationMs }
+                  : s.job,
             }));
             if (msg.pdfKey !== null) {
               void refreshArtifactUrls(jobId);
@@ -404,12 +411,10 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
             if (e.jobId !== info.jobId) return;
             setState((s) => ({ ...s, entries: [...s.entries, mapDesktopLog(e)] }));
           });
-          const unlistenStatus = await onDesktopCompileStatus(
-            (e: DesktopCompileStatusEvent) => {
-              if (e.jobId !== info.jobId) return;
-              setState((s) => ({ ...s, status: mapDesktopStatus(e.status) }));
-            },
-          );
+          const unlistenStatus = await onDesktopCompileStatus((e: DesktopCompileStatusEvent) => {
+            if (e.jobId !== info.jobId) return;
+            setState((s) => ({ ...s, status: mapDesktopStatus(e.status) }));
+          });
           const unlistenDone = await onDesktopCompileCompleted(
             (e: DesktopCompileCompletedEvent) => {
               if (e.jobId !== info.jobId) return;

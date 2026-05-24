@@ -86,14 +86,10 @@ export function SharePage() {
       <AuthCardLayout title={preview.projectName} description={description}>
         <div className="space-y-2">
           <Button asChild className="w-full">
-            <Link to={`/signup?from=${encodeURIComponent(target)}`}>
-              {t('share.signUpToJoin')}
-            </Link>
+            <Link to={`/signup?from=${encodeURIComponent(target)}`}>{t('share.signUpToJoin')}</Link>
           </Button>
           <Button asChild variant="outline" className="w-full">
-            <Link to={`/login?from=${encodeURIComponent(target)}`}>
-              {t('share.signInToJoin')}
-            </Link>
+            <Link to={`/login?from=${encodeURIComponent(target)}`}>{t('share.signInToJoin')}</Link>
           </Button>
         </div>
       </AuthCardLayout>
@@ -105,7 +101,9 @@ export function SharePage() {
       <Button
         className="w-full"
         disabled={redeeming}
-        onClick={() => { void handleAccept(); }}
+        onClick={() => {
+          void handleAccept();
+        }}
       >
         {redeeming && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
         {t('share.join')}

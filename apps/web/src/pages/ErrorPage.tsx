@@ -49,7 +49,9 @@ export function ErrorPage() {
             <button
               type="button"
               className="text-xs text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
-              onClick={() => { setStackOpen((v) => !v); }}
+              onClick={() => {
+                setStackOpen((v) => !v);
+              }}
             >
               {stackOpen ? t('error.hideStack') : t('error.showStack')}
             </button>
@@ -62,7 +64,12 @@ export function ErrorPage() {
         ) : null}
 
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => { window.location.reload(); }} className="gap-1.5">
+          <Button
+            onClick={() => {
+              window.location.reload();
+            }}
+            className="gap-1.5"
+          >
             <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
             {t('error.reload')}
           </Button>

@@ -1,5 +1,12 @@
 import { StateEffect, StateField, type Extension } from '@codemirror/state';
-import { keymap, EditorView, Decoration, WidgetType, ViewPlugin, type ViewUpdate } from '@codemirror/view';
+import {
+  keymap,
+  EditorView,
+  Decoration,
+  WidgetType,
+  ViewPlugin,
+  type ViewUpdate,
+} from '@codemirror/view';
 
 class GhostWidget extends WidgetType {
   constructor(readonly text: string) {

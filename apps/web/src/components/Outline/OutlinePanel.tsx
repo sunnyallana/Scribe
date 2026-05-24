@@ -131,10 +131,7 @@ function parseOutline(
 
 export function OutlinePanel({ contents, mainFile, onJump, onClose }: OutlinePanelProps) {
   const { t } = useTranslation();
-  const entries = useMemo(
-    () => parseOutline(contents, mainFile ?? null),
-    [contents, mainFile],
-  );
+  const entries = useMemo(() => parseOutline(contents, mainFile ?? null), [contents, mainFile]);
 
   // Determine whether the outline spans more than one file. If so we
   // emit a file-header row before each block to make the source of
@@ -172,20 +169,24 @@ export function OutlinePanel({ contents, mainFile, onJump, onClose }: OutlinePan
           <ul className="space-y-px p-2">
             {entries.map((e, idx) => {
               const prev = idx > 0 ? entries[idx - 1] : undefined;
-              const showFileHeader = multiFile && (prev?.filePath !== e.filePath);
+              const showFileHeader = multiFile && prev?.filePath !== e.filePath;
               return (
                 <li key={`${e.filePath}:${e.line.toString()}:${idx.toString()}`}>
                   {showFileHeader ? (
                     <div className="mt-2 flex items-center gap-1 px-2 pb-1 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                       <FileText className="h-3 w-3" aria-hidden="true" />
-                      <span className="truncate" title={e.filePath}>{e.filePath}</span>
+                      <span className="truncate" title={e.filePath}>
+                        {e.filePath}
+                      </span>
                     </div>
                   ) : null}
                   <button
                     type="button"
                     className="flex w-full items-center gap-1 truncate rounded px-2 py-1 text-left text-xs hover:bg-accent/60"
                     style={{ paddingLeft: `${(e.level * 10 + 6).toString()}px` }}
-                    onClick={() => { onJump(e.filePath, e.line); }}
+                    onClick={() => {
+                      onJump(e.filePath, e.line);
+                    }}
                   >
                     <span className="flex-1 truncate">{e.title}</span>
                     <span className="ml-2 shrink-0 text-[10px] tabular-nums text-muted-foreground">

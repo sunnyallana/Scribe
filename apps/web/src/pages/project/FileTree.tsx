@@ -115,7 +115,9 @@ export function FileTree({ projectId, files, selectedFileId, onSelect }: FileTre
       toast.success(t('project.fileCreated', { path: file.path }));
       await queryClient.invalidateQueries({ queryKey: ['files', projectId] });
     },
-    onError: (err) => { toast.error(err.body.message); },
+    onError: (err) => {
+      toast.error(err.body.message);
+    },
   });
 
   const uploadMutation = useMutation<ProjectFile, ApiError, { path: string; file: File }>({
@@ -124,15 +126,23 @@ export function FileTree({ projectId, files, selectedFileId, onSelect }: FileTre
       toast.success(t('project.fileUploaded', { path: file.path }));
       await queryClient.invalidateQueries({ queryKey: ['files', projectId] });
     },
-    onError: (err) => { toast.error(err.body.message); },
+    onError: (err) => {
+      toast.error(err.body.message);
+    },
   });
 
-  const renameMutation = useMutation<unknown, ApiError, { fileId: ProjectFile['id']; newPath: string }>({
+  const renameMutation = useMutation<
+    unknown,
+    ApiError,
+    { fileId: ProjectFile['id']; newPath: string }
+  >({
     mutationFn: ({ fileId, newPath }) => api.files.rename(projectId, fileId, { newPath }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['files', projectId] });
     },
-    onError: (err) => { toast.error(err.body.message); },
+    onError: (err) => {
+      toast.error(err.body.message);
+    },
   });
 
   const deleteMutation = useMutation<unknown, ApiError, ProjectFile>({
@@ -140,7 +150,9 @@ export function FileTree({ projectId, files, selectedFileId, onSelect }: FileTre
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['files', projectId] });
     },
-    onError: (err) => { toast.error(err.body.message); },
+    onError: (err) => {
+      toast.error(err.body.message);
+    },
   });
 
   async function downloadFile(file: ProjectFile) {
@@ -176,7 +188,11 @@ export function FileTree({ projectId, files, selectedFileId, onSelect }: FileTre
     if (next === null || next.trim() === '' || next.trim() === file.path) return;
     renameMutation.mutate(
       { fileId: file.id, newPath: next.trim() },
-      { onSuccess: () => { toast.success(t('project.fileRenamed', { path: next.trim() })); } },
+      {
+        onSuccess: () => {
+          toast.success(t('project.fileRenamed', { path: next.trim() }));
+        },
+      },
     );
   }
 
@@ -217,7 +233,9 @@ export function FileTree({ projectId, files, selectedFileId, onSelect }: FileTre
   function handleDelete(file: ProjectFile) {
     if (window.confirm(t('project.deleteFileConfirm', { path: file.path }))) {
       deleteMutation.mutate(file, {
-        onSuccess: () => { toast.success(t('project.fileDeleted', { path: file.path })); },
+        onSuccess: () => {
+          toast.success(t('project.fileDeleted', { path: file.path }));
+        },
       });
     }
   }
@@ -249,7 +267,7 @@ export function FileTree({ projectId, files, selectedFileId, onSelect }: FileTre
       return;
     }
     const toUpload = Object.entries(entries).filter(([name, data]) => {
-      if (name.endsWith('/')) return false;          // directory entry
+      if (name.endsWith('/')) return false; // directory entry
       if (name.startsWith('__MACOSX/')) return false; // macOS resource forks
       if (name.endsWith('.DS_Store')) return false;
       if (data.byteLength === 0) return false;
@@ -269,14 +287,20 @@ export function FileTree({ projectId, files, selectedFileId, onSelect }: FileTre
         const finalPath = existingPaths.has(normalized)
           ? `${normalized}.${Date.now().toString()}`
           : normalized;
-        const isLikelyText = /\.(tex|bib|cls|sty|bst|tikz|latex|md|txt|csv|json|yml|yaml|xml|html|ini|cfg)$/i.test(finalPath);
+        const isLikelyText =
+          /\.(tex|bib|cls|sty|bst|tikz|latex|md|txt|csv|json|yml|yaml|xml|html|ini|cfg)$/i.test(
+            finalPath,
+          );
         if (isLikelyText) {
           const text = new TextDecoder('utf-8', { fatal: false }).decode(data);
           return api.files.create(projectId, finalPath, text);
         }
         // Slice off any potential SharedArrayBuffer backing so the TS lib's
         // strict Blob/File typings accept the bytes.
-        const ab = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+        const ab = data.buffer.slice(
+          data.byteOffset,
+          data.byteOffset + data.byteLength,
+        ) as ArrayBuffer;
         const blob = new Blob([ab], { type: 'application/octet-stream' });
         const f = new File([blob], finalPath.split('/').pop() ?? 'file', {
           type: 'application/octet-stream',
@@ -327,7 +351,11 @@ export function FileTree({ projectId, files, selectedFileId, onSelect }: FileTre
     if (newPath === file.path) return;
     renameMutation.mutate(
       { fileId: file.id, newPath },
-      { onSuccess: () => { toast.success(t('project.fileMoved', { path: newPath })); } },
+      {
+        onSuccess: () => {
+          toast.success(t('project.fileMoved', { path: newPath }));
+        },
+      },
     );
   }
 
@@ -347,23 +375,39 @@ export function FileTree({ projectId, files, selectedFileId, onSelect }: FileTre
                   isDropTarget ? 'outline outline-1 outline-primary/60 bg-primary/5' : ''
                 }`}
                 style={indent}
-                onDragOver={(e) => { handleFolderDragOver(e, node.path); }}
-                onDragLeave={() => { if (dropTarget === node.path) setDropTarget(null); }}
-                onDrop={(e) => { handleFolderDrop(e, node.path); }}
+                onDragOver={(e) => {
+                  handleFolderDragOver(e, node.path);
+                }}
+                onDragLeave={() => {
+                  if (dropTarget === node.path) setDropTarget(null);
+                }}
+                onDrop={(e) => {
+                  handleFolderDrop(e, node.path);
+                }}
               >
                 <button
                   type="button"
                   className="flex flex-1 items-center gap-1 truncate text-left"
-                  onClick={() => { toggleFolder(node.path); }}
+                  onClick={() => {
+                    toggleFolder(node.path);
+                  }}
                 >
-                  <Chevron className="h-3 w-3 flex-shrink-0 text-muted-foreground" aria-hidden="true" />
-                  <Icon className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <Chevron
+                    className="h-3 w-3 flex-shrink-0 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <Icon
+                    className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground"
+                    aria-hidden="true"
+                  />
                   <span className="flex-1 truncate">{node.name}</span>
                 </button>
                 <button
                   type="button"
                   className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
-                  onClick={() => { promptNewFile(node.path); }}
+                  onClick={() => {
+                    promptNewFile(node.path);
+                  }}
                   aria-label={t('project.newFile')}
                   title={t('project.newFile')}
                 >
@@ -372,20 +416,37 @@ export function FileTree({ projectId, files, selectedFileId, onSelect }: FileTre
               </div>
             </ContextMenuTrigger>
             <ContextMenuContent>
-              <ContextMenuItem onClick={() => { promptNewFile(node.path); }}>
+              <ContextMenuItem
+                onClick={() => {
+                  promptNewFile(node.path);
+                }}
+              >
                 <FilePlus className="h-3.5 w-3.5" aria-hidden="true" />
                 {t('project.newFile')}
               </ContextMenuItem>
-              <ContextMenuItem onClick={() => { promptNewFolder(node.path); }}>
+              <ContextMenuItem
+                onClick={() => {
+                  promptNewFolder(node.path);
+                }}
+              >
                 <FolderPlus className="h-3.5 w-3.5" aria-hidden="true" />
                 {t('project.newFolder')}
               </ContextMenuItem>
               <ContextMenuSeparator />
-              <ContextMenuItem onClick={() => { void promptRenameFolder(node); }}>
+              <ContextMenuItem
+                onClick={() => {
+                  void promptRenameFolder(node);
+                }}
+              >
                 <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                 {t('project.renameFile')}
               </ContextMenuItem>
-              <ContextMenuItem destructive onClick={() => { void confirmDeleteFolder(node); }}>
+              <ContextMenuItem
+                destructive
+                onClick={() => {
+                  void confirmDeleteFolder(node);
+                }}
+              >
                 <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                 {t('common.delete')}
               </ContextMenuItem>
@@ -408,23 +469,32 @@ export function FileTree({ projectId, files, selectedFileId, onSelect }: FileTre
               }`}
               style={indent}
               draggable
-              onDragStart={(e) => { handleFileDragStart(e, node.file); }}
+              onDragStart={(e) => {
+                handleFileDragStart(e, node.file);
+              }}
             >
               <button
                 type="button"
                 className="flex flex-1 items-center gap-1 truncate text-left"
                 onClick={() => onSelect?.(node.file)}
-                onDoubleClick={() => { promptRenameFile(node.file); }}
+                onDoubleClick={() => {
+                  promptRenameFile(node.file);
+                }}
                 aria-current={isSelected ? 'true' : undefined}
               >
                 <span className="w-3" aria-hidden="true" />
-                <FileText className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" aria-hidden="true" />
+                <FileText
+                  className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
                 <span className="flex-1 truncate">{node.name}</span>
               </button>
               <button
                 type="button"
                 className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
-                onClick={() => { promptRenameFile(node.file); }}
+                onClick={() => {
+                  promptRenameFile(node.file);
+                }}
                 aria-label={t('project.renameFile')}
                 title={t('project.renameFile')}
               >
@@ -433,7 +503,9 @@ export function FileTree({ projectId, files, selectedFileId, onSelect }: FileTre
               <button
                 type="button"
                 className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
-                onClick={() => { handleDelete(node.file); }}
+                onClick={() => {
+                  handleDelete(node.file);
+                }}
                 aria-label={t('common.delete')}
               >
                 <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
@@ -445,16 +517,29 @@ export function FileTree({ projectId, files, selectedFileId, onSelect }: FileTre
               <FileText className="h-3.5 w-3.5" aria-hidden="true" />
               {t('project.openFile')}
             </ContextMenuItem>
-            <ContextMenuItem onClick={() => { promptRenameFile(node.file); }}>
+            <ContextMenuItem
+              onClick={() => {
+                promptRenameFile(node.file);
+              }}
+            >
               <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
               {t('project.renameFile')}
             </ContextMenuItem>
-            <ContextMenuItem onClick={() => { void downloadFile(node.file); }}>
+            <ContextMenuItem
+              onClick={() => {
+                void downloadFile(node.file);
+              }}
+            >
               <Download className="h-3.5 w-3.5" aria-hidden="true" />
               {t('project.downloadFile')}
             </ContextMenuItem>
             <ContextMenuSeparator />
-            <ContextMenuItem destructive onClick={() => { handleDelete(node.file); }}>
+            <ContextMenuItem
+              destructive
+              onClick={() => {
+                handleDelete(node.file);
+              }}
+            >
               <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
               {t('common.delete')}
             </ContextMenuItem>
@@ -469,9 +554,15 @@ export function FileTree({ projectId, files, selectedFileId, onSelect }: FileTre
   return (
     <div
       className={`space-y-2 ${dropTarget === '' ? 'rounded outline outline-1 outline-primary/60' : ''}`}
-      onDragOver={(e) => { handleFolderDragOver(e, ''); }}
-      onDragLeave={() => { if (dropTarget === '') setDropTarget(null); }}
-      onDrop={(e) => { handleFolderDrop(e, ''); }}
+      onDragOver={(e) => {
+        handleFolderDragOver(e, '');
+      }}
+      onDragLeave={() => {
+        if (dropTarget === '') setDropTarget(null);
+      }}
+      onDrop={(e) => {
+        handleFolderDrop(e, '');
+      }}
     >
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold uppercase text-muted-foreground">
@@ -484,7 +575,9 @@ export function FileTree({ projectId, files, selectedFileId, onSelect }: FileTre
             className="h-6 w-6"
             aria-label={t('project.newFile')}
             title={t('project.newFile')}
-            onClick={() => { promptNewFile(); }}
+            onClick={() => {
+              promptNewFile();
+            }}
             disabled={busy}
           >
             <FilePlus className="h-3 w-3" aria-hidden="true" />
@@ -495,7 +588,9 @@ export function FileTree({ projectId, files, selectedFileId, onSelect }: FileTre
             className="h-6 w-6"
             aria-label={t('project.newFolder')}
             title={t('project.newFolder')}
-            onClick={() => { promptNewFolder(); }}
+            onClick={() => {
+              promptNewFolder();
+            }}
             disabled={busy}
           >
             <FolderPlus className="h-3 w-3" aria-hidden="true" />
