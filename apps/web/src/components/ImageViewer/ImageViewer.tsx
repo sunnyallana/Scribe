@@ -45,8 +45,7 @@ export function ImageViewer({ projectId, file }: ImageViewerProps) {
     staleTime: 4 * 60 * 1000,
   });
   const signedUrl = urlQuery.data?.url ?? null;
-  const error =
-    urlQuery.error instanceof Error ? urlQuery.error.message : null;
+  const error = urlQuery.error instanceof Error ? urlQuery.error.message : null;
 
   // Reset zoom on file change so a re-opened image always starts at
   // 1×, not the previous file's zoom level.
@@ -97,7 +96,9 @@ export function ImageViewer({ projectId, file }: ImageViewerProps) {
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            onClick={() => { setZoomIdx((i) => Math.max(0, i - 1)); }}
+            onClick={() => {
+              setZoomIdx((i) => Math.max(0, i - 1));
+            }}
             disabled={zoomIdx === 0}
             aria-label={t('compile.zoomOut')}
           >
@@ -110,7 +111,9 @@ export function ImageViewer({ projectId, file }: ImageViewerProps) {
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            onClick={() => { setZoomIdx((i) => Math.min(ZOOM_STEPS.length - 1, i + 1)); }}
+            onClick={() => {
+              setZoomIdx((i) => Math.min(ZOOM_STEPS.length - 1, i + 1));
+            }}
             disabled={zoomIdx === ZOOM_STEPS.length - 1}
             aria-label={t('compile.zoomIn')}
           >
@@ -120,7 +123,9 @@ export function ImageViewer({ projectId, file }: ImageViewerProps) {
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            onClick={() => { setZoomIdx(ZOOM_DEFAULT_IDX); }}
+            onClick={() => {
+              setZoomIdx(ZOOM_DEFAULT_IDX);
+            }}
             aria-label="1×"
             title="1×"
           >
@@ -178,8 +183,7 @@ export function ImageViewer({ projectId, file }: ImageViewerProps) {
                 imageRendering: zoom >= 2 ? 'pixelated' : 'auto',
                 maxWidth: 'none',
                 maxHeight: 'none',
-                boxShadow:
-                  '0 0 0 1px rgba(0, 0, 0, 0.06), 0 6px 16px -4px rgba(15, 23, 42, 0.18)',
+                boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.06), 0 6px 16px -4px rgba(15, 23, 42, 0.18)',
               }}
             />
           </div>

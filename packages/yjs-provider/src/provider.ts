@@ -15,7 +15,12 @@ import {
 } from 'y-protocols/sync';
 import { Doc as YDoc } from 'yjs';
 
-import { MESSAGE_AWARENESS, MESSAGE_SYNC, type PresenceUser, type YjsProviderConfig } from './protocol.js';
+import {
+  MESSAGE_AWARENESS,
+  MESSAGE_SYNC,
+  type PresenceUser,
+  type YjsProviderConfig,
+} from './protocol.js';
 
 export type ProviderStatus = 'connecting' | 'connected' | 'disconnected';
 
@@ -175,10 +180,7 @@ export class ScribeYjsProvider {
       if (states.size > 0) {
         const aw = encoding.createEncoder();
         encoding.writeVarUint(aw, MESSAGE_AWARENESS);
-        encoding.writeVarUint8Array(
-          aw,
-          encodeAwarenessUpdate(this.awareness, [this.doc.clientID]),
-        );
+        encoding.writeVarUint8Array(aw, encodeAwarenessUpdate(this.awareness, [this.doc.clientID]));
         ws.send(encoding.toUint8Array(aw));
       }
     };
@@ -205,8 +207,7 @@ export class ScribeYjsProvider {
           // collab-timeout fallback always fired at 2.5 s, leaving the
           // editor in solo mode and silently disabling live sync.
           if (
-            (syncMessageType === messageYjsSyncStep2 ||
-              syncMessageType === messageYjsUpdate) &&
+            (syncMessageType === messageYjsSyncStep2 || syncMessageType === messageYjsUpdate) &&
             !this.synced
           ) {
             this.synced = true;
@@ -249,10 +250,7 @@ export class ScribeYjsProvider {
 
   private scheduleReconnect(): void {
     if (this.destroyed) return;
-    const delay = Math.min(
-      RECONNECT_BASE_MS * 2 ** this.reconnectAttempts,
-      RECONNECT_MAX_MS,
-    );
+    const delay = Math.min(RECONNECT_BASE_MS * 2 ** this.reconnectAttempts, RECONNECT_MAX_MS);
     this.reconnectAttempts += 1;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;

@@ -39,16 +39,7 @@ function enabled(): boolean {
   return features.debugLogging;
 }
 
-type Category =
-  | 'yjs'
-  | 'api'
-  | 'editor'
-  | 'save'
-  | 'role'
-  | 'auth'
-  | 'compile'
-  | 'ws'
-  | 'router';
+type Category = 'yjs' | 'api' | 'editor' | 'save' | 'role' | 'auth' | 'compile' | 'ws' | 'router';
 
 /** Per-category color so the prefix pops in DevTools. CSS-in-console
  *  trick — Chrome/Firefox both honour `%c` format-string syntax. */
@@ -64,7 +55,11 @@ const COLORS: Record<Category, string> = {
   router: '#64748b', // slate
 };
 
-function emit(level: 'debug' | 'info' | 'warn' | 'error', category: Category, ...rest: unknown[]): void {
+function emit(
+  level: 'debug' | 'info' | 'warn' | 'error',
+  category: Category,
+  ...rest: unknown[]
+): void {
   if (!enabled()) return;
   const color = COLORS[category] ?? '#888';
   const tag = `%c[Scribe:${category}]`;
@@ -82,11 +77,19 @@ interface Logger {
 }
 
 function mkLogger(category: Category): Logger {
-  const base = (...args: unknown[]) => { emit('debug', category, ...args); };
+  const base = (...args: unknown[]) => {
+    emit('debug', category, ...args);
+  };
   const logger = base as Logger;
-  logger.info = (...args) => { emit('info', category, ...args); };
-  logger.warn = (...args) => { emit('warn', category, ...args); };
-  logger.error = (...args) => { emit('error', category, ...args); };
+  logger.info = (...args) => {
+    emit('info', category, ...args);
+  };
+  logger.warn = (...args) => {
+    emit('warn', category, ...args);
+  };
+  logger.error = (...args) => {
+    emit('error', category, ...args);
+  };
   return logger;
 }
 
@@ -121,8 +124,14 @@ export function debugEnabled(): boolean {
 //   window.__scribeDebug.on()  / .off() / .status()
 if (typeof window !== 'undefined') {
   (window as unknown as { __scribeDebug?: unknown }).__scribeDebug = {
-    on: () => { setDebug(true); console.warn('[Scribe] debug ON'); },
-    off: () => { setDebug(false); console.warn('[Scribe] debug OFF'); },
+    on: () => {
+      setDebug(true);
+      console.warn('[Scribe] debug ON');
+    },
+    off: () => {
+      setDebug(false);
+      console.warn('[Scribe] debug OFF');
+    },
     status: () => enabled(),
   };
 }

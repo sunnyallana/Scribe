@@ -4,10 +4,5 @@ import { PageError } from '../components/PageError/PageError';
 
 export function NotFoundPage() {
   const { t } = useTranslation();
-  return (
-    <PageError
-      title="404"
-      description={t('errors.pageNotFound')}
-    />
-  );
+  return <PageError title="404" description={t('errors.pageNotFound')} />;
 }

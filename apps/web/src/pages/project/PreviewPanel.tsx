@@ -125,7 +125,9 @@ export function PreviewPanel({
             variant={view === 'pdf' ? 'default' : 'ghost'}
             size="sm"
             className="h-6 gap-1.5 px-2 text-xs"
-            onClick={() => { setView('pdf'); }}
+            onClick={() => {
+              setView('pdf');
+            }}
           >
             <FileText className="h-3 w-3" aria-hidden="true" />
             {t('compile.viewPdf')}
@@ -136,7 +138,9 @@ export function PreviewPanel({
             variant={view === 'log' ? 'default' : 'ghost'}
             size="sm"
             className="relative h-6 gap-1.5 px-2 text-xs"
-            onClick={() => { setView('log'); }}
+            onClick={() => {
+              setView('log');
+            }}
           >
             <Terminal className="h-3 w-3" aria-hidden="true" />
             {t('compile.viewLog')}
@@ -150,7 +154,7 @@ export function PreviewPanel({
               </span>
             ) : hasWarnings ? (
               <span
-                className="absolute -right-1 -top-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-500 text-amber-50"
+                className="absolute -right-1 -top-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-600 text-amber-50"
                 aria-label={t('compile.warningsBadge', { count: counts.warnings })}
                 title={t('compile.warningsBadge', { count: counts.warnings })}
               >

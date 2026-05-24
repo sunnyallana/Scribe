@@ -39,8 +39,6 @@ export function createAIAdapter(config: AIAdapterConfig): AIAdapter {
       }
       return createOllamaAdapter({ baseUrl: config.baseUrl });
     case 'lmstudio':
-      return createLMStudioAdapter(
-        config.baseUrl !== undefined ? { baseUrl: config.baseUrl } : {},
-      );
+      return createLMStudioAdapter(config.baseUrl !== undefined ? { baseUrl: config.baseUrl } : {});
   }
 }

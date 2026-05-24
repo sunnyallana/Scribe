@@ -21,7 +21,9 @@ export function useMediaQuery(query: string): boolean {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const mql = window.matchMedia(query);
-    const onChange = (e: MediaQueryListEvent) => { setMatches(e.matches); };
+    const onChange = (e: MediaQueryListEvent) => {
+      setMatches(e.matches);
+    };
     // Sync once on (re)mount in case the query changed between
     // render and effect.
     setMatches(mql.matches);
@@ -29,7 +31,9 @@ export function useMediaQuery(query: string): boolean {
     // Safari only has `addListener`. Both are supported via the
     // type union below.
     mql.addEventListener('change', onChange);
-    return () => { mql.removeEventListener('change', onChange); };
+    return () => {
+      mql.removeEventListener('change', onChange);
+    };
   }, [query]);
 
   return matches;

@@ -25,11 +25,11 @@ export interface SupportedLanguage {
 }
 
 export const SUPPORTED_LANGUAGES: readonly SupportedLanguage[] = [
-  { code: 'en', label: 'English',  dir: 'ltr' },
+  { code: 'en', label: 'English', dir: 'ltr' },
   { code: 'fr', label: 'Français', dir: 'ltr' },
-  { code: 'es', label: 'Español',  dir: 'ltr' },
-  { code: 'de', label: 'Deutsch',  dir: 'ltr' },
-  { code: 'ur', label: 'اردو',     dir: 'rtl' },
+  { code: 'es', label: 'Español', dir: 'ltr' },
+  { code: 'de', label: 'Deutsch', dir: 'ltr' },
+  { code: 'ur', label: 'اردو', dir: 'rtl' },
 ];
 
 const LANG_STORAGE_KEY = 'scribe:lang';

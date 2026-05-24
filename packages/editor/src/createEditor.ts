@@ -14,7 +14,11 @@ import {
   rectangularSelection,
 } from '@codemirror/view';
 
-import { type AutocompleteSources, createLatexAutocomplete, extractLabels } from './autocomplete.js';
+import {
+  type AutocompleteSources,
+  createLatexAutocomplete,
+  extractLabels,
+} from './autocomplete.js';
 import { autoCloseEnv } from './extensions/auto-close-env.js';
 import { flashLineExtension, flashLineOnView } from './extensions/flash-line.js';
 import { type HoverPreviewSources, hoverPreview } from './extensions/hover-preview.js';
@@ -125,9 +129,7 @@ export function createScribeEditor(opts: ScribeEditorOptions): ScribeEditorHandl
       // autosave or any other "user-edited" downstream effect —
       // doing otherwise spams the file-write endpoint and gives
       // viewers a stream of 403s.
-      const isRemote = update.transactions.some(
-        (tr) => tr.annotation(fromYjs) === true,
-      );
+      const isRemote = update.transactions.some((tr) => tr.annotation(fromYjs) === true);
       if (!isRemote) {
         opts.onChange(update.state.doc.toString());
       }
@@ -302,12 +304,10 @@ export function createScribeEditor(opts: ScribeEditorOptions): ScribeEditorHandl
       // comment from an older edit can't blow up the dispatch.
       const safeFromLine = Math.min(Math.max(from.line, 1), doc.lines);
       const fromLineInfo = doc.line(safeFromLine);
-      const fromPos =
-        fromLineInfo.from + Math.min(Math.max(from.column, 0), fromLineInfo.length);
+      const fromPos = fromLineInfo.from + Math.min(Math.max(from.column, 0), fromLineInfo.length);
       const safeToLine = Math.min(Math.max(to.line, 1), doc.lines);
       const toLineInfo = doc.line(safeToLine);
-      const toPos =
-        toLineInfo.from + Math.min(Math.max(to.column, 0), toLineInfo.length);
+      const toPos = toLineInfo.from + Math.min(Math.max(to.column, 0), toLineInfo.length);
       // anchor is fromPos (range start), head is toPos (range end);
       // CodeMirror handles inverted ranges fine.
       view.dispatch({
@@ -329,4 +329,3 @@ export function createScribeEditor(opts: ScribeEditorOptions): ScribeEditorHandl
     },
   };
 }
-

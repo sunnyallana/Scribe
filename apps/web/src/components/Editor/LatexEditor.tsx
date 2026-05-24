@@ -92,10 +92,14 @@ export const LatexEditor = forwardRef<LatexEditorImperativeHandle, LatexEditorPr
     useImperativeHandle(
       ref,
       () => ({
-        insertAtCursor: (text) => { handleRef.current?.insertAtCursor(text); },
+        insertAtCursor: (text) => {
+          handleRef.current?.insertAtCursor(text);
+        },
         getSelection: () => handleRef.current?.getSelection() ?? '',
         getContent: () => handleRef.current?.getContent() ?? '',
-        gotoLine: (line, options) => { handleRef.current?.gotoLine(line, options); },
+        gotoLine: (line, options) => {
+          handleRef.current?.gotoLine(line, options);
+        },
         getSelectionRange: () =>
           handleRef.current?.getSelectionRange() ?? {
             from: { line: 1, column: 0 },
@@ -105,7 +109,9 @@ export const LatexEditor = forwardRef<LatexEditorImperativeHandle, LatexEditorPr
         selectRange: (from, to, options) => {
           handleRef.current?.selectRange(from, to, options);
         },
-        focus: () => { handleRef.current?.view.focus(); },
+        focus: () => {
+          handleRef.current?.view.focus();
+        },
       }),
       [],
     );
@@ -137,10 +143,18 @@ export const LatexEditor = forwardRef<LatexEditorImperativeHandle, LatexEditorPr
         // Dispatch through the refs so the editor always sees the
         // latest closures from the parent, even when the parent
         // re-renders without remounting the editor.
-        onChange: (next) => { onChangeRef.current(next); },
-        onCompileRequest: () => { onCompileRef.current(); },
-        onSaveRequest: () => { onSaveRef.current(); },
-        onCursor: (line, column) => { onCursorRef.current?.(line, column); },
+        onChange: (next) => {
+          onChangeRef.current(next);
+        },
+        onCompileRequest: () => {
+          onCompileRef.current();
+        },
+        onSaveRequest: () => {
+          onSaveRef.current();
+        },
+        onCursor: (line, column) => {
+          onCursorRef.current?.(line, column);
+        },
         ...(hasCollab ? { collab } : {}),
       });
       handleRef.current = editor;

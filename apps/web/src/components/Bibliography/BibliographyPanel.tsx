@@ -39,10 +39,11 @@ export function BibliographyPanel({
   const filtered = useMemo(() => {
     if (search.trim() === '') return entries;
     const q = search.toLowerCase();
-    return entries.filter((e) =>
-      e.key.toLowerCase().includes(q) ||
-      (e.fields.author ?? '').toLowerCase().includes(q) ||
-      (e.fields.title ?? '').toLowerCase().includes(q),
+    return entries.filter(
+      (e) =>
+        e.key.toLowerCase().includes(q) ||
+        (e.fields.author ?? '').toLowerCase().includes(q) ||
+        (e.fields.title ?? '').toLowerCase().includes(q),
     );
   }, [entries, search]);
 
@@ -88,7 +89,9 @@ export function BibliographyPanel({
         <Input
           placeholder={t('bibliography.searchPlaceholder')}
           value={search}
-          onChange={(e) => { setSearch(e.target.value); }}
+          onChange={(e) => {
+            setSearch(e.target.value);
+          }}
           className="h-8 text-xs"
         />
       </div>
@@ -98,9 +101,7 @@ export function BibliographyPanel({
           <p className="p-3 text-xs text-muted-foreground">{t('bibliography.noBibFile')}</p>
         ) : filtered.length === 0 ? (
           <p className="p-3 text-xs text-muted-foreground">
-            {search === ''
-              ? t('bibliography.empty')
-              : t('bibliography.noMatch', { query: search })}
+            {search === '' ? t('bibliography.empty') : t('bibliography.noMatch', { query: search })}
           </p>
         ) : (
           <ul className="space-y-px p-2">
@@ -117,7 +118,9 @@ export function BibliographyPanel({
                     type="button"
                     className="opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
                     aria-label={t('bibliography.cite', { key: entry.key })}
-                    onClick={() => { onCite(entry.key); }}
+                    onClick={() => {
+                      onCite(entry.key);
+                    }}
                     title={t('bibliography.cite', { key: entry.key })}
                   >
                     <Copy className="h-3 w-3 text-muted-foreground hover:text-foreground" />
@@ -135,7 +138,9 @@ export function BibliographyPanel({
             size="sm"
             variant="outline"
             className="w-full gap-1.5"
-            onClick={() => { setAdding(true); }}
+            onClick={() => {
+              setAdding(true);
+            }}
             disabled={bibFile === undefined}
           >
             <Plus className="h-3 w-3" aria-hidden="true" />
@@ -147,12 +152,16 @@ export function BibliographyPanel({
               className="w-full rounded-md border bg-background p-2 font-mono text-[10px]"
               rows={7}
               value={draft}
-              onChange={(e) => { setDraft(e.target.value); }}
+              onChange={(e) => {
+                setDraft(e.target.value);
+              }}
             />
             <div className="flex gap-2">
               <Button
                 size="sm"
-                onClick={() => { appendMutation.mutate(draft); }}
+                onClick={() => {
+                  appendMutation.mutate(draft);
+                }}
                 disabled={appendMutation.isPending || draft.trim().length === 0}
                 className="gap-1.5"
               >
@@ -161,7 +170,13 @@ export function BibliographyPanel({
                 ) : null}
                 {t('bibliography.save')}
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => { setAdding(false); }}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setAdding(false);
+                }}
+              >
                 {t('common.cancel')}
               </Button>
             </div>

@@ -92,7 +92,7 @@ pnpm -r run build
 cargo build --manifest-path servers/rust/Cargo.toml --workspace --release
 ```
 
-A passing local run does *not* guarantee CI passes — CI also runs Playwright E2E
+A passing local run does _not_ guarantee CI passes — CI also runs Playwright E2E
 against a fresh Supabase instance. Don't be surprised if a flake there sends the PR
 back for one re-run.
 
@@ -100,7 +100,7 @@ back for one re-run.
 
 ## Commit messages
 
-Follow Conventional-Commits-ish prefixes, short subject, body explains *why*:
+Follow Conventional-Commits-ish prefixes, short subject, body explains _why_:
 
 ```
 feat: ghost-text completion for the editor

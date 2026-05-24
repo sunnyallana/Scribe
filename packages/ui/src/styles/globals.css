@@ -3,54 +3,67 @@
 @tailwind utilities;
 
 @layer base {
-  /* ──────────────────────────────────────────────────────────────────
-   * Light theme — "Overleaf Mono".
-   *
-   * Pure-white page, deep charcoal text, royal-blue primary. Tuned for
-   * long log-reading sessions: muted-foreground is dark enough that
-   * verbose log lines stay legible (contrast ≥ 6.5:1 against the
-   * background) while the chrome elements still look quiet.
-   *
-   *   bg     #FFFFFF  pure white
-   *   fg     #1A1A1A  charcoal ink (contrast 17:1 on bg)
-   *   prim   #2563EB  royal blue (buttons, focus ring)
-   *   acc    #EFF6FF  pale royal-blue (hover surface)
-   *   muted  #F4F4F5  neutral panel tint
-   *   muted-fg #525252  mid-slate logs (contrast 7.6:1)
-   *   bord   #D4D4D8  cool neutral divider
-   *   destr  #DC2626  vivid red (hang-up, danger)
-   * ──────────────────────────────────────────────────────────────── */
   :root,
   [data-theme='light'] {
     --background: 0 0% 100%;
-    --foreground: 0 0% 10%;
+    --foreground: 240 10% 3.9%;
 
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 10%;
+    --card-foreground: 240 10% 3.9%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 10%;
+    --popover-foreground: 240 10% 3.9%;
 
-    --primary: 221 83% 53%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
 
-    --secondary: 240 5% 96%;
-    --secondary-foreground: 0 0% 10%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
 
-    --muted: 240 5% 96%;
-    --muted-foreground: 0 0% 32%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
 
-    --accent: 214 100% 97%;
-    --accent-foreground: 221 83% 40%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
 
-    --destructive: 0 73% 51%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 240 5% 84%;
-    --input: 240 5% 90%;
-    --ring: 221 83% 53%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 10% 3.9%;
 
     --radius: 0.5rem;
+
+    /* ── CodeMirror editor palette ────────────────────────────────
+     * Every value the editor's `EditorView.theme(...)` references
+     * (in `packages/editor/src/theme.ts`) goes through these vars
+     * instead of an inline literal. That's the trick that makes
+     * the editor flip live on a `data-theme` toggle: CM's injected
+     * `<style>` block is constant — the colours it points at
+     * change with the cascade. Without this indirection the
+     * editor stylesheet would be frozen at construction and only
+     * a page refresh (which rebuilds the editor) would pick up a
+     * theme swap.
+     * ───────────────────────────────────────────────────────────── */
+    --cm-fg: #171717;
+    --cm-cursor: #000000;
+    --cm-gutter-bg: #fafafa;
+    --cm-gutter-fg: #737373;
+    --cm-selection-bg: #dbeafe;
+    --cm-active-line-bg: rgba(0, 0, 0, 0.04);
+    --cm-active-line-gutter-bg: rgba(0, 0, 0, 0.06);
+    --cm-tooltip-bg: #ffffff;
+    --cm-tooltip-border: hsl(220 13% 88%);
+    --cm-scrollbar-thumb: rgba(0, 0, 0, 0.2);
+    --cm-scrollbar-thumb-hover: rgba(0, 0, 0, 0.35);
+    --cm-keyword: #4338ca;
+    --cm-comment: #737373;
+    --cm-string: #15803d;
+    --cm-command: #1d4ed8;
+    --cm-number: #b45309;
+    --cm-brace: #171717;
+    --cm-link: #1d4ed8;
   }
 
   [data-theme='dark'] {
@@ -81,6 +94,25 @@
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
     --ring: 240 4.9% 83.9%;
+
+    --cm-fg: hsl(0 0% 95%);
+    --cm-cursor: hsl(0 0% 95%);
+    --cm-gutter-bg: hsl(220 13% 18%);
+    --cm-gutter-fg: hsl(220 9% 60%);
+    --cm-selection-bg: hsl(217 91% 30%);
+    --cm-active-line-bg: rgba(255, 255, 255, 0.04);
+    --cm-active-line-gutter-bg: rgba(255, 255, 255, 0.06);
+    --cm-tooltip-bg: hsl(220 13% 12%);
+    --cm-tooltip-border: hsl(220 13% 28%);
+    --cm-scrollbar-thumb: rgba(255, 255, 255, 0.18);
+    --cm-scrollbar-thumb-hover: rgba(255, 255, 255, 0.32);
+    --cm-keyword: hsl(280 90% 75%);
+    --cm-comment: hsl(220 9% 55%);
+    --cm-string: hsl(120 50% 70%);
+    --cm-command: hsl(199 89% 70%);
+    --cm-number: hsl(30 95% 70%);
+    --cm-brace: hsl(0 0% 80%);
+    --cm-link: hsl(199 89% 75%);
   }
 
   [data-theme='high-contrast'] {
@@ -111,6 +143,25 @@
     --border: 0 0% 100%;
     --input: 0 0% 30%;
     --ring: 60 100% 50%;
+
+    --cm-fg: hsl(0 0% 100%);
+    --cm-cursor: hsl(60 100% 60%);
+    --cm-gutter-bg: hsl(0 0% 0%);
+    --cm-gutter-fg: hsl(0 0% 80%);
+    --cm-selection-bg: hsl(220 100% 40%);
+    --cm-active-line-bg: rgba(255, 255, 255, 0.04);
+    --cm-active-line-gutter-bg: rgba(255, 255, 255, 0.08);
+    --cm-tooltip-bg: hsl(0 0% 0%);
+    --cm-tooltip-border: hsl(0 0% 100%);
+    --cm-scrollbar-thumb: rgba(255, 255, 255, 0.4);
+    --cm-scrollbar-thumb-hover: rgba(255, 255, 255, 0.6);
+    --cm-keyword: hsl(60 100% 70%);
+    --cm-comment: hsl(0 0% 75%);
+    --cm-string: hsl(120 100% 70%);
+    --cm-command: hsl(180 100% 70%);
+    --cm-number: hsl(40 100% 70%);
+    --cm-brace: hsl(0 0% 100%);
+    --cm-link: hsl(180 100% 70%);
   }
 }
 
@@ -120,7 +171,9 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: 'rlig' 1, 'calt' 1;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
   }
   :focus-visible {
     @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
@@ -140,9 +193,7 @@
  */
 * {
   scrollbar-width: thin;
-  /* Slate-navy at 22% — softer against the parchment background than
-     pure black, picks up the same hue as `--foreground`. */
-  scrollbar-color: rgba(35, 43, 58, 0.22) transparent;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
 }
 [data-theme='dark'] *,
 [data-theme='high-contrast'] * {
@@ -156,13 +207,13 @@
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background-color: rgba(35, 43, 58, 0.22);
+  background-color: rgba(0, 0, 0, 0.2);
   border-radius: 8px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(35, 43, 58, 0.38);
+  background-color: rgba(0, 0, 0, 0.35);
   background-clip: padding-box;
 }
 [data-theme='dark'] *::-webkit-scrollbar-thumb,

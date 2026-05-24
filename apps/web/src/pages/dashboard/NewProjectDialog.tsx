@@ -1,9 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import {
-  type CreateProjectInput,
-  createProjectInputSchema,
-  type Project,
-} from '@scribe/shared';
+import { type CreateProjectInput, createProjectInputSchema, type Project } from '@scribe/shared';
 import {
   Button,
   Dialog,
@@ -64,7 +60,6 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
           try {
             await api.files.create(created.id, f.path, f.content);
           } catch (err) {
-             
             console.warn('community template seed failed for', f.path, err);
           }
         }
@@ -73,7 +68,9 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
         if (selection.template.mainFile !== 'main.tex') {
           try {
             await api.projects.update(created.id, { mainFile: selection.template.mainFile });
-          } catch { /* leave the default — user can change in settings */ }
+          } catch {
+            /* leave the default — user can change in settings */
+          }
         }
         return created;
       }
@@ -161,7 +158,9 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
               {t('common.cancel')}
             </Button>
             <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+              {mutation.isPending && (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              )}
               {t('common.create')}
             </Button>
           </DialogFooter>

@@ -25,7 +25,7 @@ describe('parseCompileLog', () => {
   it('captures a LaTeX Warning with input line', () => {
     const log = [
       '(./main.tex',
-      'LaTeX Warning: Reference `foo\' on page 1 undefined on input line 12.',
+      "LaTeX Warning: Reference `foo' on page 1 undefined on input line 12.",
     ].join('\n');
 
     const entries = parseCompileLog(log);
@@ -37,9 +37,10 @@ describe('parseCompileLog', () => {
   });
 
   it('captures Overfull \\hbox warnings with line range', () => {
-    const log = ['(./main.tex', 'Overfull \\hbox (10.5pt too wide) in paragraph at lines 5--7'].join(
-      '\n',
-    );
+    const log = [
+      '(./main.tex',
+      'Overfull \\hbox (10.5pt too wide) in paragraph at lines 5--7',
+    ].join('\n');
 
     const entries = parseCompileLog(log);
     expect(entries).toHaveLength(1);
@@ -63,7 +64,9 @@ describe('parseCompileLog', () => {
   });
 
   it('captures tectonic-style note/warning/error prefixes', () => {
-    const log = ['note: skipped 1 file', 'warning: package mismatch', 'error: missing $'].join('\n');
+    const log = ['note: skipped 1 file', 'warning: package mismatch', 'error: missing $'].join(
+      '\n',
+    );
     const entries = parseCompileLog(log);
     expect(entries).toHaveLength(3);
     expect(entries.map((e) => e.level)).toEqual(['info', 'warning', 'error']);

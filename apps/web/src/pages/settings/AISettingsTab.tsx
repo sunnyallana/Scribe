@@ -60,7 +60,11 @@ export function AISettingsTab() {
   // When provider changes, suggest its default model.
   const defaultModelForProvider = useMemo(() => AI_DEFAULT_MODELS[provider], [provider]);
   useEffect(() => {
-    setModel((current) => (current === '' || PROVIDERS.includes(current as AIProvider) ? defaultModelForProvider : current));
+    setModel((current) =>
+      current === '' || PROVIDERS.includes(current as AIProvider)
+        ? defaultModelForProvider
+        : current,
+    );
   }, [defaultModelForProvider]);
 
   const saveMutation = useMutation<AIConfigPublic, ApiError, UpdateAIConfigInput>({
@@ -70,7 +74,9 @@ export function AISettingsTab() {
       toast.success(t('settings.ai.saved'));
       await queryClient.invalidateQueries({ queryKey: ['ai-config'] });
     },
-    onError: (err) => { toast.error(err.body.message); },
+    onError: (err) => {
+      toast.error(err.body.message);
+    },
   });
 
   const pingMutation = useMutation<AIPingResult, ApiError>({
@@ -80,11 +86,14 @@ export function AISettingsTab() {
       if (r.ok) toast.success(t('settings.ai.pingOk', { latency: r.latencyMs }));
       else toast.error(r.error ?? t('settings.ai.pingFailed'));
     },
-    onError: (err) => { toast.error(err.body.message); },
+    onError: (err) => {
+      toast.error(err.body.message);
+    },
   });
 
   const needsBaseUrl = AI_PROVIDER_NEEDS_BASE_URL[provider];
-  const hasExistingKey = configQuery.data?.apiKeyPreview !== null && configQuery.data?.apiKeyPreview !== undefined;
+  const hasExistingKey =
+    configQuery.data?.apiKeyPreview !== null && configQuery.data?.apiKeyPreview !== undefined;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -108,13 +117,20 @@ export function AISettingsTab() {
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="space-y-2">
         <Label htmlFor="ai-provider">{t('settings.ai.provider')}</Label>
-        <Select value={provider} onValueChange={(v) => { setProvider(v as AIProvider); }}>
+        <Select
+          value={provider}
+          onValueChange={(v) => {
+            setProvider(v as AIProvider);
+          }}
+        >
           <SelectTrigger id="ai-provider">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {PROVIDERS.map((p) => (
-              <SelectItem key={p} value={p}>{PROVIDER_LABEL[p]}</SelectItem>
+              <SelectItem key={p} value={p}>
+                {PROVIDER_LABEL[p]}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -125,10 +141,14 @@ export function AISettingsTab() {
         <Input
           id="ai-model"
           value={model}
-          onChange={(e) => { setModel(e.target.value); }}
+          onChange={(e) => {
+            setModel(e.target.value);
+          }}
           placeholder={defaultModelForProvider}
         />
-        <p className="text-xs text-muted-foreground">{t('settings.ai.modelHint', { defaultModel: defaultModelForProvider })}</p>
+        <p className="text-xs text-muted-foreground">
+          {t('settings.ai.modelHint', { defaultModel: defaultModelForProvider })}
+        </p>
       </div>
 
       {needsBaseUrl ? (
@@ -137,8 +157,12 @@ export function AISettingsTab() {
           <Input
             id="ai-baseurl"
             value={baseUrl}
-            onChange={(e) => { setBaseUrl(e.target.value); }}
-            placeholder={provider === 'ollama' ? 'http://localhost:11434' : 'http://localhost:1234/v1'}
+            onChange={(e) => {
+              setBaseUrl(e.target.value);
+            }}
+            placeholder={
+              provider === 'ollama' ? 'http://localhost:11434' : 'http://localhost:1234/v1'
+            }
             type="url"
           />
         </div>
@@ -151,13 +175,17 @@ export function AISettingsTab() {
           type="password"
           autoComplete="off"
           value={apiKey}
-          onChange={(e) => { setApiKey(e.target.value); }}
-          placeholder={hasExistingKey ? `${configQuery.data?.apiKeyPreview ?? ''} (${t('settings.ai.keyOnFile')})` : 'sk-...'}
+          onChange={(e) => {
+            setApiKey(e.target.value);
+          }}
+          placeholder={
+            hasExistingKey
+              ? `${configQuery.data?.apiKeyPreview ?? ''} (${t('settings.ai.keyOnFile')})`
+              : 'sk-...'
+          }
         />
         <p className="text-xs text-muted-foreground">
-          {hasExistingKey
-            ? t('settings.ai.apiKeyOnFile')
-            : t('settings.ai.apiKeyEmpty')}
+          {hasExistingKey ? t('settings.ai.apiKeyOnFile') : t('settings.ai.apiKeyEmpty')}
         </p>
       </div>
 
@@ -172,7 +200,9 @@ export function AISettingsTab() {
           type="button"
           variant="outline"
           disabled={pingMutation.isPending || !hasExistingKey}
-          onClick={() => { pingMutation.mutate(); }}
+          onClick={() => {
+            pingMutation.mutate();
+          }}
           className="gap-1.5"
         >
           {pingMutation.isPending ? (
@@ -181,7 +211,9 @@ export function AISettingsTab() {
           {t('settings.ai.testConnection')}
         </Button>
         {pingResult !== null ? (
-          <span className={`flex items-center gap-1 text-xs ${pingResult.ok ? 'text-emerald-600' : 'text-destructive'}`}>
+          <span
+            className={`flex items-center gap-1 text-xs ${pingResult.ok ? 'text-emerald-600' : 'text-destructive'}`}
+          >
             {pingResult.ok ? (
               <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
             ) : (
@@ -189,7 +221,7 @@ export function AISettingsTab() {
             )}
             {pingResult.ok
               ? t('settings.ai.pingOk', { latency: pingResult.latencyMs })
-              : pingResult.error ?? t('settings.ai.pingFailed')}
+              : (pingResult.error ?? t('settings.ai.pingFailed'))}
           </span>
         ) : null}
       </div>

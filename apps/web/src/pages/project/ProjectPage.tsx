@@ -73,7 +73,9 @@ export function ProjectPage() {
       const parsed: unknown = JSON.parse(raw);
       if (!Array.isArray(parsed)) return [];
       return parsed.filter((v): v is ProjectFile['id'] => typeof v === 'string');
-    } catch { return []; }
+    } catch {
+      return [];
+    }
   });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const sidebarRef = useRef<ImperativePanelHandle>(null);
@@ -128,7 +130,9 @@ export function ProjectPage() {
   // Reset the auto-select guard when switching to a different project
   // — the route navigates between projects without unmounting the
   // page, so we need to re-run the bootstrap.
-  useEffect(() => { autoSelectedRef.current = false; }, [projectId]);
+  useEffect(() => {
+    autoSelectedRef.current = false;
+  }, [projectId]);
   useEffect(() => {
     if (autoSelectedRef.current) return;
     if (selectedFileId !== null) {
@@ -175,7 +179,9 @@ export function ProjectPage() {
     if (tabsStorageKey === null) return;
     try {
       window.localStorage.setItem(tabsStorageKey, JSON.stringify(openFileIds));
-    } catch { /* quota exceeded; the tab strip just won't restore */ }
+    } catch {
+      /* quota exceeded; the tab strip just won't restore */
+    }
   }, [tabsStorageKey, openFileIds]);
 
   function closeTab(id: ProjectFile['id']) {
@@ -203,9 +209,13 @@ export function ProjectPage() {
     if (project === undefined) return;
     setChrome({
       project,
-      openSettings: () => { setSettingsOpen(true); },
+      openSettings: () => {
+        setSettingsOpen(true);
+      },
     });
-    return () => { clearChrome(); };
+    return () => {
+      clearChrome();
+    };
   }, [project, setChrome, clearChrome]);
 
   function toggleSidebar() {
@@ -235,7 +245,9 @@ export function ProjectPage() {
       <PageError
         title={t('errors.couldntLoadProject')}
         {...(error?.body.message !== undefined ? { description: error.body.message } : {})}
-        onRetry={() => { void projectQuery.refetch(); }}
+        onRetry={() => {
+          void projectQuery.refetch();
+        }}
       />
     );
   }
@@ -284,7 +296,9 @@ export function ProjectPage() {
           <SheetContent className="w-full sm:max-w-md">
             <ProjectSettingsSheet
               project={project}
-              onClosed={() => { setSettingsOpen(false); }}
+              onClosed={() => {
+                setSettingsOpen(false);
+              }}
             />
           </SheetContent>
         </Sheet>
@@ -322,11 +336,7 @@ export function ProjectPage() {
 
   return (
     <div className="h-full">
-      <PanelGroup
-        direction="horizontal"
-        autoSaveId="scribe:project-layout"
-        className="h-full"
-      >
+      <PanelGroup direction="horizontal" autoSaveId="scribe:project-layout" className="h-full">
         {isMobileLayout ? null : (
           <>
             <Panel
@@ -336,8 +346,12 @@ export function ProjectPage() {
               maxSize={35}
               collapsible
               collapsedSize={0}
-              onCollapse={() => { setSidebarCollapsed(true); }}
-              onExpand={() => { setSidebarCollapsed(false); }}
+              onCollapse={() => {
+                setSidebarCollapsed(true);
+              }}
+              onExpand={() => {
+                setSidebarCollapsed(false);
+              }}
             >
               <aside className="flex h-full flex-col border-r bg-muted/30">
                 {sidebarHeader}
@@ -352,9 +366,13 @@ export function ProjectPage() {
             project={project}
             files={files}
             selectedFile={selectedFile}
-            onSelectFile={(file) => { setSelectedFileId(file.id); }}
+            onSelectFile={(file) => {
+              setSelectedFileId(file.id);
+            }}
             openFiles={openFiles}
-            onCloseFile={(file) => { closeTab(file.id); }}
+            onCloseFile={(file) => {
+              closeTab(file.id);
+            }}
             // On mobile the drawer is closed by default, so the
             // workspace's "expand sidebar" arrow needs to be visible
             // any time it can re-open the drawer. We pretend the
@@ -372,11 +390,7 @@ export function ProjectPage() {
           state (cheap when closed) so a window resize while open
           doesn't strand it. */}
       <Sheet open={isMobileLayout && mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
-        <SheetContent
-          side="left"
-          hideCloseButton
-          className="flex w-72 max-w-[85vw] flex-col p-0"
-        >
+        <SheetContent side="left" hideCloseButton className="flex w-72 max-w-[85vw] flex-col p-0">
           {sidebarHeader}
           {sidebarFileTree}
         </SheetContent>

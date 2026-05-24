@@ -44,8 +44,18 @@ const REGIONS = [
 const hosts = [
   { host: `db.${projectRef}.supabase.co`, port: 5432, user: 'postgres', label: 'direct' },
   ...REGIONS.flatMap((r) => [
-    { host: `aws-1-${r}.pooler.supabase.com`, port: 5432, user: `postgres.${projectRef}`, label: `aws-1-${r}` },
-    { host: `aws-0-${r}.pooler.supabase.com`, port: 5432, user: `postgres.${projectRef}`, label: `aws-0-${r}` },
+    {
+      host: `aws-1-${r}.pooler.supabase.com`,
+      port: 5432,
+      user: `postgres.${projectRef}`,
+      label: `aws-1-${r}`,
+    },
+    {
+      host: `aws-0-${r}.pooler.supabase.com`,
+      port: 5432,
+      user: `postgres.${projectRef}`,
+      label: `aws-0-${r}`,
+    },
   ]),
 ];
 
@@ -66,7 +76,9 @@ async function tryConnect() {
       return client;
     } catch (e) {
       console.log(`  ${cfg.label} failed: ${e.message}`);
-      try { await client.end(); } catch {}
+      try {
+        await client.end();
+      } catch {}
     }
   }
   throw new Error('Could not connect to any Supabase Postgres endpoint');

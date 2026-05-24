@@ -90,11 +90,7 @@ function OverflowDot({
   );
 }
 
-export function PresenceAvatars({
-  peers,
-  localUser,
-  maxVisible = 3,
-}: PresenceAvatarsProps) {
+export function PresenceAvatars({ peers, localUser, maxVisible = 3 }: PresenceAvatarsProps) {
   const { t } = useTranslation();
 
   // Yjs's awareness has one entry per WebSocket connection (clientID),

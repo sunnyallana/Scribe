@@ -38,24 +38,25 @@ Scribe addresses each of those problems in a single stack. A single Rust binary 
 
 ## How Scribe compares
 
-|                                          | **Scribe** | Overleaf (cloud) | Overleaf Community | Papeeria | TeXstudio + git |
-|------------------------------------------|:----------:|:----------------:|:------------------:|:--------:|:---------------:|
-| Real-time multi-cursor collaboration     | yes        | paid tier        | yes                | yes      | no              |
-| Self-hostable                            | one Rust binary | no | 8-container Docker stack | no | n/a |
-| Native desktop installer                 | MSI + NSIS, signed | no       | no                 | no       | yes (manual TeX install) |
-| Offline-first                            | yes (SQLite mirror) | no    | no                 | no       | yes             |
-| LaTeX engine in the installer            | tectonic bundled, MiKTeX via post-install | n/a | n/a | n/a | separate install |
-| Voice chat between collaborators         | WebRTC mesh | no              | no                 | no       | no              |
-| AI assist with your own provider key     | 6 providers, AES-256-GCM at rest | partial, Premium tier | no | no | extensions only |
-| Forward SyncTeX (PDF click jumps editor) | yes        | yes              | yes                | partial  | yes             |
-| Auto-updater on the desktop              | signed releases via GitHub | no | no | no | depends on distro |
-| Source license                           | AGPL-3.0   | proprietary      | AGPL-3.0           | proprietary | varies        |
+|                                          |                **Scribe**                 |   Overleaf (cloud)    |    Overleaf Community    |  Papeeria   |     TeXstudio + git      |
+| ---------------------------------------- | :---------------------------------------: | :-------------------: | :----------------------: | :---------: | :----------------------: |
+| Real-time multi-cursor collaboration     |                    yes                    |       paid tier       |           yes            |     yes     |            no            |
+| Self-hostable                            |              one Rust binary              |          no           | 8-container Docker stack |     no      |           n/a            |
+| Native desktop installer                 |            MSI + NSIS, signed             |          no           |            no            |     no      | yes (manual TeX install) |
+| Offline-first                            |            yes (SQLite mirror)            |          no           |            no            |     no      |           yes            |
+| LaTeX engine in the installer            | tectonic bundled, MiKTeX via post-install |          n/a          |           n/a            |     n/a     |     separate install     |
+| Voice chat between collaborators         |                WebRTC mesh                |          no           |            no            |     no      |            no            |
+| AI assist with your own provider key     |     6 providers, AES-256-GCM at rest      | partial, Premium tier |            no            |     no      |     extensions only      |
+| Forward SyncTeX (PDF click jumps editor) |                    yes                    |          yes          |           yes            |   partial   |           yes            |
+| Auto-updater on the desktop              |        signed releases via GitHub         |          no           |            no            |     no      |    depends on distro     |
+| Source license                           |                 AGPL-3.0                  |      proprietary      |         AGPL-3.0         | proprietary |          varies          |
 
 The check-marks I care about most: a single binary you can `cargo run`, an installer your less-technical collaborator can double-click, and an offline mode that survives a flight to a conference.
 
 ## What you get
 
 ### Native desktop app
+
 - **Installable Tauri 2 shell** for Windows (NSIS + MSI), macOS (DMG), and Linux (deb / AppImage). The Windows installer ships everything needed to compile on a fresh machine, tectonic bundled as a resource, WebView2 auto-bootstrapped, MiKTeX + Strawberry Perl offered via a `winget` post-install hook.
 - **Offline-first compute**: SQLite mirrors the project tree, the bundled tectonic engine compiles locally, materialised workdirs survive restarts, and a sync engine pushes/pulls on reconnect with a three-way conflict modal for hard collisions.
 - **Same SPA, two surfaces**: the React codebase runs in-browser AND inside the Tauri webview; `isTauri()` branches the few divergent paths (compile dispatch, deep-link routing, sync engine, Yjs local persistence).
@@ -63,6 +64,7 @@ The check-marks I care about most: a single binary you can `cargo run`, an insta
 - **System integration**: native File/Edit/View/Project/Tools/Help menu in Rust, OS-registered `scribe://invite/<token>` deep links, Add/Remove Programs entry with custom uninstaller that asks before removing your local data.
 
 ### For writers
+
 - **Real-time multi-author editing** with coloured cursors and live presence avatars,
   backed by a Yjs CRDT, conflict-free even if two people type into the same line at the
   same time.
@@ -114,6 +116,7 @@ The check-marks I care about most: a single binary you can `cargo run`, an insta
   drop.
 
 ### For self-hosters
+
 - **One binary** for the backend (`cargo run -p scribe-server`), no Node runtime, no
   container choreography to get started.
 - **One-shot setup scripts**: `./scripts/setup.sh` (Linux apt/dnf/pacman + macOS Homebrew)
@@ -127,9 +130,9 @@ The check-marks I care about most: a single binary you can `cargo run`, an insta
   with the fallback so a project that needs a package not in the tectonic bundle still
   compiles via latexmk.
 - **Optional chktex integration**: set `CHKTEX_BIN=/path/to/chktex` and every compile
-  + every typing-pause runs a style-lint pass. Warnings come back with concrete `Fix:`
-  hints derived from the chktex message text (robust to chktex's per-version rule
-  renumbering).
+  - every typing-pause runs a style-lint pass. Warnings come back with concrete `Fix:`
+    hints derived from the chktex message text (robust to chktex's per-version rule
+    renumbering).
 - **Pluggable storage** via the `Storage` trait, currently Supabase Storage; an S3
   adapter is a ~150-line module.
 - **Pluggable AI providers** via the same adapter pattern, bring your own endpoint.
@@ -140,21 +143,21 @@ The check-marks I care about most: a single binary you can `cargo run`, an insta
 
 ## Tech stack
 
-| Layer | Technology |
-|---|---|
-| **Frontend** | React 18, TypeScript (`strict`), Vite, Tailwind, shadcn/ui, Zustand, TanStack Query, react-i18next |
-| **Editor** | CodeMirror 6 with a custom Lezer-based LaTeX grammar, custom Yjs binding |
-| **PDF viewer** | pdf.js with HiDPI oversampling, GPU acceleration, OffscreenCanvas, SyncTeX |
-| **Realtime** | Yjs (CRDT) + a Rust WebSocket fan-out (`scribe-yjs`) with per-doc broadcast and read-only enforcement |
-| **Backend** | Rust, Axum 0.7, Tokio 1.40, sqlx 0.8, hyper, tower-http |
-| **Auth** | Supabase Auth (JWT, ES256 / RS256 via JWKS); response cache + circuit breaker |
-| **Database & storage** | Supabase Postgres + Storage |
-| **Queue** | Redis (BLPOP-based job queue, BullMQ-compatible naming) |
-| **Compile** | Tectonic by default; switch to latexmk-style multi-pass against TeX Live / MiKTeX |
-| **Export** | Pandoc 3.x (LaTeX → Markdown / DOCX) |
-| **AI** | OpenAI, Anthropic, Gemini, Ollama, LM Studio, any OpenAI-compatible endpoint |
-| **Build** | Turborepo + pnpm workspaces; Cargo workspace for the Rust crates |
-| **License** | [AGPL-3.0-or-later](./LICENSE) |
+| Layer                  | Technology                                                                                            |
+| ---------------------- | ----------------------------------------------------------------------------------------------------- |
+| **Frontend**           | React 18, TypeScript (`strict`), Vite, Tailwind, shadcn/ui, Zustand, TanStack Query, react-i18next    |
+| **Editor**             | CodeMirror 6 with a custom Lezer-based LaTeX grammar, custom Yjs binding                              |
+| **PDF viewer**         | pdf.js with HiDPI oversampling, GPU acceleration, OffscreenCanvas, SyncTeX                            |
+| **Realtime**           | Yjs (CRDT) + a Rust WebSocket fan-out (`scribe-yjs`) with per-doc broadcast and read-only enforcement |
+| **Backend**            | Rust, Axum 0.7, Tokio 1.40, sqlx 0.8, hyper, tower-http                                               |
+| **Auth**               | Supabase Auth (JWT, ES256 / RS256 via JWKS); response cache + circuit breaker                         |
+| **Database & storage** | Supabase Postgres + Storage                                                                           |
+| **Queue**              | Redis (BLPOP-based job queue, BullMQ-compatible naming)                                               |
+| **Compile**            | Tectonic by default; switch to latexmk-style multi-pass against TeX Live / MiKTeX                     |
+| **Export**             | Pandoc 3.x (LaTeX → Markdown / DOCX)                                                                  |
+| **AI**                 | OpenAI, Anthropic, Gemini, Ollama, LM Studio, any OpenAI-compatible endpoint                          |
+| **Build**              | Turborepo + pnpm workspaces; Cargo workspace for the Rust crates                                      |
+| **License**            | [AGPL-3.0-or-later](./LICENSE)                                                                        |
 
 ## Architecture
 
@@ -228,14 +231,14 @@ The web app is the React SPA running in your browser, hitting the Rust API.
 
 #### Prerequisites
 
-| Need | Version | How to check / install |
-|---|---|---|
-| **Rust** | 1.82+ | `rustup default stable`; <https://rustup.rs> |
-| **Node** | 22.13+ | `node --version`; <https://nodejs.org>. pnpm 11 requires Node 22.13 minimum. |
-| **pnpm** | 11+ | `corepack enable && corepack prepare pnpm@latest --activate` |
-| **Redis** | 7+ | `docker run --rm -d -p 6379:6379 redis:7-alpine`, or native install |
-| **Tectonic** (or **latexmk**) | latest | `cargo install tectonic`, or download from [tectonic-typesetting.github.io](https://tectonic-typesetting.github.io/) |
-| **Supabase project** | free tier ok | <https://supabase.com/dashboard> → New project |
+| Need                          | Version      | How to check / install                                                                                               |
+| ----------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------- |
+| **Rust**                      | 1.82+        | `rustup default stable`; <https://rustup.rs>                                                                         |
+| **Node**                      | 22.13+       | `node --version`; <https://nodejs.org>. pnpm 11 requires Node 22.13 minimum.                                         |
+| **pnpm**                      | 11+          | `corepack enable && corepack prepare pnpm@latest --activate`                                                         |
+| **Redis**                     | 7+           | `docker run --rm -d -p 6379:6379 redis:7-alpine`, or native install                                                  |
+| **Tectonic** (or **latexmk**) | latest       | `cargo install tectonic`, or download from [tectonic-typesetting.github.io](https://tectonic-typesetting.github.io/) |
+| **Supabase project**          | free tier ok | <https://supabase.com/dashboard> → New project                                                                       |
 
 Optional: **Pandoc 3+** (Markdown / DOCX export), **chktex** (style linting; ships with TeX Live / MiKTeX), **Docker** (only if you want to run Supabase locally via `pnpm supabase:start`).
 
@@ -284,22 +287,22 @@ shell that exposes local-compile, SQLite mirror, deep links, and the auto-update
 The desktop shell is **not** standalone — it still needs the Rust API for any
 account-bound feature:
 
-| Feature | Needs the API? |
-|---|---|
-| Editing a file locally | no |
-| Compiling locally with bundled tectonic | no |
-| Authentication, project list, file sync | **yes** |
-| Real-time collab (Yjs hub) | **yes** |
-| Comments, share links, voice, AI | **yes** |
+| Feature                                 | Needs the API? |
+| --------------------------------------- | -------------- |
+| Editing a file locally                  | no             |
+| Compiling locally with bundled tectonic | no             |
+| Authentication, project list, file sync | **yes**        |
+| Real-time collab (Yjs hub)              | **yes**        |
+| Comments, share links, voice, AI        | **yes**        |
 
 So in development you run the **same server** as the web flow, plus the Tauri dev
 shell on top of it.
 
 #### Additional prerequisites (on top of the web list)
 
-| Need | Why |
-|---|---|
-| Platform-specific Tauri toolchain | <https://v2.tauri.app/start/prerequisites/> — webview2 (Windows), webkit2gtk (Linux), Xcode (macOS) |
+| Need                                | Why                                                                                                                       |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Platform-specific Tauri toolchain   | <https://v2.tauri.app/start/prerequisites/> — webview2 (Windows), webkit2gtk (Linux), Xcode (macOS)                       |
 | **MSVC Build Tools** (Windows only) | Required by `cargo build` against `*-msvc` targets — install via Visual Studio Installer → "Desktop development with C++" |
 
 Optional but recommended for Windows: **MiKTeX** + **Strawberry Perl** (via
@@ -344,17 +347,17 @@ signed releases driven by GitHub Actions, see
 Set `COMPILE_ENGINE=tectonic` (default) or `COMPILE_ENGINE=latexmk` and restart the
 server. Tradeoffs:
 
-| Engine | Cold | Warm | Setup |
-|---|---|---|---|
-| **Tectonic** | ~15 s (one-time CTAN bundle download) | ~4 s | Single binary, drops in anywhere |
-| **latexmk-style** (multi-pass) | ~5 s | ~1.5 s | Needs TeX Live or MiKTeX installed |
+| Engine                         | Cold                                  | Warm   | Setup                              |
+| ------------------------------ | ------------------------------------- | ------ | ---------------------------------- |
+| **Tectonic**                   | ~15 s (one-time CTAN bundle download) | ~4 s   | Single binary, drops in anywhere   |
+| **latexmk-style** (multi-pass) | ~5 s                                  | ~1.5 s | Needs TeX Live or MiKTeX installed |
 
 Both produce the same `.pdf` + `.synctex.gz` + `.log` artifact set; the SPA can't tell
 them apart.
 
 ### Fallback
 
-Set `COMPILE_FALLBACK_ENGINE=` to the *other* engine and the worker will auto-retry
+Set `COMPILE_FALLBACK_ENGINE=` to the _other_ engine and the worker will auto-retry
 when the primary returns non-zero. A common configuration on a workstation that has
 both installed:
 
@@ -387,20 +390,20 @@ reverse-proxy / TLS / backup notes in
 [**docs/env-vars.md**](./docs/env-vars.md) tells you exactly where each value comes
 from (Supabase dashboard paths, OpenSSL command for the AI key, etc.). Key knobs:
 
-| Variable | Effect |
-|---|---|
-| `DATABASE_URL` | Postgres pooler URL (session pooler, port 5432) |
-| `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | Auth + storage |
-| `SUPABASE_JWT_SECRET` | Used to verify access tokens server-side |
-| `REDIS_URL` | Queue + L2 cache; falls back to in-process L1 only when unset |
-| `COMPILE_ENGINE` | `tectonic` (default) or `latexmk` |
-| `COMPILE_FALLBACK_ENGINE` | Engine the worker re-runs with when the primary fails. Set to the other engine for a self-healing pipeline. |
-| `TECTONIC_BIN`, `LATEXMK_BIN`, `LATEX_ENGINE`, `PANDOC_BIN` | Override binary paths |
-| `TECTONIC_CACHE_DIR` | Override tectonic's CTAN-bundle cache location. Usually unset, its OS default is already populated. |
-| `CHKTEX_BIN` | Path to `chktex`. When set, every compile + every typing pause runs a style-lint pass. Unset disables linting entirely. |
-| `SCRIBE_ENV` | `development` / `production` / `testing`, drives feature-flag defaults |
-| `SCRIBE_FEATURE_*` | Per-feature toggles (`CACHE_ENABLED`, `YJS_REALTIME`, `RATE_LIMITING`, etc.) |
-| `AI_KEY_ENCRYPTION_KEY` | Required for `/api/ai/*`, `openssl rand -base64 32` |
+| Variable                                                           | Effect                                                                                                                  |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                     | Postgres pooler URL (session pooler, port 5432)                                                                         |
+| `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | Auth + storage                                                                                                          |
+| `SUPABASE_JWT_SECRET`                                              | Used to verify access tokens server-side                                                                                |
+| `REDIS_URL`                                                        | Queue + L2 cache; falls back to in-process L1 only when unset                                                           |
+| `COMPILE_ENGINE`                                                   | `tectonic` (default) or `latexmk`                                                                                       |
+| `COMPILE_FALLBACK_ENGINE`                                          | Engine the worker re-runs with when the primary fails. Set to the other engine for a self-healing pipeline.             |
+| `TECTONIC_BIN`, `LATEXMK_BIN`, `LATEX_ENGINE`, `PANDOC_BIN`        | Override binary paths                                                                                                   |
+| `TECTONIC_CACHE_DIR`                                               | Override tectonic's CTAN-bundle cache location. Usually unset, its OS default is already populated.                     |
+| `CHKTEX_BIN`                                                       | Path to `chktex`. When set, every compile + every typing pause runs a style-lint pass. Unset disables linting entirely. |
+| `SCRIBE_ENV`                                                       | `development` / `production` / `testing`, drives feature-flag defaults                                                  |
+| `SCRIBE_FEATURE_*`                                                 | Per-feature toggles (`CACHE_ENABLED`, `YJS_REALTIME`, `RATE_LIMITING`, etc.)                                            |
+| `AI_KEY_ENCRYPTION_KEY`                                            | Required for `/api/ai/*`, `openssl rand -base64 32`                                                                     |
 
 ## Project layout
 
@@ -452,20 +455,20 @@ Scribe/
 
 ## Roadmap
 
-| Phase | Goal | Status |
-|---|---|---|
-| 0 | Monorepo foundation | done |
-| 1 | Auth, projects, files | done |
-| 2 | LaTeX editor + compile + PDF preview + SyncTeX | done |
-| 3 | Realtime collab + presence + version history + comments | done |
-| 4 | AI assistance (six providers, encrypted keys) | done |
-| 5 | Bibliography, templates, settings UI, exports | done |
-| 5.5 | Voice chat · multi-file tabs · citation lookup · shareable links · i18n | done |
-| 5.6 | Find/replace · hover preview · suggestion mode · chktex live-lint · notification inbox · community templates · compile-engine fallback | done |
-| 6 | Tauri desktop app + offline sync | done |
-| 6.5 | Mid-edit overlay · restore-last-compile · offline content cache · forward SyncTeX · file-tree dual-source · auto-updater · `tauri build` smoke | done |
-| 6.6 | Branded installer (B&W logo across MSI/NSIS) · bundled tectonic · MiKTeX + Strawberry Perl post-install · uninstall cleanup · prerequisites doc · GitHub Actions CI + Release | done |
-| 7 | Docker self-hosting recipe · env-var sourcing guide · `CONTRIBUTING.md` | done |
+| Phase | Goal                                                                                                                                                                          | Status |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 0     | Monorepo foundation                                                                                                                                                           | done   |
+| 1     | Auth, projects, files                                                                                                                                                         | done   |
+| 2     | LaTeX editor + compile + PDF preview + SyncTeX                                                                                                                                | done   |
+| 3     | Realtime collab + presence + version history + comments                                                                                                                       | done   |
+| 4     | AI assistance (six providers, encrypted keys)                                                                                                                                 | done   |
+| 5     | Bibliography, templates, settings UI, exports                                                                                                                                 | done   |
+| 5.5   | Voice chat · multi-file tabs · citation lookup · shareable links · i18n                                                                                                       | done   |
+| 5.6   | Find/replace · hover preview · suggestion mode · chktex live-lint · notification inbox · community templates · compile-engine fallback                                        | done   |
+| 6     | Tauri desktop app + offline sync                                                                                                                                              | done   |
+| 6.5   | Mid-edit overlay · restore-last-compile · offline content cache · forward SyncTeX · file-tree dual-source · auto-updater · `tauri build` smoke                                | done   |
+| 6.6   | Branded installer (B&W logo across MSI/NSIS) · bundled tectonic · MiKTeX + Strawberry Perl post-install · uninstall cleanup · prerequisites doc · GitHub Actions CI + Release | done   |
+| 7     | Docker self-hosting recipe · env-var sourcing guide · `CONTRIBUTING.md`                                                                                                       | done   |
 
 The only Overleaf-parity item still on the backlog is **GitHub sync** (OAuth + push/pull).
 See `PLAN.md` §12 for the full status table.

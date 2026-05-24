@@ -101,7 +101,9 @@ export function AIChat({ onInsert, onClose }: AIChatProps) {
           rows={3}
           placeholder={t('ai.chat.placeholder')}
           value={draft}
-          onChange={(e) => { setDraft(e.target.value); }}
+          onChange={(e) => {
+            setDraft(e.target.value);
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
               e.preventDefault();
@@ -112,7 +114,12 @@ export function AIChat({ onInsert, onClose }: AIChatProps) {
         />
         <div className="flex items-center justify-between">
           <span className="text-[10px] text-muted-foreground">{t('ai.chat.hint')}</span>
-          <Button size="sm" onClick={send} disabled={stream.streaming || draft.trim().length === 0} className="gap-1.5">
+          <Button
+            size="sm"
+            onClick={send}
+            disabled={stream.streaming || draft.trim().length === 0}
+            className="gap-1.5"
+          >
             {stream.streaming ? (
               <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
             ) : (
@@ -144,7 +151,10 @@ function Turn({ turnRole, content, streaming, onInsert }: TurnProps) {
       <div className="whitespace-pre-wrap font-mono">
         {content}
         {streaming === true ? (
-          <span className="ml-1 inline-block h-3 w-2 animate-pulse bg-foreground/40" aria-hidden="true" />
+          <span
+            className="ml-1 inline-block h-3 w-2 animate-pulse bg-foreground/40"
+            aria-hidden="true"
+          />
         ) : null}
       </div>
       {!isUser && content.length > 0 ? (
@@ -152,7 +162,9 @@ function Turn({ turnRole, content, streaming, onInsert }: TurnProps) {
           variant="outline"
           size="sm"
           className="mt-2 h-6 px-2 text-[10px]"
-          onClick={() => { onInsert(content); }}
+          onClick={() => {
+            onInsert(content);
+          }}
         >
           {t('ai.chat.insert')}
         </Button>

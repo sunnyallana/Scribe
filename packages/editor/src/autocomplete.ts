@@ -30,23 +30,27 @@ function templateToSnippet(template: string): string {
 }
 
 function commandCompletions(): readonly Completion[] {
-  return latexCommands.map((cmd): Completion => ({
-    label: cmd.name,
-    type: cmd.template !== undefined ? 'function' : 'keyword',
-    ...(cmd.template !== undefined ? { apply: snippet(templateToSnippet(cmd.template)) } : {}),
-    ...(cmd.category !== undefined ? { detail: cmd.category } : {}),
-    ...(cmd.description !== undefined ? { info: cmd.description } : {}),
-  }));
+  return latexCommands.map(
+    (cmd): Completion => ({
+      label: cmd.name,
+      type: cmd.template !== undefined ? 'function' : 'keyword',
+      ...(cmd.template !== undefined ? { apply: snippet(templateToSnippet(cmd.template)) } : {}),
+      ...(cmd.category !== undefined ? { detail: cmd.category } : {}),
+      ...(cmd.description !== undefined ? { info: cmd.description } : {}),
+    }),
+  );
 }
 
 function snippetCompletions(): readonly Completion[] {
-  return latexSnippets.map((s): Completion => ({
-    label: s.trigger,
-    type: 'snippet',
-    detail: 'snippet',
-    info: s.description,
-    apply: snippet(s.body),
-  }));
+  return latexSnippets.map(
+    (s): Completion => ({
+      label: s.trigger,
+      type: 'snippet',
+      detail: 'snippet',
+      info: s.description,
+      apply: snippet(s.body),
+    }),
+  );
 }
 
 function buildLabelCompletions(labels: readonly string[]): readonly Completion[] {

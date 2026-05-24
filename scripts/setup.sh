@@ -145,14 +145,17 @@ if [[ "$NODE_MAJOR" -lt 22 ]]; then
       pkg_install nodejs
       ;;
     linux:dnf)
-      # Fedora 40+ ships Node 22 as the active module stream. The reset
-      # / enable lines are no-ops if it's already the active stream.
-      sudo dnf module reset -y nodejs 2>/dev/null || true
-      sudo dnf module enable -y nodejs:22 2>/dev/null || true
-      pkg_install nodejs npm
+      # Fedora 40+ no longer publishes a `nodejs:22` module stream; the
+      # default `nodejs` package still resolves to Node 20. Use the
+      # NodeSource RPM setup script (same upstream as the apt path) so
+      # we always land on the requested major.
+      curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo -E bash -
+      pkg_install nodejs
       ;;
     linux:pacman)
-      # Arch repos always carry current Node — `nodejs` + `npm` is enough.
+      # Arch repos always carry current Node; install npm explicitly
+      # so `npm install -g corepack` works in the next step on images
+      # where the `nodejs` package omits the corepack shim.
       pkg_install nodejs npm
       ;;
     *)
@@ -165,6 +168,14 @@ fi
 
 if ! have pnpm; then
   info "Enabling pnpm via corepack…"
+  # Some distros (notably Arch's `nodejs` and Fedora's NodeSource RPM)
+  # don't ship a `corepack` shim on PATH even after `node`/`npm` land,
+  # so install it via npm when missing. Then run `corepack enable` so
+  # the pnpm shim lands on PATH.
+  if ! have corepack; then
+    info "corepack missing — installing via npm…"
+    sudo npm install -g corepack || npm install -g corepack
+  fi
   sudo corepack enable || corepack enable
   # corepack lazily-installs on first use; nudge it now so the next
   # `pnpm install` doesn't pause for the prompt.

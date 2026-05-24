@@ -55,10 +55,7 @@ export async function invoke<T = unknown>(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- T narrows the handler's payload at the call site; without it consumers would lose Tauri event-payload type safety.
-export async function listen<T>(
-  event: string,
-  handler: (payload: T) => void,
-): Promise<() => void> {
+export async function listen<T>(event: string, handler: (payload: T) => void): Promise<() => void> {
   const eventModule = await tauriEvent();
   return eventModule.listen<T>(event, (e) => {
     handler(e.payload);

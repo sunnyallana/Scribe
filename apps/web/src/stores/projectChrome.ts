@@ -21,7 +21,9 @@ export const useProjectChrome = create<ProjectChromeState>((set) => ({
   project: null,
   openSettings: null,
   pdfUrl: null,
-  set: (next) => { set(next); },
+  set: (next) => {
+    set(next);
+  },
   clear: () => {
     set({ project: null, openSettings: null, pdfUrl: null });
   },

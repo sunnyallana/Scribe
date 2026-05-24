@@ -47,13 +47,22 @@ else
   fi
 fi
 
+# `kill` only when we actually have a PID, and treat "already dead" as
+# success. Written as a function so shellcheck doesn't flag the
+# previous `[[ -n $PID ]] && kill || true` chain (SC2015).
+maybe_kill() {
+  local pid=$1
+  [[ -z "$pid" ]] && return 0
+  kill "$pid" 2>/dev/null || true
+}
+
 # ---- Vite port pre-check ---------------------------------------------------
 # Tauri's `beforeDevCommand` runs vite with strictPort:true. If 5173 is
 # busy we'll get a confusing failure deep inside the Tauri build, so
 # bail out early with a friendly message.
 if listening 5173; then
   printf "Port 5173 is already in use. Stop the other Vite dev server (or run.sh) before running run-desktop.\n" >&2
-  [[ -n "$REDIS_PID" ]] && kill "$REDIS_PID" 2>/dev/null || true
+  maybe_kill "$REDIS_PID"
   exit 1
 fi
 
@@ -73,9 +82,9 @@ cleanup() {
   # Tauri spawns vite + the Rust shell as children; killing the parent
   # tears them down. The API runs separately. Redis only stops if we
   # started it (matches the run.sh contract).
-  [[ -n "$TAURI_PID" ]] && kill "$TAURI_PID" 2>/dev/null || true
-  [[ -n "$API_PID"   ]] && kill "$API_PID"   2>/dev/null || true
-  [[ -n "$REDIS_PID" ]] && kill "$REDIS_PID" 2>/dev/null || true
+  maybe_kill "$TAURI_PID"
+  maybe_kill "$API_PID"
+  maybe_kill "$REDIS_PID"
   wait 2>/dev/null || true
   exit 0
 }

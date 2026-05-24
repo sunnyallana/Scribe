@@ -25,7 +25,12 @@ function quoted(text: string): string {
   return text.trim().length === 0 ? '(empty selection)' : text;
 }
 
-export function buildPrompt({ feature, selection, options, history }: BuildPromptInput): readonly AIMessage[] {
+export function buildPrompt({
+  feature,
+  selection,
+  options,
+  history,
+}: BuildPromptInput): readonly AIMessage[] {
   switch (feature) {
     case 'improve-writing':
       return basePrompt(

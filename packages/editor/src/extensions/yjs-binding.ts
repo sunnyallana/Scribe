@@ -78,7 +78,10 @@ const remoteCursorsField = StateField.define<DecorationSet>({
 });
 
 class RemoteCursorWidget extends WidgetType {
-  constructor(private readonly color: string, private readonly name: string) {
+  constructor(
+    private readonly color: string,
+    private readonly name: string,
+  ) {
     super();
   }
   override eq(other: RemoteCursorWidget): boolean {
@@ -125,8 +128,7 @@ const remoteCursorTheme = EditorView.baseTheme({
     color: '#fff',
     borderRadius: '3px 3px 3px 0',
     whiteSpace: 'nowrap',
-    fontFamily:
-      'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+    fontFamily: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
     fontWeight: '500',
     userSelect: 'none',
     pointerEvents: 'none',
@@ -253,11 +255,15 @@ export function scribeYjsBinding(opts: ScribeYjsCollab): Extension {
             // network read happens off the main update loop, but
             // belt-and-braces). Defer to a microtask so we never
             // dispatch from inside another dispatch.
-            void Promise.resolve().then(() => { this.refreshRemoteCursors(); });
+            void Promise.resolve().then(() => {
+              this.refreshRemoteCursors();
+            });
           };
           awareness.on('change', this.awarenessHandler);
           // Initial paint (peers already present at attach time).
-          void Promise.resolve().then(() => { this.refreshRemoteCursors(); });
+          void Promise.resolve().then(() => {
+            this.refreshRemoteCursors();
+          });
         } else {
           this.awarenessHandler = null;
         }
@@ -265,9 +271,7 @@ export function scribeYjsBinding(opts: ScribeYjsCollab): Extension {
 
       // ── Editor → Y.Text + local cursor → awareness ────────────────
       update(update: ViewUpdate): void {
-        const isEcho = update.transactions.some(
-          (tr) => tr.annotation(fromYjs) === true,
-        );
+        const isEcho = update.transactions.some((tr) => tr.annotation(fromYjs) === true);
 
         // Text changes — translate to Y.Text ops.
         if (update.docChanged && !isEcho) {

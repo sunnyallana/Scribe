@@ -25,11 +25,11 @@ scripts/
 
 ## Quick start
 
-| OS                                      | Setup (once)              | Browser run              | Desktop run                    |
-|-----------------------------------------|---------------------------|--------------------------|--------------------------------|
-| Linux (Debian, Ubuntu, Fedora, Arch)    | `./scripts/setup.sh`      | `./scripts/run.sh`       | `./scripts/run-desktop.sh`     |
-| macOS                                   | `./scripts/setup.sh`      | `./scripts/run.sh`       | `./scripts/run-desktop.sh`     |
-| Windows 10/11                           | `.\scripts\setup.ps1`     | `.\scripts\run.ps1`      | `.\scripts\run-desktop.ps1`    |
+| OS                                   | Setup (once)          | Browser run         | Desktop run                 |
+| ------------------------------------ | --------------------- | ------------------- | --------------------------- |
+| Linux (Debian, Ubuntu, Fedora, Arch) | `./scripts/setup.sh`  | `./scripts/run.sh`  | `./scripts/run-desktop.sh`  |
+| macOS                                | `./scripts/setup.sh`  | `./scripts/run.sh`  | `./scripts/run-desktop.sh`  |
+| Windows 10/11                        | `.\scripts\setup.ps1` | `.\scripts\run.ps1` | `.\scripts\run-desktop.ps1` |
 
 ## What `setup` installs
 
@@ -45,7 +45,7 @@ It then runs `pnpm install` and `cargo build` so a `run` after this won't pause 
 
 ## What `run` starts
 
-1. **Redis** on `127.0.0.1:6379` if it isn't already listening. The script only stops Redis if *it* started it — already-running instances are left alone.
+1. **Redis** on `127.0.0.1:6379` if it isn't already listening. The script only stops Redis if _it_ started it — already-running instances are left alone.
 2. **Rust API** (`cargo run -p scribe-server`). Reads `.env`; port from `PORT` (default `3000`).
 3. **Vite SPA** (`pnpm --filter @scribe/web dev`) on `:5173`.
 

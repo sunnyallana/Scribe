@@ -209,30 +209,41 @@ export function useVoiceRoom(projectId: ProjectId | null): VoiceRoomHandle {
 
   // Attach a `connId`-keyed analyser to a MediaStream. Idempotent
   // per connId — re-attaching replaces the old node cleanly.
-  const attachAnalyser = useCallback((connId: string, stream: MediaStream) => {
-    const ctx = ensureAudioContext();
-    if (ctx === null) return;
-    const existing = analysersRef.current.get(connId);
-    if (existing !== undefined) {
-      try { existing.disconnect(); } catch { /* ignore */ }
-    }
-    try {
-      const source = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
-      // 512-bin FFT gives 256 time-domain samples per frame —
-      // plenty for an RMS, cheap on CPU.
-      analyser.fftSize = 512;
-      source.connect(analyser);
-      analysersRef.current.set(connId, analyser);
-    } catch (err) {
-      log.ws.warn('attachAnalyser failed', err);
-    }
-  }, [ensureAudioContext]);
+  const attachAnalyser = useCallback(
+    (connId: string, stream: MediaStream) => {
+      const ctx = ensureAudioContext();
+      if (ctx === null) return;
+      const existing = analysersRef.current.get(connId);
+      if (existing !== undefined) {
+        try {
+          existing.disconnect();
+        } catch {
+          /* ignore */
+        }
+      }
+      try {
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        // 512-bin FFT gives 256 time-domain samples per frame —
+        // plenty for an RMS, cheap on CPU.
+        analyser.fftSize = 512;
+        source.connect(analyser);
+        analysersRef.current.set(connId, analyser);
+      } catch (err) {
+        log.ws.warn('attachAnalyser failed', err);
+      }
+    },
+    [ensureAudioContext],
+  );
 
   const detachAnalyser = useCallback((connId: string) => {
     const node = analysersRef.current.get(connId);
     if (node !== undefined) {
-      try { node.disconnect(); } catch { /* ignore */ }
+      try {
+        node.disconnect();
+      } catch {
+        /* ignore */
+      }
       analysersRef.current.delete(connId);
     }
   }, []);
@@ -281,7 +292,11 @@ export function useVoiceRoom(projectId: ProjectId | null): VoiceRoomHandle {
       const prev = speakingSetRef.current;
       let changed = prev.size !== next.size;
       if (!changed) {
-        for (const id of next) if (!prev.has(id)) { changed = true; break; }
+        for (const id of next)
+          if (!prev.has(id)) {
+            changed = true;
+            break;
+          }
       }
       if (changed) {
         speakingSetRef.current = next;
@@ -392,7 +407,10 @@ export function useVoiceRoom(projectId: ProjectId | null): VoiceRoomHandle {
   );
 
   const handleSignal = useCallback(
-    async (from: string, payload: { kind: string; sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit }) => {
+    async (
+      from: string,
+      payload: { kind: string; sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit },
+    ) => {
       let pc = pcsRef.current.get(from);
       // First contact from a peer who joined before us → they sent
       // the welcome-driven offer, so we're the answerer here.
@@ -457,19 +475,27 @@ export function useVoiceRoom(projectId: ProjectId | null): VoiceRoomHandle {
     // Drop every analyser and shut the AudioContext. Created
     // lazily on next join.
     for (const node of analysersRef.current.values()) {
-      try { node.disconnect(); } catch { /* ignore */ }
+      try {
+        node.disconnect();
+      } catch {
+        /* ignore */
+      }
     }
     analysersRef.current.clear();
     stopSpeakingTick();
     if (audioContextRef.current !== null) {
-      void audioContextRef.current.close().catch(() => { /* ignore */ });
+      void audioContextRef.current.close().catch(() => {
+        /* ignore */
+      });
       audioContextRef.current = null;
     }
 
     // Release the screen wake lock (mobile only — `null` on
     // unsupported platforms).
     if (wakeLockRef.current !== null) {
-      void wakeLockRef.current.release().catch(() => { /* ignore */ });
+      void wakeLockRef.current.release().catch(() => {
+        /* ignore */
+      });
       wakeLockRef.current = null;
     }
 
@@ -542,7 +568,11 @@ export function useVoiceRoom(projectId: ProjectId | null): VoiceRoomHandle {
       } else if (msg.type === 'signal') {
         const s = msg as ServerMsg & {
           readonly from: string;
-          readonly payload: { kind: string; sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit };
+          readonly payload: {
+            kind: string;
+            sdp?: RTCSessionDescriptionInit;
+            candidate?: RTCIceCandidateInit;
+          };
         };
         void handleSignal(s.from, s.payload);
       } else if (msg.type === 'muted') {
@@ -574,7 +604,15 @@ export function useVoiceRoom(projectId: ProjectId | null): VoiceRoomHandle {
         });
       }, delay);
     };
-  }, [projectId, addPeer, createPeerConnection, detachAnalyser, handleSignal, removePeer, updatePeer]);
+  }, [
+    projectId,
+    addPeer,
+    createPeerConnection,
+    detachAnalyser,
+    handleSignal,
+    removePeer,
+    updatePeer,
+  ]);
 
   const joinMic = useCallback(async () => {
     if (projectId === null) return;
@@ -644,7 +682,15 @@ export function useVoiceRoom(projectId: ProjectId | null): VoiceRoomHandle {
       setState('error');
       teardown();
     }
-  }, [projectId, state, micEnabled, attachAnalyser, openSignalingSocket, startSpeakingTick, teardown]);
+  }, [
+    projectId,
+    state,
+    micEnabled,
+    attachAnalyser,
+    openSignalingSocket,
+    startSpeakingTick,
+    teardown,
+  ]);
 
   const leaveMic = useCallback(() => {
     teardown();
@@ -673,7 +719,12 @@ export function useVoiceRoom(projectId: ProjectId | null): VoiceRoomHandle {
   }, []);
 
   // Tear down on unmount / project change.
-  useEffect(() => () => { teardown(); }, [teardown, projectId]);
+  useEffect(
+    () => () => {
+      teardown();
+    },
+    [teardown, projectId],
+  );
 
   return {
     state,
