@@ -61,7 +61,7 @@ const DEFAULT_FLAGS: Record<AppEnv, FeatureFlags> = {
 };
 
 function detectEnv(): AppEnv {
-  const raw = import.meta.env.VITE_SCRIBE_ENV;
+  const raw: unknown = import.meta.env.VITE_SCRIBE_ENV;
   if (typeof raw === 'string') {
     const lower = raw.trim().toLowerCase();
     if (lower === 'production' || lower === 'prod') return 'production';
@@ -108,7 +108,7 @@ function readFlag(name: keyof FeatureFlags, fallback: boolean): boolean {
   }
   const raw = (import.meta.env as Record<string, string | undefined>)[envKey];
   const v = parseBool(raw);
-  return v !== null ? v : fallback;
+  return v ?? fallback;
 }
 
 export const env: AppEnv = detectEnv();
@@ -141,11 +141,9 @@ if (typeof window !== 'undefined' && features.devGlobals) {
     setFeature: (name: keyof FeatureFlags, value: boolean) => {
       try {
         localStorage.setItem(`SCRIBE_FEATURE_${envKeyFor(name)}`, value ? '1' : '0');
-        // eslint-disable-next-line no-console
-        console.info(`[Scribe:config] ${String(name)} = ${value} — reload to apply`);
+        console.warn(`[Scribe:config] ${name} = ${value.toString()} — reload to apply`);
       } catch {
-        // eslint-disable-next-line no-console
-        console.warn(`[Scribe:config] localStorage unavailable; couldn't set ${String(name)}`);
+        console.warn(`[Scribe:config] localStorage unavailable; couldn't set ${name}`);
       }
     },
     dump: () => ({ env, features }),

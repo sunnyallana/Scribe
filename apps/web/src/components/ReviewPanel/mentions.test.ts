@@ -1,4 +1,3 @@
-import type { ProjectMember } from '@scribe/shared';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -8,6 +7,8 @@ import {
   insertMentionToken,
   parseBody,
 } from './mentions';
+
+import type { ProjectMember } from '@scribe/shared';
 
 const UUID_A = '11111111-1111-4111-a111-111111111111';
 const UUID_B = '22222222-2222-4222-a222-222222222222';

@@ -281,7 +281,8 @@ export function lookupInverse(
     }
     candidates.push(record);
   }
-  if (candidates.length === 0) return null;
+  const first = candidates[0];
+  if (first === undefined) return null;
 
   // ---- Step 2: snap to a visual line ----
   // Find the record whose `v` is closest to targetV; its `v` becomes
@@ -289,7 +290,7 @@ export function lookupInverse(
   // that `v` is in the same bucket. This is more robust than a fixed
   // grid because line spacing varies (math display lines, headings,
   // figure captions) — we let the doc define its own line positions.
-  let pivotV = candidates[0]!.v;
+  let pivotV = first.v;
   let pivotVdist = Math.abs(pivotV - targetV);
   for (const record of candidates) {
     const d = Math.abs(record.v - targetV);

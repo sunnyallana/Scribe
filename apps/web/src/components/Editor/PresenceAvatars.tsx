@@ -109,7 +109,7 @@ export function PresenceAvatars({
     for (const p of peers) {
       // A stale awareness state from our own previous connection can
       // briefly look like a peer entry with the same userId. Drop it.
-      if (localUser !== null && localUser !== undefined && p.userId === localUser.userId) {
+      if (p.userId === localUser?.userId) {
         continue;
       }
       const existing = byUser.get(p.userId);

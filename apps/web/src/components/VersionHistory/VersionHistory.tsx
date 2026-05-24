@@ -211,7 +211,7 @@ export function VersionHistory({ projectId, onClose }: VersionHistoryProps) {
                   {diffFile !== null && diffHtml !== null ? (
                     <pre
                       className="whitespace-pre-wrap break-words"
-                      // eslint-disable-next-line react/no-danger
+                       
                       dangerouslySetInnerHTML={{ __html: diffHtml }}
                     />
                   ) : (

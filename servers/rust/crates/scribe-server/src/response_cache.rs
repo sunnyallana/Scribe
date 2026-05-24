@@ -66,6 +66,7 @@ pub struct ResponseCache {
     /// broadcast sender so any concurrent miss on the same key can
     /// wait for the in-flight computation instead of stampeding the
     /// origin. Empty when no flights are running.
+    #[allow(clippy::type_complexity)] // the broadcast payload is intentionally Option<(body, etag)>
     in_flight: Arc<DashMap<String, broadcast::Sender<Option<(Vec<u8>, String)>>>>,
     /// Circuit-breaker state: monotonic-millis timestamp of when Redis
     /// became reachable again. While `now() < this`, Redis ops are

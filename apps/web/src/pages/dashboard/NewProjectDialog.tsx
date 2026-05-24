@@ -64,7 +64,7 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
           try {
             await api.files.create(created.id, f.path, f.content);
           } catch (err) {
-            // eslint-disable-next-line no-console
+             
             console.warn('community template seed failed for', f.path, err);
           }
         }

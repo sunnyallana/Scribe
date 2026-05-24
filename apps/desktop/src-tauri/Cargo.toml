@@ -3,7 +3,7 @@ name = "scribe-desktop"
 version = "0.0.0"
 description = "Scribe desktop app — Tauri shell."
 edition = "2021"
-rust-version = "1.80"
+rust-version = "1.82"
 license = "AGPL-3.0-or-later"
 publish = false
 

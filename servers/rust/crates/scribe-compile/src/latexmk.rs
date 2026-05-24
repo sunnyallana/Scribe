@@ -43,7 +43,7 @@ impl LatexEngine {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse_name(s: &str) -> Option<Self> {
         match s.trim().to_ascii_lowercase().as_str() {
             "pdflatex" | "pdf" => Some(Self::PdfLatex),
             "xelatex" | "xe" | "pdfxe" => Some(Self::XeLatex),

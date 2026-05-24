@@ -16,8 +16,8 @@ import { toast } from 'sonner';
 
 import { api, type ApiError } from '../../lib/api';
 
-import { MentionTextarea } from './MentionTextarea';
 import { parseBody } from './mentions';
+import { MentionTextarea } from './MentionTextarea';
 
 interface EditorSelection {
   readonly from: { readonly line: number; readonly column: number };
@@ -242,7 +242,7 @@ export function ReviewPanel({
     mutationFn: async (comment) => {
       if (comment.replacementText === null) throw new Error('not a suggestion');
       if (comment.fileId === null) throw new Error('no file');
-      if (selectedFile === null || selectedFile.id !== comment.fileId) {
+      if (selectedFile?.id !== comment.fileId) {
         throw new Error(t('suggestion.openFileFirst'));
       }
       const startLine = comment.anchorLine ?? 1;

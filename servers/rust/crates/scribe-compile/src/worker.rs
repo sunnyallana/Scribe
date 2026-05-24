@@ -83,6 +83,7 @@ pub struct Worker {
     /// "user edited one .tex" case, this drops download cost from
     /// N × RTT to 1 × RTT. Inner map is `Arc`-wrapped so all clones
     /// share the same storage (DashMap's own Clone is a deep copy).
+    #[allow(clippy::type_complexity)] // a type alias here only obscures the structure
     pub file_state: Arc<DashMap<ProjectId, Arc<DashMap<String, chrono::DateTime<chrono::Utc>>>>>,
 }
 

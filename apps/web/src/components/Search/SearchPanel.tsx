@@ -220,6 +220,7 @@ export function SearchPanel({
           onChange={(e) => { setQuery(e.target.value); }}
           placeholder={t('search.placeholder')}
           className="h-7 text-xs"
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- panel opens via toolbar button; the keystroke that revealed it expects the cursor in the query field
           autoFocus
         />
         <div className="flex items-center gap-0.5">
