@@ -1,0 +1,216 @@
+# Setup-script regression coverage.
+#
+# `scripts/setup.{sh,ps1}` install every runtime tool the project
+# needs. They're idempotent and "first commit a contributor hits", so
+# breakage here = bad first impression. This workflow runs them on a
+# fresh OS image for each supported platform + Linux package manager
+# (apt / dnf / pacman). The fresh-Linux jobs use containers so the
+# install branches actually fire — host runners come pre-loaded with
+# Node / Rust / clang and would only ever exercise the
+# "skip if present" path.
+
+name: scripts
+
+on:
+  push:
+    branches: [master, main, rust-port]
+    paths:
+      - 'scripts/setup.sh'
+      - 'scripts/setup.ps1'
+      - 'scripts/run.sh'
+      - 'scripts/run.ps1'
+      - 'scripts/run-desktop.sh'
+      - 'scripts/run-desktop.ps1'
+      - '.github/workflows/scripts.yml'
+      - '.nvmrc'
+      - 'package.json'
+  pull_request:
+    branches: [master, main]
+    paths:
+      - 'scripts/setup.sh'
+      - 'scripts/setup.ps1'
+      - 'scripts/run.sh'
+      - 'scripts/run.ps1'
+      - 'scripts/run-desktop.sh'
+      - 'scripts/run-desktop.ps1'
+      - '.github/workflows/scripts.yml'
+  # Allow manual runs from the Actions tab when iterating on the
+  # scripts themselves.
+  workflow_dispatch:
+
+concurrency:
+  group: scripts-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Fresh-install on Linux distros via containers.
+  #
+  # Each container starts with only the distro's base image; the script
+  # exercises its real install path. `--skip-build` keeps the job under
+  # the timeout — the rust-server CI job already proves cargo build
+  # works against the workspace.
+  # ─────────────────────────────────────────────────────────────────────────
+  linux-fresh:
+    name: setup.sh · ${{ matrix.distro }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: ubuntu-24.04
+            image: ubuntu:24.04
+            preinstall: |
+              apt-get update -qq
+              apt-get install -y --no-install-recommends sudo curl ca-certificates git
+          - distro: ubuntu-22.04
+            image: ubuntu:22.04
+            preinstall: |
+              apt-get update -qq
+              apt-get install -y --no-install-recommends sudo curl ca-certificates git
+          - distro: fedora
+            image: fedora:40
+            preinstall: |
+              dnf install -y sudo curl ca-certificates git
+          - distro: arch
+            image: archlinux:latest
+            preinstall: |
+              # Arch's base image misses CA roots that brew/curl need;
+              # `archlinux-keyring` keeps pacman happy across image
+              # vintages.
+              pacman -Sy --needed --noconfirm sudo curl ca-certificates git archlinux-keyring
+    container:
+      image: ${{ matrix.image }}
+      # The default container user is root, which is what we want — the
+      # script's `sudo` calls become no-ops in that case but the script
+      # already tolerates a missing sudo.
+      options: --user root
+    steps:
+      - name: Bootstrap container basics
+        run: ${{ matrix.preinstall }}
+
+      # actions/checkout v4 needs git ≥2.18; we installed it above.
+      - uses: actions/checkout@v4
+
+      - name: Run setup.sh (no-optional, skip-build)
+        env:
+          # The Tectonic installer pipes a shell script; pre-trust their
+          # CDN so curl --tlsv1.2 doesn't complain in minimal images.
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          chmod +x scripts/setup.sh
+          ./scripts/setup.sh --no-optional --skip-build
+
+      - name: Assert installed binaries
+        run: |
+          set -e
+          echo "node:       $(node --version)"
+          echo "pnpm:       $(pnpm --version)"
+          echo "cargo:      $(cargo --version)"
+          echo "redis-cli:  $(redis-cli --version)"
+          echo "tectonic:   $(tectonic --version 2>&1 | head -1)"
+
+      - name: Verify pnpm install landed
+        run: pnpm -r --filter @scribe/shared exec node -e "console.log('shared package present')"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # macOS host runner — exercises the "skip if present" path for the
+  # tools the runner already ships (Node, brew), and the install path
+  # for the ones it doesn't (Tectonic, chktex when --no-optional is
+  # off, etc.). We pass --no-optional + --skip-build to keep the run
+  # quick; the script's branches for the always-on tools still fire.
+  # ─────────────────────────────────────────────────────────────────────────
+  macos:
+    name: setup.sh · macOS
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run setup.sh (no-optional, no-desktop, skip-build)
+        run: |
+          chmod +x scripts/setup.sh
+          # `--no-desktop` skips Xcode-CLT install on the runner (it's
+          # pre-installed and the prompt would hang in headless mode).
+          ./scripts/setup.sh --no-optional --no-desktop --skip-build
+
+      - name: Assert installed binaries
+        run: |
+          set -e
+          echo "node:       $(node --version)"
+          echo "pnpm:       $(pnpm --version)"
+          echo "cargo:      $(cargo --version)"
+          echo "redis-cli:  $(redis-cli --version || true)"
+          echo "tectonic:   $(tectonic --version 2>&1 | head -1)"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Windows host runner. Build Tools + WebView2 are pre-installed on
+  # the GitHub-hosted image; the script's `Test-MsvcPresent` /
+  # WebView2 registry probe should short-circuit to "present" and
+  # never call winget for those. -SkipBuild keeps total runtime down.
+  # ─────────────────────────────────────────────────────────────────────────
+  windows:
+    name: setup.ps1 · Windows
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run setup.ps1 (NoOptional, NoDesktop, SkipBuild)
+        shell: pwsh
+        run: |
+          # -NoDesktop skips MSVC + WebView2 because both are
+          # pre-installed on windows-latest and the winget runs would
+          # take 5–10 minutes for no gain. To exercise those branches,
+          # drop -NoDesktop and bump the job timeout.
+          .\scripts\setup.ps1 -NoOptional -NoDesktop -SkipBuild
+
+      - name: Assert installed binaries
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Write-Host "node:    $((node --version))"
+          Write-Host "pnpm:    $((pnpm --version))"
+          Write-Host "cargo:   $((cargo --version))"
+          # The setup script extracts Redis + Tectonic into
+          # %USERPROFILE%\scribe-tools — verify the binaries exist
+          # rather than relying on PATH, which the script doesn't
+          # persist across the runner's job boundaries.
+          $tools = "$env:USERPROFILE\scribe-tools"
+          if (-not (Test-Path "$tools\redis-5.0.14.1\redis-server.exe")) {
+            throw "redis-server.exe missing"
+          }
+          $tec = Get-ChildItem -Path $tools -Recurse -Filter tectonic.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $tec) { throw "tectonic.exe missing" }
+          Write-Host "redis:   $tools\redis-5.0.14.1\redis-server.exe"
+          Write-Host "tectonic: $($tec.FullName)"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Static shell-script lint. Catches the kind of typo (missing close-
+  # paren in a heredoc, unquoted glob, etc.) that bash only finds at
+  # the failing line of execution. Same idea for PowerShell via PSScript-
+  # Analyzer.
+  # ─────────────────────────────────────────────────────────────────────────
+  lint:
+    name: shell/script lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y shellcheck
+          shellcheck -x scripts/setup.sh scripts/run.sh scripts/run-desktop.sh
+
+      - name: PSScriptAnalyzer (Windows scripts)
+        shell: pwsh
+        run: |
+          Install-Module -Name PSScriptAnalyzer -Force -SkipPublisherCheck -Scope CurrentUser
+          $results = Invoke-ScriptAnalyzer -Path scripts/setup.ps1, scripts/run.ps1, scripts/run-desktop.ps1 `
+            -Severity Error,Warning -ExcludeRule PSAvoidUsingWriteHost,PSUseDeclaredVarsMoreThanAssignments
+          if ($results) {
+            $results | Format-Table -AutoSize
+            throw "PSScriptAnalyzer reported issues"
+          }

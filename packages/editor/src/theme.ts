@@ -22,20 +22,23 @@ interface Palette {
   readonly link: string;
 }
 
+// Oxford-parchment palette for the editor pane. Hues line up with the
+// SPA's `--foreground` / `--primary` / `--muted-foreground` tokens so
+// the editor and the surrounding chrome read as one surface, not two.
 const lightColors: Palette = {
   background: 'transparent',
-  foreground: 'hsl(222 47% 11%)',
-  gutter: 'hsl(220 14% 96%)',
-  gutterForeground: 'hsl(220 9% 46%)',
-  cursor: 'hsl(222 47% 11%)',
-  selection: 'hsl(217 91% 90%)',
-  keyword: 'hsl(266 100% 38%)',
-  comment: 'hsl(220 9% 46%)',
-  string: 'hsl(120 39% 35%)',
-  command: 'hsl(217 91% 35%)',
-  number: 'hsl(15 84% 40%)',
-  brace: 'hsl(220 9% 30%)',
-  link: 'hsl(217 91% 45%)',
+  foreground: 'hsl(220 25% 18%)',         // slate-navy ink
+  gutter: 'hsl(36 22% 92%)',                // tonal cream
+  gutterForeground: 'hsl(220 12% 42%)',     // warm grey
+  cursor: 'hsl(220 25% 18%)',
+  selection: 'hsl(212 37% 85%)',            // misty blue, deeper than --accent so the cursor pops
+  keyword: 'hsl(285 38% 32%)',              // academic plum for \section / control words
+  comment: 'hsl(220 10% 50%)',              // muted slate
+  string: 'hsl(125 28% 28%)',               // muted laurel green
+  command: 'hsl(218 45% 30%)',              // oxford blue for \cmd
+  number: 'hsl(15 55% 38%)',                // burnt sienna
+  brace: 'hsl(220 18% 30%)',
+  link: 'hsl(218 50% 36%)',
 };
 
 const darkColors: Palette = {
@@ -120,7 +123,7 @@ export function latexTheme(theme: ScribeEditorTheme): Extension {
           // Thin native scrollbar (Firefox + modern engines that
           // honour `scrollbar-*`). WebKit takes the rules below.
           scrollbarWidth: 'thin',
-          scrollbarColor: `${isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.20)'} transparent`,
+          scrollbarColor: `${isDark ? 'rgba(255,255,255,0.18)' : 'rgba(35,43,58,0.22)'} transparent`,
         },
         // WebKit-specific (Chrome / Edge / Safari). Float the thumb
         // over a transparent track so the scrollbar reads as "part
@@ -133,7 +136,7 @@ export function latexTheme(theme: ScribeEditorTheme): Extension {
           background: 'transparent',
         },
         '.cm-scroller::-webkit-scrollbar-thumb': {
-          backgroundColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.20)',
+          backgroundColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(35,43,58,0.22)',
           borderRadius: '8px',
           // `border + background-clip: padding-box` is the standard
           // trick for a "floating" thumb with internal padding around
@@ -143,7 +146,7 @@ export function latexTheme(theme: ScribeEditorTheme): Extension {
           backgroundClip: 'padding-box',
         },
         '.cm-scroller::-webkit-scrollbar-thumb:hover': {
-          backgroundColor: isDark ? 'rgba(255,255,255,0.32)' : 'rgba(0,0,0,0.35)',
+          backgroundColor: isDark ? 'rgba(255,255,255,0.32)' : 'rgba(35,43,58,0.38)',
           backgroundClip: 'padding-box',
         },
         '.cm-scroller::-webkit-scrollbar-corner': {
@@ -169,15 +172,15 @@ export function latexTheme(theme: ScribeEditorTheme): Extension {
           border: 'none',
         },
         '.cm-activeLine': {
-          backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+          backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(35,43,58,0.04)',
         },
         '.cm-activeLineGutter': {
-          backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+          backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(35,43,58,0.06)',
         },
         '.cm-tooltip': {
-          backgroundColor: isDark ? 'hsl(220 13% 12%)' : 'hsl(0 0% 100%)',
+          backgroundColor: isDark ? 'hsl(220 13% 12%)' : 'hsl(36 33% 98%)',
           color: p.foreground,
-          border: `1px solid ${isDark ? 'hsl(220 13% 28%)' : 'hsl(220 13% 88%)'}`,
+          border: `1px solid ${isDark ? 'hsl(220 13% 28%)' : 'hsl(39 24% 82%)'}`,
         },
         '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': {
           backgroundColor: p.selection,

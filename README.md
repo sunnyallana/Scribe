@@ -208,7 +208,7 @@ Filling in `.env` is the same in all three paths; see
 
 ```bash
 # Linux (Debian/Ubuntu/Fedora/Arch) or macOS
-./scripts/setup.sh        # installs Node 20+, pnpm, Rust, Redis, Tectonic, chktex
+./scripts/setup.sh        # installs Node 22+, pnpm, Rust, Redis, Tectonic, chktex
 ./scripts/run.sh          # starts Redis + API + SPA with prefixed log streams
 
 # Windows 10/11 (PowerShell, requires winget)
@@ -231,7 +231,7 @@ The web app is the React SPA running in your browser, hitting the Rust API.
 | Need | Version | How to check / install |
 |---|---|---|
 | **Rust** | 1.82+ | `rustup default stable`; <https://rustup.rs> |
-| **Node** | 20+ | `node --version`; <https://nodejs.org> |
+| **Node** | 22.13+ | `node --version`; <https://nodejs.org>. pnpm 11 requires Node 22.13 minimum. |
 | **pnpm** | 11+ | `corepack enable && corepack prepare pnpm@latest --activate` |
 | **Redis** | 7+ | `docker run --rm -d -p 6379:6379 redis:7-alpine`, or native install |
 | **Tectonic** (or **latexmk**) | latest | `cargo install tectonic`, or download from [tectonic-typesetting.github.io](https://tectonic-typesetting.github.io/) |
