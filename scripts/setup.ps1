@@ -1,7 +1,9 @@
-# Scribe — one-shot setup for Windows.
+﻿# Scribe — one-shot setup for Windows.
 #
 # Installs every runtime tool the project needs:
-#   • Node 20+ (corepack -> pnpm)
+#   • Node 22+ (corepack -> pnpm; pnpm 11.x requires Node >=22.13)
+#   • Visual Studio Build Tools (MSVC + Windows SDK)        — cargo's linker
+#   • WebView2 Runtime                                       — Tauri's webview host
 #   • Rust toolchain (rustup-init)
 #   • Redis (Microsoft port, pinned to 5.0.14.1 from tporadowski/redis)
 #   • Tectonic (LaTeX engine)
@@ -16,6 +18,8 @@
 #   .\scripts\setup.ps1
 #   .\scripts\setup.ps1 -SkipRust          # if rustup is already installed
 #   .\scripts\setup.ps1 -NoOptional        # skip pandoc + chktex
+#   .\scripts\setup.ps1 -NoDesktop         # skip MSVC + WebView2 (web-only)
+#   .\scripts\setup.ps1 -SkipBuild         # skip the final cargo build pre-warm
 #
 # Requires Windows 10+ with winget. If winget isn't installed, run
 # `App Installer` from the Microsoft Store first.
@@ -23,7 +27,9 @@
 [CmdletBinding()]
 param(
   [switch]$SkipRust,
-  [switch]$NoOptional
+  [switch]$NoOptional,
+  [switch]$NoDesktop,
+  [switch]$SkipBuild
 )
 
 $ErrorActionPreference = 'Stop'
@@ -65,12 +71,14 @@ function Winget-Install($id, $label) {
   Refresh-Path
 }
 
-# ---- Node 20+ + corepack/pnpm ---------------------------------------------
+# ---- Node 22+ + corepack/pnpm ---------------------------------------------
+# pnpm 11.x dropped Node 20 support; 22.13 is the minimum it'll boot
+# against. winget's OpenJS.NodeJS.LTS currently resolves to 22.x.
 $nodeMajor = 0
 if (Has-Cmd 'node') {
   try { $nodeMajor = [int]((node -p "process.versions.node.split('.')[0]") 2>$null) } catch {}
 }
-if ($nodeMajor -lt 20) {
+if ($nodeMajor -lt 22) {
   Winget-Install 'OpenJS.NodeJS.LTS' 'Node.js LTS'
 } else {
   Skip "Node $((node -v)) present"
@@ -85,6 +93,56 @@ if (-not (Has-Cmd 'pnpm')) {
   & pnpm --version | Out-Null
 } else {
   Skip "pnpm $((pnpm --version)) present"
+}
+
+# ---- Visual Studio Build Tools (MSVC + Windows SDK) -----------------------
+# cargo on `x86_64-pc-windows-msvc` shells out to `link.exe` from the
+# MSVC linker. Without the Build Tools workload, the rustup installer
+# warns and `cargo build` then fails with the cryptic
+#   error: linker `link.exe` not found
+# message. Detect either a real Visual Studio install OR the standalone
+# Build Tools; install only when both are missing.
+function Test-MsvcPresent {
+  # `vswhere.exe` is the canonical detector (shipped with any modern
+  # VS install). Falls back to a path probe for the Build Tools when
+  # vswhere is missing.
+  $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+  if (Test-Path $vswhere) {
+    $found = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2>$null
+    if ($LASTEXITCODE -eq 0 -and $found) { return $true }
+  }
+  # Last-resort path probe — covers `--add-only` Build Tools installs
+  # done by an org's image preparation.
+  return Test-Path "${env:ProgramFiles}\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC"
+}
+
+if (-not $NoDesktop) {
+  if (Test-MsvcPresent) {
+    Skip "Visual Studio MSVC tools present"
+  } else {
+    Info "Installing Visual Studio Build Tools (MSVC linker + Windows 10/11 SDK)..."
+    # winget's --override threads the VS Installer's own quiet-install
+    # flags through. `VCTools` is the C++ workload; `Windows11SDK_22621`
+    # is the matched SDK component (the 22621 build is the latest
+    # 11 SDK as of 2024-Q4).
+    winget install --id Microsoft.VisualStudio.2022.BuildTools `
+      --silent --accept-source-agreements --accept-package-agreements -e `
+      --override '--quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.Windows11SDK.22621 --includeRecommended' | Out-Host
+    Refresh-Path
+  }
+
+  # WebView2 — Tauri's host. Pre-installed on Windows 11 and 10 21H2+,
+  # but explicit installs make the desktop window blank on older
+  # builds. winget package id is `Microsoft.EdgeWebView2Runtime`.
+  $webview2 = Get-ItemProperty `
+    "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" `
+    -ErrorAction SilentlyContinue
+  if ($webview2 -and $webview2.pv) {
+    Skip "WebView2 Runtime present ($($webview2.pv))"
+  } else {
+    Info "Installing WebView2 Runtime (Tauri host)..."
+    Winget-Install 'Microsoft.EdgeWebView2Runtime' 'WebView2 Runtime'
+  }
 }
 
 # ---- Rust toolchain --------------------------------------------------------
@@ -184,17 +242,47 @@ $env:CI = 'true'
 & pnpm install
 if ($LASTEXITCODE -ne 0) { Fail "pnpm install failed" }
 
-Info "Pre-building Rust workspace (cargo build, slow on first run)..."
-& cargo build --manifest-path "servers\rust\Cargo.toml" --workspace --quiet
-if ($LASTEXITCODE -ne 0) { Fail "cargo build failed" }
+if (-not $SkipBuild) {
+  Info "Pre-building Rust workspace (cargo build, slow on first run)..."
+  & cargo build --manifest-path "servers\rust\Cargo.toml" --workspace --quiet
+  if ($LASTEXITCODE -ne 0) { Fail "cargo build failed" }
+} else {
+  Skip "Skipping cargo pre-build (-SkipBuild)"
+}
+
+# ---- .env sanity check ----------------------------------------------------
+$envMissing = @()
+if (Test-Path $envFile) {
+  $requiredKeys = @(
+    'SUPABASE_URL','SUPABASE_ANON_KEY','SUPABASE_SERVICE_ROLE_KEY','SUPABASE_JWT_SECRET',
+    'DATABASE_URL','VITE_SUPABASE_URL','VITE_SUPABASE_ANON_KEY'
+  )
+  $envLines = Get-Content $envFile
+  foreach ($k in $requiredKeys) {
+    $line = $envLines | Where-Object { $_ -match "^\s*$k\s*=" } | Select-Object -First 1
+    if ($null -eq $line) { $envMissing += $k; continue }
+    $value = ($line -split '=', 2)[1]
+    if ([string]::IsNullOrWhiteSpace($value) -or $value -eq 'http://127.0.0.1:54321') {
+      $envMissing += $k
+    }
+  }
+}
 
 Write-Host ""
 Write-Host "Setup complete." -ForegroundColor Green
 Write-Host ""
 Write-Host "Next:"
-Write-Host "  - Confirm .env has DATABASE_URL + SUPABASE_* keys filled in."
-Write-Host "  - Run Redis + API + SPA together with:"
-Write-Host "      .\scripts\run.ps1" -ForegroundColor White
+if ($envMissing.Count -gt 0) {
+  Write-Host "  ! .env still has placeholder values for:" -ForegroundColor Yellow
+  Write-Host "      $($envMissing -join ' ')" -ForegroundColor Yellow
+  Write-Host "    See docs/env-vars.md for where to obtain each value." -ForegroundColor Yellow
+}
+Write-Host "  - Apply Supabase migrations against your project:"
+Write-Host "      supabase db push       (or: pnpm supabase:start for the local stack)" -ForegroundColor White
+Write-Host "  - Browser dev:"
+Write-Host "      .\scripts\run.ps1               (Redis + Rust API + Vite SPA)" -ForegroundColor White
+Write-Host "  - Native desktop dev:"
+Write-Host "      .\scripts\run-desktop.ps1       (Redis + Rust API + Tauri shell)" -ForegroundColor White
 Write-Host ""
 Write-Host "Optional knobs (add to .env):"
 if (Has-Cmd 'tectonic') {
@@ -204,4 +292,6 @@ if (Has-Cmd 'tectonic') {
 }
 if (Has-Cmd 'chktex') {
   Write-Host "  CHKTEX_BIN=$((Get-Command chktex).Source)"
+} else {
+  Write-Host "  CHKTEX_BIN=<path-to-chktex>   (enables style linter)"
 }

@@ -33,7 +33,7 @@ scripts/
 
 ## What `setup` installs
 
-- **Node 20+** (via NodeSource on apt, `nodejs:20` module on dnf, `nodejs` on pacman, `node@20` on brew, `OpenJS.NodeJS.LTS` on winget).
+- **Node 22+** (via NodeSource on apt, `nodejs:22` module on dnf, `nodejs` on pacman, `node@22` on brew, `OpenJS.NodeJS.LTS` on winget). pnpm 11 requires Node ≥22.13.
 - **pnpm** via `corepack enable` once Node is in place.
 - **Rust toolchain** via `rustup` (minimal profile). Skip with `--skip-rust` (Linux/macOS) or `-SkipRust` (Windows) if you already have it.
 - **Redis** — required by the compile queue. Native packages on Linux/macOS; the [tporadowski Windows port](https://github.com/tporadowski/redis) extracted to `~/scribe-tools/redis-5.0.14.1/` on Windows.
@@ -72,7 +72,7 @@ Output is prefixed `[api]` / `[tauri]`. First launch links the Rust shell from s
 
 ## Distro-specific notes
 
-- **Fedora / RHEL family**: `dnf module enable nodejs:20` is invoked to make sure Node 20 is the active stream. If your org pins a different module, the script's `module reset` will fight it — pass `--skip-rust` is the wrong flag for this; just install Node yourself first.
+- **Fedora / RHEL family**: `dnf module enable nodejs:22` is invoked to make sure Node 22 is the active stream. If your org pins a different module, the script's `module reset` will fight it — install Node yourself first if so.
 - **Arch / Manjaro**: chktex lives inside `texlive-binextra`, not its own package. That's a ~200 MB install — pass `--no-optional` if you want to defer it.
 - **Windows**: requires winget (ships with Windows 11; on Windows 10 install "App Installer" from the Microsoft Store first). Run the script from a regular PowerShell — elevation prompts come up per-installer.
 
