@@ -43,9 +43,9 @@ export function TemplateGallery({ selected, onSelect }: TemplateGalleryProps) {
     const filtered = all.filter((m) => category === 'all' || m.category === category);
     if (search.trim() === '') return filtered;
     const q = search.toLowerCase();
-    return filtered.filter((m) =>
-      t(m.labelKey).toLowerCase().includes(q) ||
-      t(m.descriptionKey).toLowerCase().includes(q),
+    return filtered.filter(
+      (m) =>
+        t(m.labelKey).toLowerCase().includes(q) || t(m.descriptionKey).toLowerCase().includes(q),
     );
   }, [category, search, t]);
 
@@ -54,9 +54,8 @@ export function TemplateGallery({ selected, onSelect }: TemplateGalleryProps) {
     const filtered = all.filter((m) => category === 'all' || m.category === category);
     if (search.trim() === '') return filtered;
     const q = search.toLowerCase();
-    return filtered.filter((m) =>
-      m.name.toLowerCase().includes(q) ||
-      m.description.toLowerCase().includes(q),
+    return filtered.filter(
+      (m) => m.name.toLowerCase().includes(q) || m.description.toLowerCase().includes(q),
     );
   }, [category, search, communityQuery.data]);
 
@@ -68,7 +67,9 @@ export function TemplateGallery({ selected, onSelect }: TemplateGalleryProps) {
       <div className="flex gap-2">
         <Input
           value={search}
-          onChange={(e) => { setSearch(e.target.value); }}
+          onChange={(e) => {
+            setSearch(e.target.value);
+          }}
           placeholder={t('project.gallerySearch')}
           className="flex-1 h-8 text-xs"
         />
@@ -83,7 +84,9 @@ export function TemplateGallery({ selected, onSelect }: TemplateGalleryProps) {
                 ? 'bg-foreground text-background'
                 : 'bg-muted text-muted-foreground hover:bg-muted/80'
             }`}
-            onClick={() => { setCategory(c); }}
+            onClick={() => {
+              setCategory(c);
+            }}
           >
             {t(`project.galleryCategory.${c}`)}
           </button>
@@ -100,9 +103,13 @@ export function TemplateGallery({ selected, onSelect }: TemplateGalleryProps) {
                     type="button"
                     aria-pressed={isSelected}
                     className={`flex w-full items-start gap-3 rounded-lg border p-2.5 text-left transition-colors ${
-                      isSelected ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent/40'
+                      isSelected
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:bg-accent/40'
                     }`}
-                    onClick={() => { onSelect({ kind: 'builtin', id: m.id }); }}
+                    onClick={() => {
+                      onSelect({ kind: 'builtin', id: m.id });
+                    }}
                   >
                     <div
                       aria-hidden="true"
@@ -139,9 +146,13 @@ export function TemplateGallery({ selected, onSelect }: TemplateGalleryProps) {
                       aria-pressed={isSelected}
                       title={m.description}
                       className={`flex w-full items-start gap-3 rounded-lg border p-2.5 text-left transition-colors ${
-                        isSelected ? 'border-primary bg-primary/10' : 'border-border hover:bg-accent/40'
+                        isSelected
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border hover:bg-accent/40'
                       }`}
-                      onClick={() => { onSelect({ kind: 'community', template: m }); }}
+                      onClick={() => {
+                        onSelect({ kind: 'community', template: m });
+                      }}
                     >
                       <div
                         aria-hidden="true"
@@ -164,9 +175,7 @@ export function TemplateGallery({ selected, onSelect }: TemplateGalleryProps) {
           </div>
         ) : null}
         {builtins.length === 0 && community.length === 0 ? (
-          <p className="text-center text-xs text-muted-foreground">
-            {t('project.galleryEmpty')}
-          </p>
+          <p className="text-center text-xs text-muted-foreground">{t('project.galleryEmpty')}</p>
         ) : null}
       </div>
     </div>

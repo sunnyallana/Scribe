@@ -6,22 +6,22 @@ to be reachable.
 
 ## Bundled with the installer
 
-| Component | What it does | Where it lives after install |
-|---|---|---|
-| **Scribe desktop** | The editor + Tauri shell | `Scribe.exe` next to this file |
-| **WebView2 runtime** | Renders the SPA inside the Tauri window | System-wide (auto-installed by the NSIS bootstrapper on first run if missing) |
-| **Tectonic** | LaTeX engine — the always-on fallback for compiles | `resources\tectonic.exe` next to `Scribe.exe` |
+| Component            | What it does                                       | Where it lives after install                                                  |
+| -------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **Scribe desktop**   | The editor + Tauri shell                           | `Scribe.exe` next to this file                                                |
+| **WebView2 runtime** | Renders the SPA inside the Tauri window            | System-wide (auto-installed by the NSIS bootstrapper on first run if missing) |
+| **Tectonic**         | LaTeX engine — the always-on fallback for compiles | `resources\tectonic.exe` next to `Scribe.exe`                                 |
 
 That set is enough to start a project, edit `.tex` / `.bib` files,
 and run a local compile. Nothing else is strictly required.
 
 ## Optional — offered during install (Windows)
 
-| Component | Why | How |
-|---|---|---|
+| Component                                    | Why                                                                                                                   | How                                                                                                                                                                                             |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **MiKTeX** (provides `pdflatex` / `latexmk`) | Faster compiles with proper multi-pass `\cite{}` / `\ref{}` resolution. Scribe prefers it over tectonic when present. | The NSIS installer's post-install step asks once; on Yes it runs `winget install MiKTeX.MiKTeX --silent`. You can skip it then install manually later — Scribe will auto-detect on next launch. |
-| **Pandoc** | Project export to `.docx` / `.md` / `.html` | `winget install JohnMacFarlane.Pandoc` |
-| **chktex** | Inline LaTeX style linting | Ships with MiKTeX (`miktex-chktex`) or TeX Live |
+| **Pandoc**                                   | Project export to `.docx` / `.md` / `.html`                                                                           | `winget install JohnMacFarlane.Pandoc`                                                                                                                                                          |
+| **chktex**                                   | Inline LaTeX style linting                                                                                            | Ships with MiKTeX (`miktex-chktex`) or TeX Live                                                                                                                                                 |
 
 ## Server connection (only matters online)
 
@@ -47,12 +47,12 @@ backend:
 
 ## Where the app stores data
 
-| Path | What |
-|---|---|
-| `%LOCALAPPDATA%\io.scribe.desktop\scribe.db` | SQLite mirror — projects, files, Yjs updates, sync state |
-| `%LOCALAPPDATA%\io.scribe.desktop\workdirs\<project-id>\` | Materialised LaTeX source for each project's most recent compile, plus the emitted PDF / `.synctex.gz` |
-| `%APPDATA%\io.scribe.desktop\` | Tauri/WebView2 cookies + per-window state |
-| `%LOCALAPPDATA%\Programs\Scribe\` (or wherever you installed) | The app exe + bundled tectonic + this file |
+| Path                                                          | What                                                                                                   |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `%LOCALAPPDATA%\io.scribe.desktop\scribe.db`                  | SQLite mirror — projects, files, Yjs updates, sync state                                               |
+| `%LOCALAPPDATA%\io.scribe.desktop\workdirs\<project-id>\`     | Materialised LaTeX source for each project's most recent compile, plus the emitted PDF / `.synctex.gz` |
+| `%APPDATA%\io.scribe.desktop\`                                | Tauri/WebView2 cookies + per-window state                                                              |
+| `%LOCALAPPDATA%\Programs\Scribe\` (or wherever you installed) | The app exe + bundled tectonic + this file                                                             |
 
 The uninstaller offers to remove `%LOCALAPPDATA%\io.scribe.desktop\`
 on the way out — say **No** if you're upgrading and want to keep

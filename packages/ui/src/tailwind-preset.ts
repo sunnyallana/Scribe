@@ -57,7 +57,15 @@ export const uiPreset: Partial<Config> = {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         // Reserved for academic chrome (brand mark, dashboard titles).
         // System serifs only — no web-font load.
-        serif: ['"Source Serif Pro"', '"Iowan Old Style"', '"Charter"', 'Georgia', 'Cambria', 'ui-serif', 'serif'],
+        serif: [
+          '"Source Serif Pro"',
+          '"Iowan Old Style"',
+          '"Charter"',
+          'Georgia',
+          'Cambria',
+          'ui-serif',
+          'serif',
+        ],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       keyframes: {

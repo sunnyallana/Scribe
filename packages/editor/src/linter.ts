@@ -34,12 +34,7 @@ function entryToDiagnostic(view: EditorView, entry: CompileLogEntry): Diagnostic
   return {
     from,
     to,
-    severity:
-      entry.level === 'error'
-        ? 'error'
-        : entry.level === 'warning'
-          ? 'warning'
-          : 'info',
+    severity: entry.level === 'error' ? 'error' : entry.level === 'warning' ? 'warning' : 'info',
     message: entry.message,
     source: isChktex ? 'chktex' : 'tectonic',
   };

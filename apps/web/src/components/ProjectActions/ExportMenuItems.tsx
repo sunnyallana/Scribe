@@ -13,11 +13,7 @@ import { toast } from 'sonner';
 
 import { api, ApiError } from '../../lib/api';
 import { log } from '../../lib/debug';
-import {
-  downloadCompiledPdf,
-  exportAsMarkdown,
-  exportAsWord,
-} from '../../lib/projectExports';
+import { downloadCompiledPdf, exportAsMarkdown, exportAsWord } from '../../lib/projectExports';
 import { supabase } from '../../lib/supabase';
 import { useProjectChrome } from '../../stores/projectChrome';
 
@@ -34,7 +30,9 @@ export function ExportMenuItems() {
     if (project === null) return;
     setBusy('zip');
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const token = session?.access_token ?? '';
       const resp = await fetch(api.files.zipUrl(project.id), {
         headers: { Authorization: `Bearer ${token}` },
@@ -48,7 +46,9 @@ export function ExportMenuItems() {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      setTimeout(() => { URL.revokeObjectURL(url); }, 0);
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 0);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       log.api.error('zip download failed', e);
@@ -88,7 +88,9 @@ export function ExportMenuItems() {
       // command pandoc choked on. Fallback to generic message.
       const msg =
         e instanceof ApiError ? e.body.message : e instanceof Error ? e.message : String(e);
-      toast.error(t(format === 'md' ? 'export.markdownFailed' : 'export.wordFailed', { error: msg }));
+      toast.error(
+        t(format === 'md' ? 'export.markdownFailed' : 'export.wordFailed', { error: msg }),
+      );
     } finally {
       setBusy(null);
     }

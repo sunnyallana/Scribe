@@ -63,14 +63,24 @@ prefix() {
 API_PID=
 WEB_PID=
 
+# `kill` only when we actually have a PID, and treat "already dead" as
+# success. Written as a function so shellcheck doesn't flag the
+# previous `[[ -n $PID ]] && kill || true` chain (SC2015: that pattern
+# silently swallows the test result).
+maybe_kill() {
+  local pid=$1
+  [[ -z "$pid" ]] && return 0
+  kill "$pid" 2>/dev/null || true
+}
+
 cleanup() {
   echo
   printf "%s⏻%s Shutting down…\n" "$YELLOW" "$RESET"
   # Stop child processes we started. Don't kill Redis if it was already
   # running before this script — that surprised the user once before.
-  [[ -n "$WEB_PID"  ]] && kill "$WEB_PID"  2>/dev/null || true
-  [[ -n "$API_PID"  ]] && kill "$API_PID"  2>/dev/null || true
-  [[ -n "$REDIS_PID" ]] && kill "$REDIS_PID" 2>/dev/null || true
+  maybe_kill "$WEB_PID"
+  maybe_kill "$API_PID"
+  maybe_kill "$REDIS_PID"
   wait 2>/dev/null || true
   exit 0
 }

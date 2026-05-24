@@ -40,10 +40,14 @@ export interface HoverPreviewSources {
 const REF_LIKE = /\\(?:ref|eqref|pageref|autoref|cref|Cref)\{([a-zA-Z0-9:_\-+./]+)\}/;
 const CITE_LIKE = /\\(?:cite|citep|citet|citeauthor|citeyear|nocite)\{([^}]+)\}/;
 
-function findTokenAt(line: string, cursorCol: number): { kind: 'ref' | 'cite'; name: string; from: number; to: number } | null {
+function findTokenAt(
+  line: string,
+  cursorCol: number,
+): { kind: 'ref' | 'cite'; name: string; from: number; to: number } | null {
   // Scan the line for any matching ref/cite span containing
   // the cursor column. CodeMirror gives us 0-based offsets.
-  const allRe = /\\(?:ref|eqref|pageref|autoref|cref|Cref|cite|citep|citet|citeauthor|citeyear|nocite)\{([^}]+)\}/g;
+  const allRe =
+    /\\(?:ref|eqref|pageref|autoref|cref|Cref|cite|citep|citet|citeauthor|citeyear|nocite)\{([^}]+)\}/g;
   let m: RegExpExecArray | null;
   while ((m = allRe.exec(line)) !== null) {
     const start = m.index;
@@ -57,7 +61,10 @@ function findTokenAt(line: string, cursorCol: number): { kind: 'ref' | 'cite'; n
     if (citeTest !== null) {
       // For a multi-key cite like `\cite{a,b,c}`, pick the key
       // closest to the cursor — most useful UX.
-      const keys = (citeTest[1] ?? '').split(',').map((s) => s.trim()).filter((s) => s !== '');
+      const keys = (citeTest[1] ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s !== '');
       if (keys.length === 0) return null;
       // Best-effort: locate the comma-split positions and bucket
       // the cursor into a key index.
@@ -67,7 +74,10 @@ function findTokenAt(line: string, cursorCol: number): { kind: 'ref' | 'cite'; n
       let chosen = keys[0] ?? '';
       for (const k of keys) {
         const next = acc + k.length;
-        if (relCol >= acc && relCol <= next + 1) { chosen = k; break; }
+        if (relCol >= acc && relCol <= next + 1) {
+          chosen = k;
+          break;
+        }
         acc = next + 1; // +1 for the comma
       }
       return { kind: 'cite', name: chosen, from: start, to: end };
@@ -80,63 +90,67 @@ function findTokenAt(line: string, cursorCol: number): { kind: 'ref' | 'cite'; n
  *  stable across renders even when `sources` mutates because we
  *  read through a ref-style closure. */
 export function hoverPreview(getSources: () => HoverPreviewSources): Extension {
-  return hoverTooltip((view, pos): Tooltip | null => {
-    const line = view.state.doc.lineAt(pos);
-    const colInLine = pos - line.from;
-    const token = findTokenAt(line.text, colInLine);
-    if (token === null) return null;
-    const sources = getSources();
-    const preview = token.kind === 'ref'
-      ? (sources.resolveLabel?.(token.name) ?? null)
-      : (sources.resolveCitation?.(token.name) ?? null);
-    if (preview === null || preview.body === '') return null;
+  return hoverTooltip(
+    (view, pos): Tooltip | null => {
+      const line = view.state.doc.lineAt(pos);
+      const colInLine = pos - line.from;
+      const token = findTokenAt(line.text, colInLine);
+      if (token === null) return null;
+      const sources = getSources();
+      const preview =
+        token.kind === 'ref'
+          ? (sources.resolveLabel?.(token.name) ?? null)
+          : (sources.resolveCitation?.(token.name) ?? null);
+      if (preview === null || preview.body === '') return null;
 
-    return {
-      pos: line.from + token.from,
-      end: line.from + token.to,
-      above: true,
-      create: () => {
-        const dom = document.createElement('div');
-        dom.className = 'cm-hover-preview';
-        // Inline styles only — we keep the editor package free of
-        // Tailwind. Host pages can override via the .cm-hover-preview
-        // class if they want.
-        dom.style.maxWidth = '32rem';
-        dom.style.maxHeight = '16rem';
-        dom.style.overflow = 'auto';
-        dom.style.padding = '6px 10px';
-        dom.style.fontSize = '11px';
-        dom.style.lineHeight = '1.4';
-        dom.style.background = 'var(--cm-tooltip-bg, #1f2937)';
-        dom.style.color = 'var(--cm-tooltip-fg, #f3f4f6)';
-        dom.style.border = '1px solid rgba(255,255,255,0.08)';
-        dom.style.borderRadius = '4px';
-        dom.style.boxShadow = '0 4px 14px rgba(0,0,0,0.25)';
+      return {
+        pos: line.from + token.from,
+        end: line.from + token.to,
+        above: true,
+        create: () => {
+          const dom = document.createElement('div');
+          dom.className = 'cm-hover-preview';
+          // Inline styles only — we keep the editor package free of
+          // Tailwind. Host pages can override via the .cm-hover-preview
+          // class if they want.
+          dom.style.maxWidth = '32rem';
+          dom.style.maxHeight = '16rem';
+          dom.style.overflow = 'auto';
+          dom.style.padding = '6px 10px';
+          dom.style.fontSize = '11px';
+          dom.style.lineHeight = '1.4';
+          dom.style.background = 'var(--cm-tooltip-bg, #1f2937)';
+          dom.style.color = 'var(--cm-tooltip-fg, #f3f4f6)';
+          dom.style.border = '1px solid rgba(255,255,255,0.08)';
+          dom.style.borderRadius = '4px';
+          dom.style.boxShadow = '0 4px 14px rgba(0,0,0,0.25)';
 
-        const title = document.createElement('div');
-        title.textContent = preview.title;
-        title.style.fontWeight = '600';
-        title.style.marginBottom = '4px';
-        title.style.opacity = '0.85';
-        dom.appendChild(title);
+          const title = document.createElement('div');
+          title.textContent = preview.title;
+          title.style.fontWeight = '600';
+          title.style.marginBottom = '4px';
+          title.style.opacity = '0.85';
+          dom.appendChild(title);
 
-        if (preview.mono) {
-          const pre = document.createElement('pre');
-          pre.textContent = preview.body;
-          pre.style.margin = '0';
-          pre.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, monospace';
-          pre.style.fontSize = '10.5px';
-          pre.style.whiteSpace = 'pre-wrap';
-          pre.style.wordBreak = 'break-word';
-          dom.appendChild(pre);
-        } else {
-          const p = document.createElement('div');
-          p.textContent = preview.body;
-          p.style.whiteSpace = 'pre-wrap';
-          dom.appendChild(p);
-        }
-        return { dom };
-      },
-    };
-  }, { hideOnChange: true, hoverTime: 200 });
+          if (preview.mono) {
+            const pre = document.createElement('pre');
+            pre.textContent = preview.body;
+            pre.style.margin = '0';
+            pre.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, monospace';
+            pre.style.fontSize = '10.5px';
+            pre.style.whiteSpace = 'pre-wrap';
+            pre.style.wordBreak = 'break-word';
+            dom.appendChild(pre);
+          } else {
+            const p = document.createElement('div');
+            p.textContent = preview.body;
+            p.style.whiteSpace = 'pre-wrap';
+            dom.appendChild(p);
+          }
+          return { dom };
+        },
+      };
+    },
+    { hideOnChange: true, hoverTime: 200 },
+  );
 }

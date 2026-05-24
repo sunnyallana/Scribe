@@ -46,7 +46,10 @@ export const createFileInputSchema = z.object({
   path: filePathSchema,
   type: fileTypeSchema.optional(),
   /** Optional seed content; empty if omitted. */
-  content: z.string().max(20 * 1024 * 1024).optional(),
+  content: z
+    .string()
+    .max(20 * 1024 * 1024)
+    .optional(),
 });
 export type CreateFileInput = z.infer<typeof createFileInputSchema>;
 

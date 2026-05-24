@@ -48,8 +48,12 @@ export function StatusBar({
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    const id = window.setInterval(() => { setNow(Date.now()); }, 10000);
-    return () => { window.clearInterval(id); };
+    const id = window.setInterval(() => {
+      setNow(Date.now());
+    }, 10000);
+    return () => {
+      window.clearInterval(id);
+    };
   }, []);
 
   const saveLabel = (() => {
@@ -58,11 +62,12 @@ export function StatusBar({
     return t('status.savedAgo', { when: formatRelative(lastSavedAt, now) });
   })();
 
-  const collabIcon = collabSynced === null ? null : collabSynced ? (
-    <Wifi className="h-3 w-3 text-emerald-500" aria-hidden="true" />
-  ) : (
-    <WifiOff className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
-  );
+  const collabIcon =
+    collabSynced === null ? null : collabSynced ? (
+      <Wifi className="h-3 w-3 text-emerald-500" aria-hidden="true" />
+    ) : (
+      <WifiOff className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
+    );
 
   return (
     <div className="flex h-6 items-center gap-3 border-t bg-muted/40 px-3 text-[10px] tabular-nums text-muted-foreground">
@@ -70,9 +75,7 @@ export function StatusBar({
         {path ?? t('compile.noFileSelected')}
       </span>
       <span aria-hidden="true">·</span>
-      <span>
-        {t('status.lineCol', { line, column })}
-      </span>
+      <span>{t('status.lineCol', { line, column })}</span>
       {wordCount !== null ? (
         <>
           <span aria-hidden="true">·</span>

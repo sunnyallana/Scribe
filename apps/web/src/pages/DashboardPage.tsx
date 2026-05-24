@@ -88,7 +88,9 @@ export function DashboardPage() {
           <PageError
             title={t('errors.couldntLoadDashboard')}
             description={error.body.message}
-            onRetry={() => { window.location.reload(); }}
+            onRetry={() => {
+              window.location.reload();
+            }}
             backTo={null}
           />
         </div>
@@ -98,9 +100,7 @@ export function DashboardPage() {
             <CardTitle>{t('dashboard.emptyTitle')}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="mb-6 text-sm text-muted-foreground">
-              {t('dashboard.emptyDescription')}
-            </p>
+            <p className="mb-6 text-sm text-muted-foreground">{t('dashboard.emptyDescription')}</p>
             <Button
               onClick={() => {
                 setDialogOpen(true);

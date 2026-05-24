@@ -44,16 +44,16 @@ curl http://localhost:3001/api/health
 Reads env vars (or `.env` at the repo root) using the **same names** as
 the Node server, so a single `.env` works for both during cutover:
 
-| var                          | purpose                                  |
-| ---------------------------- | ---------------------------------------- |
-| `HOST` / `PORT`              | bind address (defaults `0.0.0.0:3001`)   |
-| `DATABASE_URL`               | Postgres connection (sqlx)               |
-| `SUPABASE_URL`               | Storage + JWKS base URL                  |
-| `SUPABASE_ANON_KEY`          | HS256 anon JWT secret                    |
-| `SUPABASE_SERVICE_ROLE_KEY`  | HS256 service-role JWT secret            |
-| `SUPABASE_JWT_SECRET`        | legacy HS256 user JWT secret             |
-| `REDIS_URL`                  | compile queue                            |
-| `AI_KEY_ENCRYPTION_KEY`      | base64 32-byte AES-256-GCM KEK           |
+| var                         | purpose                                |
+| --------------------------- | -------------------------------------- |
+| `HOST` / `PORT`             | bind address (defaults `0.0.0.0:3001`) |
+| `DATABASE_URL`              | Postgres connection (sqlx)             |
+| `SUPABASE_URL`              | Storage + JWKS base URL                |
+| `SUPABASE_ANON_KEY`         | HS256 anon JWT secret                  |
+| `SUPABASE_SERVICE_ROLE_KEY` | HS256 service-role JWT secret          |
+| `SUPABASE_JWT_SECRET`       | legacy HS256 user JWT secret           |
+| `REDIS_URL`                 | compile queue                          |
+| `AI_KEY_ENCRYPTION_KEY`     | base64 32-byte AES-256-GCM KEK         |
 
 ## Migration path
 

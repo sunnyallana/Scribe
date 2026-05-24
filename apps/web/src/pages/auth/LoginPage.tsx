@@ -153,9 +153,7 @@ export function LoginPage() {
               {...magicForm.register('email')}
             />
             {magicForm.formState.errors.email !== undefined && (
-              <p className="text-xs text-destructive">
-                {magicForm.formState.errors.email.message}
-              </p>
+              <p className="text-xs text-destructive">{magicForm.formState.errors.email.message}</p>
             )}
           </div>
           <Button type="submit" className="w-full" disabled={magicForm.formState.isSubmitting}>

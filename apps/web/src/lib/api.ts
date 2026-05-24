@@ -148,11 +148,7 @@ export const api = {
       return fetchJson(`/api/projects/${projectId}/files`, { method: 'POST', body: formData });
     },
     zipUrl: (projectId: ProjectId): string => `${API_URL}/api/projects/${projectId}/download`,
-    rename: (
-      projectId: ProjectId,
-      fileId: FileId,
-      input: RenameFileInput,
-    ): Promise<ProjectFile> =>
+    rename: (projectId: ProjectId, fileId: FileId, input: RenameFileInput): Promise<ProjectFile> =>
       fetchJson(`/api/projects/${projectId}/files/${fileId}`, {
         method: 'PATCH',
         body: JSON.stringify(input),
@@ -181,10 +177,11 @@ export const api = {
       }),
     list: (projectId: ProjectId): Promise<CompileJob[]> =>
       fetchJson(`/api/projects/${projectId}/compiles`),
-    get: (jobId: CompileJobId): Promise<CompileJob> =>
-      fetchJson(`/api/compiles/${jobId}`),
-    artifactUrl: (jobId: CompileJobId, kind: 'pdf' | 'log' | 'synctex' | 'bbl'): Promise<{ url: string }> =>
-      fetchJson(`/api/compiles/${jobId}/artifact-url?kind=${kind}`),
+    get: (jobId: CompileJobId): Promise<CompileJob> => fetchJson(`/api/compiles/${jobId}`),
+    artifactUrl: (
+      jobId: CompileJobId,
+      kind: 'pdf' | 'log' | 'synctex' | 'bbl',
+    ): Promise<{ url: string }> => fetchJson(`/api/compiles/${jobId}/artifact-url?kind=${kind}`),
   },
   voice: {
     /** Read-only snapshot of who's currently in the project's
@@ -201,7 +198,11 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(input),
       }),
-    update: (projectId: ProjectId, commentId: CommentId, input: UpdateCommentInput): Promise<Comment> =>
+    update: (
+      projectId: ProjectId,
+      commentId: CommentId,
+      input: UpdateCommentInput,
+    ): Promise<Comment> =>
       fetchJson(`/api/projects/${projectId}/comments/${commentId}`, {
         method: 'PATCH',
         body: JSON.stringify(input),
@@ -257,18 +258,16 @@ export const api = {
     /** Run chktex against an unsaved buffer of `content` for the
      *  given file path. Returns lint entries (`source: 'chktex'`).
      *  Server returns an empty list if CHKTEX_BIN is unset. */
-    run: (
-      projectId: ProjectId,
-      filePath: string,
-      content: string,
-    ): Promise<CompileLogEntryDTO[]> =>
+    run: (projectId: ProjectId, filePath: string, content: string): Promise<CompileLogEntryDTO[]> =>
       fetchJson(`/api/projects/${projectId}/lint`, {
         method: 'POST',
         body: JSON.stringify({ filePath, content }),
       }),
   },
   notifications: {
-    list: (opts: { readonly unread?: boolean; readonly limit?: number } = {}): Promise<Notification[]> => {
+    list: (
+      opts: { readonly unread?: boolean; readonly limit?: number } = {},
+    ): Promise<Notification[]> => {
       const params = new URLSearchParams();
       if (opts.unread === true) params.set('unread', 'true');
       if (opts.limit !== undefined) params.set('limit', opts.limit.toString());
@@ -291,8 +290,7 @@ export const api = {
       }),
     revoke: (linkId: ShareLinkId): Promise<{ ok: boolean }> =>
       fetchJson(`/api/share-links/${linkId}`, { method: 'DELETE' }),
-    preview: (token: string): Promise<SharePreview> =>
-      fetchJson(`/api/share/${token}`),
+    preview: (token: string): Promise<SharePreview> => fetchJson(`/api/share/${token}`),
     redeem: (token: string): Promise<RedeemShareResponse> =>
       fetchJson(`/api/share/${token}/redeem`, { method: 'POST' }),
   },
@@ -305,7 +303,9 @@ export const api = {
       projectId: ProjectId,
       format: 'md' | 'docx',
     ): Promise<{ blob: Blob; filename: string | null }> => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const headers = new Headers();
       if (session !== null) {
         headers.set('Authorization', `Bearer ${session.access_token}`);

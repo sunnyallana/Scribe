@@ -29,8 +29,7 @@
  *  We allow whitespace and any optional `[…]` block (with internal
  *  brackets balanced one level deep, which covers `\protect`).
  */
-const BIBITEM_REGEX =
-  /\\bibitem\s*(?:\[(?:[^[\]]|\[[^\]]*\])*\])?\s*\{\s*([^,}\s]+)\s*\}/;
+const BIBITEM_REGEX = /\\bibitem\s*(?:\[(?:[^[\]]|\[[^\]]*\])*\])?\s*\{\s*([^,}\s]+)\s*\}/;
 
 /**
  * Find the cite-key for an inverse-lookup landing in a `.bbl`. The

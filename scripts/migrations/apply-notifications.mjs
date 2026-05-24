@@ -13,7 +13,14 @@ if (!dbPassword) {
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const file = join(__dirname, '..', '..', 'supabase', 'migrations', '20260524000003_notifications.sql');
+const file = join(
+  __dirname,
+  '..',
+  '..',
+  'supabase',
+  'migrations',
+  '20260524000003_notifications.sql',
+);
 
 const client = new Client({
   host: 'aws-1-ap-southeast-2.pooler.supabase.com',

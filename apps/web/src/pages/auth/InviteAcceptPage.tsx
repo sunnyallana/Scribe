@@ -1,8 +1,4 @@
-import {
-  type InviteDetails,
-  inviteTokenSchema,
-  type ServiceErrorCode,
-} from '@scribe/shared';
+import { type InviteDetails, inviteTokenSchema, type ServiceErrorCode } from '@scribe/shared';
 import { Button } from '@scribe/ui';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';

@@ -1,5 +1,12 @@
 import { type AIFeature } from '@scribe/shared';
-import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@scribe/ui';
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@scribe/ui';
 import { Check, Loader2, Sparkles, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -49,7 +56,12 @@ interface AICommandPaletteProps {
   readonly onInsert: (text: string) => void;
 }
 
-export function AICommandPalette({ open, onOpenChange, selection, onInsert }: AICommandPaletteProps) {
+export function AICommandPalette({
+  open,
+  onOpenChange,
+  selection,
+  onInsert,
+}: AICommandPaletteProps) {
   const { t } = useTranslation();
   const [active, setActive] = useState<AICommand | null>(null);
   const [optionValue, setOptionValue] = useState<string>('');
@@ -107,7 +119,9 @@ export function AICommandPalette({ open, onOpenChange, selection, onInsert }: AI
                 <button
                   type="button"
                   className="flex w-full items-start gap-3 rounded-md px-3 py-2 text-left hover:bg-accent"
-                  onClick={() => { startCommand(cmd); }}
+                  onClick={() => {
+                    startCommand(cmd);
+                  }}
                 >
                   <div className="flex-1">
                     <div className="text-sm font-medium">{t(cmd.labelKey)}</div>
@@ -125,7 +139,10 @@ export function AICommandPalette({ open, onOpenChange, selection, onInsert }: AI
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
-                onClick={() => { setActive(null); stream.reset(); }}
+                onClick={() => {
+                  setActive(null);
+                  stream.reset();
+                }}
                 aria-label={t('common.back')}
               >
                 <X className="h-3 w-3" aria-hidden="true" />
@@ -143,7 +160,9 @@ export function AICommandPalette({ open, onOpenChange, selection, onInsert }: AI
                   autoComplete="off"
                   className="w-full rounded-md border bg-background p-2 text-sm"
                   value={optionValue}
-                  onChange={(e) => { setOptionValue(e.target.value); }}
+                  onChange={(e) => {
+                    setOptionValue(e.target.value);
+                  }}
                   placeholder={active.optionPlaceholder}
                   ref={(el) => {
                     if (el !== null) el.focus();
@@ -155,7 +174,11 @@ export function AICommandPalette({ open, onOpenChange, selection, onInsert }: AI
                     }
                   }}
                 />
-                <Button size="sm" onClick={runWithOption} disabled={optionValue.trim().length === 0}>
+                <Button
+                  size="sm"
+                  onClick={runWithOption}
+                  disabled={optionValue.trim().length === 0}
+                >
                   {t('ai.palette.run')}
                 </Button>
               </div>
@@ -168,7 +191,10 @@ export function AICommandPalette({ open, onOpenChange, selection, onInsert }: AI
                 <>
                   {stream.text}
                   {stream.streaming ? (
-                    <span className="ml-1 inline-block h-3 w-2 animate-pulse bg-foreground/40" aria-hidden="true" />
+                    <span
+                      className="ml-1 inline-block h-3 w-2 animate-pulse bg-foreground/40"
+                      aria-hidden="true"
+                    />
                   ) : null}
                 </>
               )}

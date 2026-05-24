@@ -22,9 +22,24 @@ interface TabDef {
 }
 
 const TABS: readonly TabDef[] = [
-  { id: 'profile', icon: UserCircle2, labelKey: 'settings.profile.title', descriptionKey: 'settings.profile.description' },
-  { id: 'editor', icon: Type, labelKey: 'settings.editor.title', descriptionKey: 'settings.editor.description' },
-  { id: 'ai', icon: Sparkles, labelKey: 'settings.ai.title', descriptionKey: 'settings.ai.description' },
+  {
+    id: 'profile',
+    icon: UserCircle2,
+    labelKey: 'settings.profile.title',
+    descriptionKey: 'settings.profile.description',
+  },
+  {
+    id: 'editor',
+    icon: Type,
+    labelKey: 'settings.editor.title',
+    descriptionKey: 'settings.editor.description',
+  },
+  {
+    id: 'ai',
+    icon: Sparkles,
+    labelKey: 'settings.ai.title',
+    descriptionKey: 'settings.ai.description',
+  },
 ];
 
 export function SettingsPage() {
@@ -54,7 +69,9 @@ export function SettingsPage() {
       }
     };
     window.addEventListener('keydown', handler);
-    return () => { window.removeEventListener('keydown', handler); };
+    return () => {
+      window.removeEventListener('keydown', handler);
+    };
   }, [close]);
 
   const tab = TABS.find((tt) => tt.id === active) ?? TABS[0];
@@ -90,7 +107,9 @@ export function SettingsPage() {
                     ? 'bg-accent text-accent-foreground font-medium'
                     : 'text-muted-foreground hover:bg-accent/60'
                 }`}
-                onClick={() => { setActive(tt.id); }}
+                onClick={() => {
+                  setActive(tt.id);
+                }}
               >
                 <Icon className="h-4 w-4" aria-hidden="true" />
                 {t(tt.labelKey)}

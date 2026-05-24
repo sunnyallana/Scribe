@@ -39,8 +39,6 @@ import { useTranslation } from 'react-i18next';
 import { type ImperativePanelHandle, Panel, PanelGroup } from 'react-resizable-panels';
 import { toast } from 'sonner';
 
-
-
 import { AIChat } from '../../components/AIChat/AIChat';
 import { AICommandPalette } from '../../components/AICommandPalette/AICommandPalette';
 import { BibliographyPanel } from '../../components/Bibliography/BibliographyPanel';
@@ -127,7 +125,16 @@ function isViewableImage(file: ProjectFile): boolean {
   return VIEWABLE_IMAGE_EXT.some((ext) => lower.endsWith(ext));
 }
 
-type RightPanelId = 'outline' | 'review' | 'history' | 'bibliography' | 'citations' | 'find' | 'ai-chat' | 'math' | null;
+type RightPanelId =
+  | 'outline'
+  | 'review'
+  | 'history'
+  | 'bibliography'
+  | 'citations'
+  | 'find'
+  | 'ai-chat'
+  | 'math'
+  | null;
 
 // Right-side panel toggles in display order. Lives at module scope so
 // both the inline button row (wide layouts) and the overflow dropdown
@@ -220,8 +227,12 @@ export function ProjectWorkspace({
   useEffect(() => {
     if (isNarrowViewport) {
       // Defer one frame so the panel is mounted with its handle ready.
-      const id = window.setTimeout(() => { previewPanelRef.current?.collapse(); }, 0);
-      return () => { window.clearTimeout(id); };
+      const id = window.setTimeout(() => {
+        previewPanelRef.current?.collapse();
+      }, 0);
+      return () => {
+        window.clearTimeout(id);
+      };
     }
     return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -318,7 +329,9 @@ export function ProjectWorkspace({
       }
     }
     window.addEventListener('keydown', handler);
-    return () => { window.removeEventListener('keydown', handler); };
+    return () => {
+      window.removeEventListener('keydown', handler);
+    };
   }, [aiPaletteOpen, selectedFile, onCloseFile]);
 
   const [aiSelection, setAISelection] = useState<string>('');
@@ -337,7 +350,7 @@ export function ProjectWorkspace({
     const displayName =
       typeof authUser.user_metadata.display_name === 'string'
         ? authUser.user_metadata.display_name
-        : authUser.email ?? 'User';
+        : (authUser.email ?? 'User');
     return {
       userId: authUser.id,
       displayName,
@@ -363,7 +376,11 @@ export function ProjectWorkspace({
   });
 
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
-  const writeMutation = useMutation<unknown, ApiError, { fileId: ProjectFile['id']; content: string }>({
+  const writeMutation = useMutation<
+    unknown,
+    ApiError,
+    { fileId: ProjectFile['id']; content: string }
+  >({
     mutationFn: ({ fileId, content }) => {
       log.save('autosave →', { fileId, bytes: content.length });
       return api.files.writeContent(projectId, fileId, content);
@@ -416,10 +433,16 @@ export function ProjectWorkspace({
       return;
     }
     const id = window.setTimeout(() => {
-      log.yjs.warn('collab timed out after', COLLAB_TIMEOUT_MS, 'ms — falling back to solo until WS reconnects');
+      log.yjs.warn(
+        'collab timed out after',
+        COLLAB_TIMEOUT_MS,
+        'ms — falling back to solo until WS reconnects',
+      );
       setCollabTimedOut(true);
     }, COLLAB_TIMEOUT_MS);
-    return () => { window.clearTimeout(id); };
+    return () => {
+      window.clearTimeout(id);
+    };
   }, [yjs.synced, selectedFile?.id]);
 
   useEffect(() => {
@@ -541,7 +564,9 @@ export function ProjectWorkspace({
   // doesn't drop the previous file's lint state. 800 ms matches the
   // autosave debounce — same UX cadence the user already feels.
   const lintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [liveLintByPath, setLiveLintByPath] = useState<ReadonlyMap<string, readonly CompileLogEntryDTO[]>>(new Map());
+  const [liveLintByPath, setLiveLintByPath] = useState<
+    ReadonlyMap<string, readonly CompileLogEntryDTO[]>
+  >(new Map());
   const LINT_DEBOUNCE_MS = 800;
 
   const triggerLint = useCallback(
@@ -643,7 +668,9 @@ export function ProjectWorkspace({
     writeMutation.mutate(
       { fileId: selectedFile.id, content: live },
       {
-        onSuccess: () => { toast.success(t('compile.saved')); },
+        onSuccess: () => {
+          toast.success(t('compile.saved'));
+        },
       },
     );
   }, [editorContent, selectedFile, writeMutation, t]);
@@ -687,7 +714,15 @@ export function ProjectWorkspace({
         : undefined;
     await compileSession.compile(project.mainFile, editorOverrides);
     await queryClient.invalidateQueries({ queryKey: ['compiles', projectId] });
-  }, [compileSession, editorContent, editorReadOnly, project.mainFile, projectId, queryClient, selectedFile]);
+  }, [
+    compileSession,
+    editorContent,
+    editorReadOnly,
+    project.mainFile,
+    projectId,
+    queryClient,
+    selectedFile,
+  ]);
 
   // Flush any pending autosave when the user navigates away or
   // refreshes inside the debounce window. `sendBeacon` is fire-and-
@@ -726,7 +761,9 @@ export function ProjectWorkspace({
       }
     };
     window.addEventListener('beforeunload', onUnload);
-    return () => { window.removeEventListener('beforeunload', onUnload); };
+    return () => {
+      window.removeEventListener('beforeunload', onUnload);
+    };
   }, [projectId, selectedFile]);
 
   // Map a SyncTeX-recorded path (or a log-parser-extracted path) to
@@ -743,9 +780,7 @@ export function ProjectWorkspace({
       const cleaned = raw.replace(/\\/g, '/').replace(/^\.\//, '').trim();
       const withTexExt = cleaned.endsWith('.tex') ? cleaned : `${cleaned}.tex`;
       const cleanedBase = cleaned.substring(cleaned.lastIndexOf('/') + 1);
-      const baseWithExt = cleanedBase.endsWith('.tex')
-        ? cleanedBase
-        : `${cleanedBase}.tex`;
+      const baseWithExt = cleanedBase.endsWith('.tex') ? cleanedBase : `${cleanedBase}.tex`;
 
       // 1. Exact path match.
       let target = files.find((f) => f.path === cleaned);
@@ -767,9 +802,7 @@ export function ProjectWorkspace({
       //    record (when SyncTeX stored just the basename or a
       //    sub-path).
       target = files.find(
-        (f) =>
-          f.path.endsWith(`/${cleaned}`) ||
-          f.path.endsWith(`/${withTexExt}`),
+        (f) => f.path.endsWith(`/${cleaned}`) || f.path.endsWith(`/${withTexExt}`),
       );
       if (target !== undefined) return target;
 
@@ -793,9 +826,11 @@ export function ProjectWorkspace({
   // jump until the editor for the right file is genuinely ready;
   // the effect below fires the jump deterministically once that's
   // true, with no fixed-delay guesswork.
-  const [pendingJump, setPendingJump] = useState<
-    { fileId: string; line: number; flash: boolean } | null
-  >(null);
+  const [pendingJump, setPendingJump] = useState<{
+    fileId: string;
+    line: number;
+    flash: boolean;
+  } | null>(null);
 
   const handleJumpTo = useCallback(
     (filePath: string, line: number) => {
@@ -1005,15 +1040,7 @@ export function ProjectWorkspace({
         editorRef.current?.gotoLine(loc.line, { flash: true });
       }
     },
-    [
-      synctex.index,
-      resolveProjectFile,
-      files,
-      selectedFile,
-      onSelectFile,
-      t,
-      handleBblInverseSync,
-    ],
+    [synctex.index, resolveProjectFile, files, selectedFile, onSelectFile, t, handleBblInverseSync],
   );
 
   // Honour the user's lint toggle here so the editor's gutter
@@ -1082,8 +1109,7 @@ export function ProjectWorkspace({
     }
   }, [editorReadyNow, selectedFile?.id]);
   const editorReady =
-    editorReadyNow ||
-    (selectedFile !== null && stickyReadyFileId === selectedFile.id);
+    editorReadyNow || (selectedFile !== null && stickyReadyFileId === selectedFile.id);
 
   // Fire any deferred cross-file jump once the editor for the target
   // file is *actually* mounted and primed. Relying on a fixed delay
@@ -1102,7 +1128,9 @@ export function ProjectWorkspace({
       editorRef.current?.gotoLine(pendingJump.line, { flash: pendingJump.flash });
       setPendingJump(null);
     }, 0);
-    return () => { window.clearTimeout(id); };
+    return () => {
+      window.clearTimeout(id);
+    };
   }, [pendingJump, selectedFile?.id, editorReady]);
 
   const commandList = useMemo<CommandItem[]>(() => {
@@ -1114,7 +1142,9 @@ export function ProjectWorkspace({
         icon: Play,
         hint: 'Ctrl+Enter',
         keywords: ['compile', 'build', 'run', 'pdf'],
-        action: () => { void handleCompile(); },
+        action: () => {
+          void handleCompile();
+        },
       },
       {
         id: 'ai-palette',
@@ -1132,56 +1162,72 @@ export function ProjectWorkspace({
         label: t('command.toggleOutline'),
         group: t('command.groupPanels'),
         icon: ListTree,
-        action: () => { toggleRightPanel('outline'); },
+        action: () => {
+          toggleRightPanel('outline');
+        },
       },
       {
         id: 'review',
         label: t('command.toggleReview'),
         group: t('command.groupPanels'),
         icon: MessageSquare,
-        action: () => { toggleRightPanel('review'); },
+        action: () => {
+          toggleRightPanel('review');
+        },
       },
       {
         id: 'history',
         label: t('command.toggleHistory'),
         group: t('command.groupPanels'),
         icon: History,
-        action: () => { toggleRightPanel('history'); },
+        action: () => {
+          toggleRightPanel('history');
+        },
       },
       {
         id: 'bibliography',
         label: t('command.toggleBibliography'),
         group: t('command.groupPanels'),
         icon: BookText,
-        action: () => { toggleRightPanel('bibliography'); },
+        action: () => {
+          toggleRightPanel('bibliography');
+        },
       },
       {
         id: 'citations',
         label: t('command.toggleCitations'),
         group: t('command.groupPanels'),
         icon: Search,
-        action: () => { toggleRightPanel('citations'); },
+        action: () => {
+          toggleRightPanel('citations');
+        },
       },
       {
         id: 'find',
         label: t('command.toggleFind'),
         group: t('command.groupPanels'),
         icon: ReplaceIcon,
-        action: () => { toggleRightPanel('find'); },
+        action: () => {
+          toggleRightPanel('find');
+        },
       },
       {
         id: 'ai-chat',
         label: t('command.toggleAIChat'),
         group: t('command.groupPanels'),
         icon: Sparkles,
-        action: () => { toggleRightPanel('ai-chat'); },
+        action: () => {
+          toggleRightPanel('ai-chat');
+        },
       },
       {
         id: 'math',
         label: t('command.toggleMath'),
         group: t('command.groupPanels'),
         icon: Sigma,
-        action: () => { toggleRightPanel('math'); },
+        action: () => {
+          toggleRightPanel('math');
+        },
       },
       {
         id: 'snapshot',
@@ -1201,7 +1247,9 @@ export function ProjectWorkspace({
         group: t('command.groupFiles'),
         icon: FileText,
         keywords: ['file', 'open', 'switch'],
-        action: () => { onSelectFile(f); },
+        action: () => {
+          onSelectFile(f);
+        },
       });
     }
     return cmds;
@@ -1230,7 +1278,9 @@ export function ProjectWorkspace({
         .filter((w) => w.length > 0).length;
       setWordCount(count);
     }, 400);
-    return () => { window.clearTimeout(handle); };
+    return () => {
+      window.clearTimeout(handle);
+    };
   }, [editorContent]);
 
   const saveStatusLabel = (() => {
@@ -1280,9 +1330,7 @@ export function ProjectWorkspace({
               ) : null;
             })()
           ) : (
-            <span className="truncate text-sm font-medium">
-              {t('compile.noFileSelected')}
-            </span>
+            <span className="truncate text-sm font-medium">{t('compile.noFileSelected')}</span>
           )}
           {saveStatusLabel !== null ? (
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -1310,7 +1358,9 @@ export function ProjectWorkspace({
                 aria-label={t(toggle.labelKey)}
                 aria-pressed={rightPanel === toggle.id}
                 className="h-7 w-7"
-                onClick={() => { toggleRightPanel(toggle.id); }}
+                onClick={() => {
+                  toggleRightPanel(toggle.id);
+                }}
                 title={t(toggle.labelKey)}
               >
                 <toggle.icon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1334,7 +1384,9 @@ export function ProjectWorkspace({
               {PANEL_TOGGLES.map((toggle) => (
                 <DropdownMenuItem
                   key={toggle.id}
-                  onSelect={() => { toggleRightPanel(toggle.id); }}
+                  onSelect={() => {
+                    toggleRightPanel(toggle.id);
+                  }}
                   className="gap-2"
                 >
                   <toggle.icon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1361,7 +1413,9 @@ export function ProjectWorkspace({
             size="icon"
             aria-label={t('command.title')}
             className="h-7 w-7"
-            onClick={() => { setCmdPaletteOpen(true); }}
+            onClick={() => {
+              setCmdPaletteOpen(true);
+            }}
             title="Ctrl+K"
           >
             <Command className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1381,7 +1435,9 @@ export function ProjectWorkspace({
           <div className="mx-1 h-4 w-px bg-border" aria-hidden="true" />
           <Button
             size="sm"
-            onClick={() => { void handleCompile(); }}
+            onClick={() => {
+              void handleCompile();
+            }}
             disabled={compileSession.compiling}
             className="gap-1.5"
           >
@@ -1429,9 +1485,14 @@ export function ProjectWorkspace({
               ...(e.source !== undefined ? { source: e.source } : {}),
             }))}
             onChange={handleChange}
-            onCompile={() => { void handleCompile(); }}
+            onCompile={() => {
+              void handleCompile();
+            }}
             onSave={handleSave}
-            onCursor={(line, column) => { setCursorLine(line); setCursorCol(column); }}
+            onCursor={(line, column) => {
+              setCursorLine(line);
+              setCursorCol(column);
+            }}
           />
         )}
       </div>
@@ -1466,8 +1527,12 @@ export function ProjectWorkspace({
           minSize={20}
           collapsible
           collapsedSize={0}
-          onCollapse={() => { setPreviewCollapsed(true); }}
-          onExpand={() => { setPreviewCollapsed(false); }}
+          onCollapse={() => {
+            setPreviewCollapsed(true);
+          }}
+          onExpand={() => {
+            setPreviewCollapsed(false);
+          }}
         >
           <ErrorBoundary scope="preview">{previewPanel}</ErrorBoundary>
         </Panel>
@@ -1479,8 +1544,12 @@ export function ProjectWorkspace({
                 <OutlinePanel
                   contents={outlineContents}
                   mainFile={project.mainFile}
-                  onJump={(filePath, line) => { handleJumpTo(filePath, line); }}
-                  onClose={() => { setRightPanel(null); }}
+                  onJump={(filePath, line) => {
+                    handleJumpTo(filePath, line);
+                  }}
+                  onClose={() => {
+                    setRightPanel(null);
+                  }}
                 />
               ) : null}
               {rightPanel === 'review' ? (
@@ -1493,7 +1562,9 @@ export function ProjectWorkspace({
                   onJumpToRange={(filePath, from, to, snippet) => {
                     handleJumpToRange(filePath, from, to, snippet);
                   }}
-                  onClose={() => { setRightPanel(null); }}
+                  onClose={() => {
+                    setRightPanel(null);
+                  }}
                   currentUserId={authUser?.id ?? null}
                   isProjectOwner={myRole === 'owner'}
                   onApplySuggestion={async ({ replacement }) => {
@@ -1512,7 +1583,9 @@ export function ProjectWorkspace({
               {rightPanel === 'history' ? (
                 <VersionHistory
                   projectId={projectId}
-                  onClose={() => { setRightPanel(null); }}
+                  onClose={() => {
+                    setRightPanel(null);
+                  }}
                 />
               ) : null}
               {rightPanel === 'bibliography' ? (
@@ -1523,7 +1596,9 @@ export function ProjectWorkspace({
                   onCite={(key) => {
                     editorRef.current?.insertAtCursor(`\\cite{${key}}`);
                   }}
-                  onClose={() => { setRightPanel(null); }}
+                  onClose={() => {
+                    setRightPanel(null);
+                  }}
                 />
               ) : null}
               {rightPanel === 'citations' ? (
@@ -1533,7 +1608,9 @@ export function ProjectWorkspace({
                   onCite={(key) => {
                     editorRef.current?.insertAtCursor(`\\cite{${key}}`);
                   }}
-                  onClose={() => { setRightPanel(null); }}
+                  onClose={() => {
+                    setRightPanel(null);
+                  }}
                 />
               ) : null}
               {rightPanel === 'find' ? (
@@ -1542,19 +1619,30 @@ export function ProjectWorkspace({
                   files={files}
                   activeFileId={selectedFile?.id ?? null}
                   activeFileContent={editorContent}
-                  onSelectFile={(file, line) => { handleJumpTo(file.path, line); }}
-                  onClose={() => { setRightPanel(null); }}
+                  onSelectFile={(file, line) => {
+                    handleJumpTo(file.path, line);
+                  }}
+                  onClose={() => {
+                    setRightPanel(null);
+                  }}
                 />
               ) : null}
               {rightPanel === 'ai-chat' ? (
-                <AIChat onInsert={handleAIInsert} onClose={() => { setRightPanel(null); }} />
+                <AIChat
+                  onInsert={handleAIInsert}
+                  onClose={() => {
+                    setRightPanel(null);
+                  }}
+                />
               ) : null}
               {rightPanel === 'math' ? (
                 <MathPalette
                   onInsert={(latex) => {
                     editorRef.current?.insertAtCursor(latex);
                   }}
-                  onClose={() => { setRightPanel(null); }}
+                  onClose={() => {
+                    setRightPanel(null);
+                  }}
                 />
               ) : null}
             </Panel>
@@ -1614,11 +1702,29 @@ function extractLabelsFromText(text: string): string[] {
 /** Environments whose source we surface in a `\ref` hover. Order
  *  affects nothing — we just match the innermost enclosing block. */
 const PREVIEWABLE_ENVIRONMENTS = new Set([
-  'equation', 'equation*', 'align', 'align*', 'gather', 'gather*',
-  'multline', 'multline*', 'eqnarray', 'eqnarray*', 'cases',
-  'figure', 'figure*', 'table', 'table*',
-  'theorem', 'lemma', 'proposition', 'corollary', 'definition',
-  'remark', 'example', 'proof',
+  'equation',
+  'equation*',
+  'align',
+  'align*',
+  'gather',
+  'gather*',
+  'multline',
+  'multline*',
+  'eqnarray',
+  'eqnarray*',
+  'cases',
+  'figure',
+  'figure*',
+  'table',
+  'table*',
+  'theorem',
+  'lemma',
+  'proposition',
+  'corollary',
+  'definition',
+  'remark',
+  'example',
+  'proof',
 ]);
 
 interface RefPreview {
@@ -1685,7 +1791,11 @@ function resolveLabelPreview(name: string, contents: Map<string, string>): RefPr
  *  pulling fields from the already-parsed bib entries. */
 function resolveCitationPreview(
   name: string,
-  entries: readonly { readonly key: string; readonly type: string; readonly fields: Readonly<Record<string, string>> }[],
+  entries: readonly {
+    readonly key: string;
+    readonly type: string;
+    readonly fields: Readonly<Record<string, string>>;
+  }[],
 ): RefPreview | null {
   if (name === '') return null;
   const entry = entries.find((e) => e.key === name);

@@ -38,7 +38,7 @@ export interface FeatureFlags {
 
 const DEFAULT_FLAGS: Record<AppEnv, FeatureFlags> = {
   development: {
-    apiCaching: false,         // off in dev — same default as the server
+    apiCaching: false, // off in dev — same default as the server
     queryRevalidation: true,
     yjsRealtime: true,
     debugLogging: true,
@@ -54,7 +54,7 @@ const DEFAULT_FLAGS: Record<AppEnv, FeatureFlags> = {
   testing: {
     apiCaching: false,
     queryRevalidation: false,
-    yjsRealtime: false,         // tests use the HTTP API; no WS overhead
+    yjsRealtime: false, // tests use the HTTP API; no WS overhead
     debugLogging: true,
     devGlobals: false,
   },
@@ -85,9 +85,15 @@ function envKeyFor(name: keyof FeatureFlags): string {
 function parseBool(raw: string | null | undefined): boolean | null {
   if (raw === null || raw === undefined || raw === '') return null;
   switch (raw.trim().toLowerCase()) {
-    case '1': case 'true': case 'yes': case 'on':
+    case '1':
+    case 'true':
+    case 'yes':
+    case 'on':
       return true;
-    case '0': case 'false': case 'no': case 'off':
+    case '0':
+    case 'false':
+    case 'no':
+    case 'off':
       return false;
     default:
       return null;

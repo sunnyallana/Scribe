@@ -1,10 +1,5 @@
 import { type Notification } from '@scribe/shared';
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@scribe/ui';
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@scribe/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AtSign, Bell, CheckCheck, MessageSquare, UserCheck, UserPlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -101,7 +96,9 @@ export function NotificationBell() {
             variant="ghost"
             size="sm"
             className="h-6 gap-1 text-[10px]"
-            onClick={() => { markAllRead.mutate(); }}
+            onClick={() => {
+              markAllRead.mutate();
+            }}
             disabled={markAllRead.isPending || unread === 0}
             title={t('notifications.markAllRead')}
           >
@@ -120,7 +117,9 @@ export function NotificationBell() {
                 <li key={n.id}>
                   <button
                     type="button"
-                    onClick={() => { onClickNotification(n); }}
+                    onClick={() => {
+                      onClickNotification(n);
+                    }}
                     className={`flex w-full gap-2.5 px-3 py-2 text-left hover:bg-muted/50 ${
                       n.readAt === null ? 'bg-muted/20' : ''
                     }`}
@@ -135,7 +134,10 @@ export function NotificationBell() {
                       </p>
                     </div>
                     {n.readAt === null ? (
-                      <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500" aria-hidden="true" />
+                      <span
+                        className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500"
+                        aria-hidden="true"
+                      />
                     ) : null}
                   </button>
                 </li>
@@ -170,7 +172,9 @@ function NotificationIcon({ kind }: { readonly kind: Notification['kind'] }) {
       break;
   }
   return (
-    <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted/60 ${cls}`}>
+    <span
+      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted/60 ${cls}`}
+    >
       <Icon className="h-3 w-3" aria-hidden="true" />
     </span>
   );
@@ -178,8 +182,10 @@ function NotificationIcon({ kind }: { readonly kind: Notification['kind'] }) {
 
 function NotificationBody({ n }: { readonly n: Notification }) {
   const { t } = useTranslation();
-  const actor = typeof n.payload.actorName === 'string' ? n.payload.actorName : t('notifications.someone');
-  const project = typeof n.payload.projectName === 'string' ? n.payload.projectName : t('notifications.aProject');
+  const actor =
+    typeof n.payload.actorName === 'string' ? n.payload.actorName : t('notifications.someone');
+  const project =
+    typeof n.payload.projectName === 'string' ? n.payload.projectName : t('notifications.aProject');
   const snippet = typeof n.payload.snippet === 'string' ? n.payload.snippet : '';
   const role = typeof n.payload.role === 'string' ? n.payload.role : '';
   switch (n.kind) {
@@ -187,20 +193,32 @@ function NotificationBody({ n }: { readonly n: Notification }) {
       return (
         <>
           <strong>{actor}</strong> {t('notifications.mentionedYou', { project })}
-          {snippet !== '' ? <span className="block text-[10px] text-muted-foreground">“{snippet}”</span> : null}
+          {snippet !== '' ? (
+            <span className="block text-[10px] text-muted-foreground">“{snippet}”</span>
+          ) : null}
         </>
       );
     case 'comment_reply':
       return (
         <>
           <strong>{actor}</strong> {t('notifications.repliedToYou', { project })}
-          {snippet !== '' ? <span className="block text-[10px] text-muted-foreground">“{snippet}”</span> : null}
+          {snippet !== '' ? (
+            <span className="block text-[10px] text-muted-foreground">“{snippet}”</span>
+          ) : null}
         </>
       );
     case 'invite_accepted':
-      return <><strong>{actor}</strong> {t('notifications.acceptedInvite', { project })}</>;
+      return (
+        <>
+          <strong>{actor}</strong> {t('notifications.acceptedInvite', { project })}
+        </>
+      );
     case 'share_redeemed':
-      return <><strong>{actor}</strong> {t('notifications.joinedViaShare', { project, role })}</>;
+      return (
+        <>
+          <strong>{actor}</strong> {t('notifications.joinedViaShare', { project, role })}
+        </>
+      );
   }
 }
 

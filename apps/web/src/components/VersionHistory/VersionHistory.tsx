@@ -76,10 +76,7 @@ export function VersionHistory({ projectId, onClose }: VersionHistoryProps) {
     dmp.diff_cleanupSemantic(diffs);
     return diffs
       .map(([op, text]) => {
-        const safe = text
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;');
+        const safe = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         if (op === 1) return `<ins class="bg-emerald-100 dark:bg-emerald-900/30">${safe}</ins>`;
         if (op === -1) return `<del class="bg-rose-100 dark:bg-rose-900/30">${safe}</del>`;
         return safe;
@@ -186,7 +183,10 @@ export function VersionHistory({ projectId, onClose }: VersionHistoryProps) {
           <div className="flex-1 overflow-auto">
             {versionPayloadQuery.isLoading ? (
               <div className="p-3">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden="true" />
+                <Loader2
+                  className="h-4 w-4 animate-spin text-muted-foreground"
+                  aria-hidden="true"
+                />
               </div>
             ) : (
               <div className="grid grid-cols-2 h-full">
@@ -211,7 +211,6 @@ export function VersionHistory({ projectId, onClose }: VersionHistoryProps) {
                   {diffFile !== null && diffHtml !== null ? (
                     <pre
                       className="whitespace-pre-wrap break-words"
-                       
                       dangerouslySetInnerHTML={{ __html: diffHtml }}
                     />
                   ) : (
