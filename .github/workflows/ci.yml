@@ -1,0 +1,116 @@
+# Per-commit verification: web stack + both Rust workspaces.
+#
+# Pre-existing tech debt note: the eslint config flags ~60 errors in
+# untouched legacy files (ProjectWorkspace.tsx etc.). The `web` job
+# runs lint with `continue-on-error` until that backlog is cleared;
+# typecheck + tests + format are blocking. Promote lint to blocking
+# by removing the `continue-on-error: true` line once the existing
+# errors are fixed.
+
+name: CI
+
+on:
+  push:
+    branches: [master, main, rust-port]
+  pull_request:
+    branches: [master, main]
+
+# Cancel superseded runs on the same branch — saves minutes when
+# someone force-pushes a stack of WIP commits.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web (lint / typecheck / test / format)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.3
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+
+      - name: Install workspace
+        env:
+          CI: 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Format
+        run: pnpm format:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        continue-on-error: true
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+  rust-server:
+    name: Rust API (servers/rust)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: servers/rust
+
+      - name: cargo check
+        run: cargo check --manifest-path servers/rust/Cargo.toml --workspace
+
+      - name: cargo test
+        # `--no-default-features` skips integration tests that need a
+        # live Supabase / Redis; add the right feature flags or a
+        # service container when the test suite grows to need them.
+        run: cargo test --manifest-path servers/rust/Cargo.toml --workspace --lib --bins
+
+  rust-desktop:
+    name: Tauri shell (apps/desktop/src-tauri)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - name: Install Tauri Linux deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Stage placeholder tectonic resource
+        # `tauri-build` (the build script) validates that every entry
+        # in `bundle.resources` exists on disk. The bundled binary is
+        # platform-specific and gitignored, so we drop an empty stub
+        # for cargo-check purposes — only the actual `tauri build`
+        # job in `release.yml` downloads a real tectonic.
+        run: |
+          mkdir -p apps/desktop/src-tauri/resources
+          [ -f apps/desktop/src-tauri/resources/tectonic.exe ] \
+            || touch apps/desktop/src-tauri/resources/tectonic.exe
+
+      - name: cargo check
+        run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml

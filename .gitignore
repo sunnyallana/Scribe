@@ -51,6 +51,16 @@ coverage/
 # Tauri
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/gen/
+# Updater signing private key. `.pub` is safe to commit (it's the
+# public key referenced from tauri.conf.json's `plugins.updater.pubkey`);
+# the un-suffixed file is the secret and must stay local.
+apps/desktop/src-tauri/.updater-key
+# Bundled tectonic binaries — too large to track, copied locally
+# before `tauri build` from `~/scribe-tools/tectonic-<ver>/` or
+# downloaded by `scripts/setup.{sh,ps1}`. The directory itself is
+# preserved via `.gitkeep`.
+apps/desktop/src-tauri/resources/tectonic
+apps/desktop/src-tauri/resources/tectonic.exe
 
 # Supabase local stack volumes
 supabase/.branches/

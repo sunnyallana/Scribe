@@ -121,3 +121,35 @@ export async function readDesktopPdfBase64(
 ): Promise<string> {
   return invoke<string>('compile_read_pdf_base64', { workdir, mainFile });
 }
+
+/**
+ * Try to restore the last-compiled PDF for a project from disk.
+ * Returns null when no prior compile artifact exists (fresh project
+ * mount, or one that's only ever been compiled on the server). Used
+ * on `useCompileSession` mount to seed `state.pdfUrl` so the preview
+ * panel doesn't blank between sessions.
+ */
+export async function loadExistingDesktopPdf(
+  projectId: string,
+  mainFile?: string,
+): Promise<string | null> {
+  return invoke<string | null>('compile_load_existing_pdf', {
+    projectId,
+    mainFile: mainFile ?? null,
+  });
+}
+
+/**
+ * Read the `.synctex.gz` emitted by the local LaTeX engine as base64.
+ * Returns null if no synctex artifact exists yet (compile failed
+ * before the engine wrote one). The caller wraps the bytes in a
+ * `data:application/gzip;base64,` URL and feeds it to the existing
+ * `useSyncTeX` hook, which already knows how to gunzip + parse the
+ * server-fetched form.
+ */
+export async function loadDesktopSynctex(
+  workdir: string,
+  mainFile: string,
+): Promise<string | null> {
+  return invoke<string | null>('compile_load_synctex', { workdir, mainFile });
+}
