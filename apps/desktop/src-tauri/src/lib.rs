@@ -7,11 +7,6 @@ use tauri_plugin_deep_link::DeepLinkExt;
 mod compile;
 mod db;
 mod sync;
-// The updater plugin requires `plugins.updater` (with a real pubkey)
-// in tauri.conf.json — that's a release-flow chore. We keep
-// `updates.rs` in tree so the SPA adapter has a target once a key is
-// generated, but don't compile it until the plugin is wired up.
-#[allow(dead_code)]
 mod updates;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -23,12 +18,15 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(compile_registry)
         .invoke_handler(tauri::generate_handler![
             compile::start_compile,
             compile::cancel_compile,
             compile::compile_prepare_workdir,
             compile::compile_read_pdf_base64,
+            compile::compile_load_existing_pdf,
+            compile::compile_load_synctex,
             db::db_list_projects,
             db::db_get_project,
             db::db_upsert_project,
@@ -50,6 +48,8 @@ pub fn run() {
             sync::sync_apply_remote_content,
             sync::sync_mark_file_clean,
             sync::sync_resolve_make_copy,
+            updates::check_for_updates,
+            updates::install_update,
         ])
         .on_menu_event(|app, event| {
             if let Err(err) = app.emit("menu", event.id().0.clone()) {
