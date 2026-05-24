@@ -62,12 +62,15 @@ import { StatusBar, type CompileStatusKind } from '../../components/StatusBar/St
 import { ReviewPanel } from '../../components/ReviewPanel/ReviewPanel';
 import { VersionHistory } from '../../components/VersionHistory/VersionHistory';
 import { PreviewPanel } from './PreviewPanel';
+import { SyncConflictModal } from '../../components/SyncConflictModal';
 import { useCompileSession } from '../../hooks/useCompileSession';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { lookup, lookupReverse, useSyncTeX } from '../../hooks/useSyncTeX';
 import { useYjsDoc } from '../../hooks/useYjsDoc';
 import { api, ApiError } from '../../lib/api';
 import { API_URL, getAccessTokenSync } from '../../lib/supabase';
+import { type SyncConflict, syncManager } from '../../lib/sync';
+import { isTauri } from '../../lib/tauri';
 import { useAuthStore } from '../../stores/auth';
 import { useSettings } from '../../stores/settings';
 import { useProjectChrome } from '../../stores/projectChrome';
@@ -247,6 +250,31 @@ export function ProjectWorkspace({
       });
     }
   }, [myRole, projectId, authUser?.id, editorReadOnly]);
+
+  // Tauri-only: kick a sync cycle once per project mount. The cycle
+  // pulls the server's file list into SQLite (mirror) and pushes any
+  // dirty local rows. Hard collisions surface as `conflicts`; we open
+  // the modal so the user picks per file. No-ops outside the desktop
+  // shell (`isTauri()` short-circuits inside the manager).
+  const [syncConflicts, setSyncConflicts] = useState<readonly SyncConflict[]>([]);
+  useEffect(() => {
+    if (!isTauri()) return undefined;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const result = await syncManager.syncProject(projectId);
+        if (cancelled) return;
+        if (result.conflicts.length > 0) {
+          setSyncConflicts(result.conflicts);
+        }
+      } catch (err) {
+        log.api.warn('initial desktop sync failed', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
 
   function toggleRightPanel(id: NonNullable<RightPanelId>) {
     setRightPanel((current) => (current === id ? null : id));
@@ -1239,11 +1267,6 @@ export function ProjectWorkspace({
               {t('compile.noFileSelected')}
             </span>
           )}
-          {editorReadOnly ? (
-            <span className="rounded-sm border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
-              {t('members.roles.viewer')} · {t('members.readOnly')}
-            </span>
-          ) : null}
           {saveStatusLabel !== null ? (
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
               {saveStatusLabel}
@@ -1542,7 +1565,20 @@ export function ProjectWorkspace({
         collabSynced={collabSynced}
         peerCount={yjs.peers.length}
         compileStatus={compileStatus}
+        role={myRole}
       />
+      {syncConflicts.length > 0 ? (
+        <SyncConflictModal
+          projectId={projectId}
+          conflicts={syncConflicts}
+          onAllResolved={() => {
+            setSyncConflicts([]);
+          }}
+          onClose={() => {
+            setSyncConflicts([]);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

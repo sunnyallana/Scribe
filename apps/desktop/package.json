@@ -1,0 +1,21 @@
+{
+  "name": "@scribe/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Scribe Tauri desktop shell — offline-capable LaTeX editor.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri",
+    "clean": "rimraf src-tauri/target src-tauri/gen"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0",
+    "rimraf": "^6.0.1"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.1.0"
+  }
+}
