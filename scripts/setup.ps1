@@ -41,12 +41,25 @@ function Warn($m)  { Write-Host "! $m" -ForegroundColor Yellow }
 function Fail($m)  { Write-Host "✗ $m" -ForegroundColor Red; exit 1 }
 function Skip($m)  { Write-Host "· $m" -ForegroundColor DarkGray }
 
-function Has-Cmd($name) { return [bool](Get-Command $name -ErrorAction SilentlyContinue) }
+function Test-Cmd($name) { return [bool](Get-Command $name -ErrorAction SilentlyContinue) }
 
 # Reload PATH from the registry in this session — winget installs land on
 # the system PATH but the current process inherits the older one until we
-# re-read it. Without this, `Has-Cmd` returns false right after install.
-function Refresh-Path {
+# re-read it. Without this, `Test-Cmd` returns false right after install.
+#
+# `SupportsShouldProcess` is required because "Update" is on the
+# state-changing approved-verb list and PSScriptAnalyzer's
+# PSUseShouldProcessForStateChangingFunctions rule fires otherwise.
+# In practice this script never passes `-WhatIf` / `-Confirm`, so the
+# `ShouldProcess` gate is purely there to satisfy the linter — the
+# default `ConfirmPreference` is `High`, well above `Medium`, so the
+# call returns `$true` without prompting.
+function Update-Path {
+  [CmdletBinding(SupportsShouldProcess)]
+  param()
+  if (-not $PSCmdlet.ShouldProcess('current shell $env:Path', 'reload from machine + user registry')) {
+    return
+  }
   $machine = [Environment]::GetEnvironmentVariable('Path', 'Machine')
   $user    = [Environment]::GetEnvironmentVariable('Path', 'User')
   $env:Path = "$machine;$user"
@@ -58,33 +71,37 @@ Set-Location $RepoRoot
 Info "Project root: $RepoRoot"
 
 # ---- winget sanity --------------------------------------------------------
-if (-not (Has-Cmd 'winget')) {
+if (-not (Test-Cmd 'winget')) {
   Fail "winget not found. Install 'App Installer' from the Microsoft Store, sign out / back in, then re-run."
 }
 
-function Winget-Install($id, $label) {
+function Install-WingetPackage($id, $label) {
   Info "Installing $label (winget id: $id)..."
   # `--accept-source-agreements --accept-package-agreements` is what makes
   # this non-interactive. `--silent` keeps installer windows hidden where
   # the publisher supports it.
   winget install --id $id --silent --accept-source-agreements --accept-package-agreements -e | Out-Host
-  Refresh-Path
+  Update-Path
 }
 
 # ---- Node 22+ + corepack/pnpm ---------------------------------------------
 # pnpm 11.x dropped Node 20 support; 22.13 is the minimum it'll boot
 # against. winget's OpenJS.NodeJS.LTS currently resolves to 22.x.
 $nodeMajor = 0
-if (Has-Cmd 'node') {
-  try { $nodeMajor = [int]((node -p "process.versions.node.split('.')[0]") 2>$null) } catch {}
+if (Test-Cmd 'node') {
+  # Intentionally swallow: if `node -p` fails (binary missing on PATH,
+  # garbage output, etc.) we leave $nodeMajor at 0 and let the next
+  # branch trigger the install. `$null = $_` is PSScriptAnalyzer's
+  # canonical "I deliberately ignored this error" marker.
+  try { $nodeMajor = [int]((node -p "process.versions.node.split('.')[0]") 2>$null) } catch { $null = $_ }
 }
 if ($nodeMajor -lt 22) {
-  Winget-Install 'OpenJS.NodeJS.LTS' 'Node.js LTS'
+  Install-WingetPackage 'OpenJS.NodeJS.LTS' 'Node.js LTS'
 } else {
   Skip "Node $((node -v)) present"
 }
 
-if (-not (Has-Cmd 'pnpm')) {
+if (-not (Test-Cmd 'pnpm')) {
   Info "Enabling pnpm via corepack..."
   & corepack enable
   # Pre-shim so the next pnpm call doesn't pause for the corepack
@@ -128,7 +145,7 @@ if (-not $NoDesktop) {
     winget install --id Microsoft.VisualStudio.2022.BuildTools `
       --silent --accept-source-agreements --accept-package-agreements -e `
       --override '--quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.Windows11SDK.22621 --includeRecommended' | Out-Host
-    Refresh-Path
+    Update-Path
   }
 
   # WebView2 — Tauri's host. Pre-installed on Windows 11 and 10 21H2+,
@@ -141,25 +158,25 @@ if (-not $NoDesktop) {
     Skip "WebView2 Runtime present ($($webview2.pv))"
   } else {
     Info "Installing WebView2 Runtime (Tauri host)..."
-    Winget-Install 'Microsoft.EdgeWebView2Runtime' 'WebView2 Runtime'
+    Install-WingetPackage 'Microsoft.EdgeWebView2Runtime' 'WebView2 Runtime'
   }
 }
 
 # ---- Rust toolchain --------------------------------------------------------
 if (-not $SkipRust) {
-  if (-not (Has-Cmd 'cargo')) {
+  if (-not (Test-Cmd 'cargo')) {
     Info "Installing Rust via rustup..."
     # Two valid paths: winget (Rustlang.Rustup) or the official rustup-init
     # exe. winget is faster and supports unattended install; fall back to
     # the exe if winget refuses (corporate-locked machines).
     try {
-      Winget-Install 'Rustlang.Rustup' 'Rust toolchain'
+      Install-WingetPackage 'Rustlang.Rustup' 'Rust toolchain'
     } catch {
       $tmp = Join-Path $env:TEMP 'rustup-init.exe'
       Invoke-WebRequest -Uri 'https://win.rustup.rs/x86_64' -OutFile $tmp
       & $tmp -y --profile minimal
       Remove-Item $tmp -Force
-      Refresh-Path
+      Update-Path
     }
     # rustup drops cargo in %USERPROFILE%\.cargo\bin — make sure it's on
     # PATH for the rest of this script.
@@ -175,7 +192,7 @@ if (-not $SkipRust) {
 # Memurai is the commercial alternative — if you already have it, this
 # block detects it and skips.
 $RedisExe = "$env:USERPROFILE\scribe-tools\redis-5.0.14.1\redis-server.exe"
-if ((Has-Cmd 'memurai') -or (Test-Path $RedisExe)) {
+if ((Test-Cmd 'memurai') -or (Test-Path $RedisExe)) {
   Skip "Redis-compatible server present"
 } else {
   Info "Downloading Redis 5.0.14.1 (Windows port)..."
@@ -192,7 +209,7 @@ if ((Has-Cmd 'memurai') -or (Test-Path $RedisExe)) {
 }
 
 # ---- Tectonic --------------------------------------------------------------
-if (-not (Has-Cmd 'tectonic')) {
+if (-not (Test-Cmd 'tectonic')) {
   # Tectonic ships a static Windows .exe via GitHub releases. We don't
   # try winget here because the Tectonic.Tectonic package lags releases.
   Info "Downloading Tectonic (LaTeX engine)..."
@@ -213,12 +230,12 @@ if (-not (Has-Cmd 'tectonic')) {
 
 # ---- Optional: pandoc + chktex --------------------------------------------
 if (-not $NoOptional) {
-  if (-not (Has-Cmd 'pandoc')) {
-    Winget-Install 'JohnMacFarlane.Pandoc' 'Pandoc'
+  if (-not (Test-Cmd 'pandoc')) {
+    Install-WingetPackage 'JohnMacFarlane.Pandoc' 'Pandoc'
   } else { Skip "Pandoc present" }
   # chktex ships with MiKTeX / TeX Live; there isn't a clean winget id.
   # Surface a hint rather than try to download MiKTeX (multi-GB).
-  if (-not (Has-Cmd 'chktex')) {
+  if (-not (Test-Cmd 'chktex')) {
     Warn "chktex not found. Install via MiKTeX/TeX Live if you want the style linter."
   } else { Skip "chktex present" }
 }
@@ -285,12 +302,12 @@ Write-Host "  - Native desktop dev:"
 Write-Host "      .\scripts\run-desktop.ps1       (Redis + Rust API + Tauri shell)" -ForegroundColor White
 Write-Host ""
 Write-Host "Optional knobs (add to .env):"
-if (Has-Cmd 'tectonic') {
+if (Test-Cmd 'tectonic') {
   Write-Host "  TECTONIC_BIN=$((Get-Command tectonic).Source)"
 } else {
   Write-Host "  TECTONIC_BIN=$env:USERPROFILE\scribe-tools\tectonic-0.16.0\tectonic.exe"
 }
-if (Has-Cmd 'chktex') {
+if (Test-Cmd 'chktex') {
   Write-Host "  CHKTEX_BIN=$((Get-Command chktex).Source)"
 } else {
   Write-Host "  CHKTEX_BIN=<path-to-chktex>   (enables style linter)"

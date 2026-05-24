@@ -72,21 +72,23 @@ if (Listening 5173) {
 
 # ---- Spawn API + Tauri as background jobs --------------------------------
 Info "Starting Rust API..."
+# `$using:RepoRoot` is the PSScriptAnalyzer-blessed form for shipping an
+# outer-scope variable into a `Start-Job` script block. The
+# `param(...) + -ArgumentList` alternative trips
+# PSUseUsingScopeModifierInNewRunspaces.
 $apiJob = Start-Job -Name 'scribe-api' -ScriptBlock {
-  param($root)
-  Set-Location $root
+  Set-Location $using:RepoRoot
   & cargo run --manifest-path "servers\rust\Cargo.toml" -p scribe-server 2>&1
-} -ArgumentList $RepoRoot
+}
 
 Info "Starting Tauri desktop (window opens after Rust links)..."
 $tauriJob = Start-Job -Name 'scribe-desktop' -ScriptBlock {
-  param($root)
-  Set-Location $root
+  Set-Location $using:RepoRoot
   # CI=true keeps pnpm from prompting on first-run; the desktop package
   # already has @tauri-apps/cli installed after pnpm install.
   $env:CI = 'true'
   & pnpm --filter '@scribe/desktop' tauri dev 2>&1
-} -ArgumentList $RepoRoot
+}
 
 Write-Host ""
 Write-Host "Up." -ForegroundColor Green
