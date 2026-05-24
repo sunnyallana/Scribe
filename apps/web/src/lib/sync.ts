@@ -133,6 +133,34 @@ export class SyncManager {
     });
     const conflictIds = new Set(applyResult.conflicts.map((c) => c.fileId));
 
+    // Offline cache: pull `.tex` / `.bib` content into SQLite so the
+    // file tree can render text bodies and the compile path has a
+    // local fallback even without network. We only fetch the two
+    // editor-facing extensions here — `.sty`/`.cls`/images go
+    // through the bytes-preserving compile-time path and a future
+    // pass will wire an asset cache for them too.
+    await Promise.all(
+      serverFiles
+        .filter((f) => !conflictIds.has(f.id))
+        .filter((f) => {
+          const lower = f.path.toLowerCase();
+          return lower.endsWith('.tex') || lower.endsWith('.bib');
+        })
+        .map(async (f) => {
+          try {
+            const { content } = await api.files.readContent(projectId, f.id);
+            await invoke('sync_apply_remote_content', {
+              fileId: f.id,
+              content,
+              remoteUpdatedAt: f.updatedAt,
+            });
+          } catch {
+            // Non-fatal: metadata is still cached; the compile-time
+            // override path can refetch content when online.
+          }
+        }),
+    );
+
     // Push (skip files currently in conflict — user must resolve first)
     const dirty = await invoke<LocalFile[]>('sync_list_dirty_files', { projectId });
     let pushed = 0;

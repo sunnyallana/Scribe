@@ -17,6 +17,8 @@ import {
   type DesktopCompileLogEvent,
   type DesktopCompileStatus,
   type DesktopCompileStatusEvent,
+  loadDesktopSynctex,
+  loadExistingDesktopPdf,
   onDesktopCompileCompleted,
   onDesktopCompileLog,
   onDesktopCompileStatus,
@@ -78,7 +80,10 @@ export interface CompileSessionState {
   readonly synctexUrl: string | null;
   readonly errorMessage: string | null;
   readonly compiling: boolean;
-  readonly compile: (mainFile?: string) => Promise<void>;
+  readonly compile: (
+    mainFile?: string,
+    overrides?: Readonly<Record<string, string>>,
+  ) => Promise<void>;
 }
 
 interface InternalState {
@@ -131,7 +136,25 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
     }
     if (isTauri()) {
       setState(INITIAL);
-      return;
+      // Best-effort restore: if the workdir from a prior session
+      // still has a PDF on disk, surface it as `state.pdfUrl` so the
+      // preview panel doesn't flash empty before the next compile.
+      let cancelled = false;
+      void (async () => {
+        try {
+          const b64 = await loadExistingDesktopPdf(projectId);
+          if (cancelled || b64 === null) return;
+          setState((s) => ({
+            ...s,
+            pdfUrl: `data:application/pdf;base64,${b64}`,
+          }));
+        } catch (err) {
+          log.compile.warn('failed to restore last compile pdf', err);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
     }
     let cancelled = false;
     void (async () => {
@@ -289,7 +312,7 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
   );
 
   const compile = useCallback(
-    async (mainFile?: string) => {
+    async (mainFile?: string, editorOverrides?: Readonly<Record<string, string>>) => {
       if (projectId === null) return;
       setState({
         ...INITIAL,
@@ -338,6 +361,14 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
               }
             }),
           );
+          // Editor-buffer overlay wins over server-fetched content.
+          // Lets a user hit Compile mid-edit without waiting on the
+          // autosave round-trip to land on the server.
+          if (editorOverrides !== undefined) {
+            for (const [path, body] of Object.entries(editorOverrides)) {
+              overrides[path] = body;
+            }
+          }
           const prep = await prepareDesktopWorkdir(projectId, overrides, binaryOverrides);
           if (prep.filesWritten === 0) {
             throw new Error(
@@ -384,9 +415,9 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
               if (e.jobId !== info.jobId) return;
               const finalStatus = mapDesktopStatus(e.status);
               if (e.status === 'completed') {
-                // Load the PDF asynchronously; let state finalize first
-                // so the log panel shows "success" without waiting on
-                // base64 transfer over the bridge.
+                // Load the PDF + SyncTeX asynchronously; let state
+                // finalize first so the log panel shows "success"
+                // without waiting on base64 transfer over the bridge.
                 void (async () => {
                   try {
                     const b64 = await readDesktopPdfBase64(workdir, resolvedMain);
@@ -396,6 +427,19 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
                     }));
                   } catch (err) {
                     log.compile.warn('failed to read desktop pdf', err);
+                  }
+                })();
+                void (async () => {
+                  try {
+                    const synctexB64 = await loadDesktopSynctex(workdir, resolvedMain);
+                    if (synctexB64 !== null) {
+                      setState((s) => ({
+                        ...s,
+                        synctexUrl: `data:application/gzip;base64,${synctexB64}`,
+                      }));
+                    }
+                  } catch (err) {
+                    log.compile.warn('failed to read desktop synctex', err);
                   }
                 })();
               }

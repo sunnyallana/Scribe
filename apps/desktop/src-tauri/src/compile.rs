@@ -144,17 +144,27 @@ impl CompileRegistry {
     }
 }
 
-fn resolve_engine(requested: Option<Engine>) -> Result<(Engine, PathBuf), CompileError> {
+fn resolve_engine(
+    app: &AppHandle,
+    requested: Option<Engine>,
+) -> Result<(Engine, PathBuf), CompileError> {
     if let Some(e) = requested {
-        let path = locate_binary(e)
+        let path = locate_binary(app, e)
             .ok_or_else(|| CompileError::EngineNotFound(e.binary().to_string()))?;
         return Ok((e, path));
     }
-    // Auto-pick: tectonic > latexmk > pdflatex. Tectonic comes first
-    // because it has no MiKTeX-style admin-token paranoia and is what
-    // `scripts/setup.ps1` installs by default.
-    for candidate in [Engine::Tectonic, Engine::Latexmk, Engine::Pdflatex] {
-        if let Some(path) = locate_binary(candidate) {
+    // Auto-pick preference: latexmk → pdflatex → tectonic.
+    //   * `latexmk` first because it orchestrates pdflatex through
+    //     the multi-pass loop that resolves `\cite{}` and `\ref{}`;
+    //     this is the "core" engine when MiKTeX or TeX Live is on
+    //     the machine (which the installer arranges via its NSIS
+    //     post-install hook).
+    //   * `pdflatex` as a fallback if MiKTeX exists without latexmk.
+    //   * `tectonic` as the final fallback — works without a TeX
+    //     distribution at all, but tends to be slower on first run
+    //     because it fetches CTAN packages over the network.
+    for candidate in [Engine::Latexmk, Engine::Pdflatex, Engine::Tectonic] {
+        if let Some(path) = locate_binary(app, candidate) {
             return Ok((candidate, path));
         }
     }
@@ -164,17 +174,35 @@ fn resolve_engine(requested: Option<Engine>) -> Result<(Engine, PathBuf), Compil
 }
 
 /// Find a LaTeX-engine binary on disk. Order:
-///   1. `which::which(name)` — anything on PATH wins
-///   2. Engine-specific environment overrides (TECTONIC_BIN etc.) —
+///   1. The Tauri bundle's `resource_dir` — what the production
+///      installer drops alongside the app exe. Matters most: a
+///      fresh-machine install through the NSIS / MSI bundle ships
+///      with tectonic next to the binary, so we don't depend on the
+///      user running `setup.ps1` separately.
+///   2. `which::which(name)` — anything on PATH wins next.
+///   3. Engine-specific environment overrides (TECTONIC_BIN etc.) —
 ///      mirrors what the server uses so users who set these already
 ///      get them honoured in the desktop shell too.
-///   3. Well-known install locations under the user profile (the
+///   4. Well-known install locations under the user profile (the
 ///      `setup.ps1` script drops tectonic into `~/scribe-tools/
-///      tectonic-<ver>/` without touching PATH — without this branch,
-///      auto-detect would always fall through to latexmk on a fresh
-///      Windows install).
-fn locate_binary(engine: Engine) -> Option<PathBuf> {
+///      tectonic-<ver>/` without touching PATH — for dev installs).
+fn locate_binary(app: &AppHandle, engine: Engine) -> Option<PathBuf> {
     let name = engine.binary();
+    if matches!(engine, Engine::Tectonic) {
+        if let Some(p) = locate_in_resource_dir(app) {
+            return Some(p);
+        }
+    }
+    // Special case: MiKTeX's `latexmk.exe` is a thin wrapper that
+    // shells out to a Perl interpreter. Without Perl on PATH the
+    // binary exists but every invocation fails with "MiKTeX could
+    // not find the script engine 'perl'". Treat it as unavailable so
+    // the picker falls through to pdflatex / tectonic instead of
+    // returning a binary that's guaranteed to fail at compile time.
+    if matches!(engine, Engine::Latexmk) && which::which("perl").is_err() {
+        tracing::info!("latexmk found but no perl on PATH — skipping (MiKTeX's latexmk needs Perl)");
+        return None;
+    }
     if let Ok(p) = which::which(name) {
         return Some(p);
     }
@@ -195,6 +223,24 @@ fn locate_binary(engine: Engine) -> Option<PathBuf> {
         if let Some(p) = locate_tectonic_in_scribe_tools() {
             return Some(p);
         }
+    }
+    None
+}
+
+fn locate_in_resource_dir(app: &AppHandle) -> Option<PathBuf> {
+    let exe_name = if cfg!(windows) { "tectonic.exe" } else { "tectonic" };
+    let resource = app.path().resource_dir().ok()?;
+    // Tauri's bundle preserves the `resources/<file>` sub-path from
+    // the manifest, so the on-disk layout after install is
+    // `<resource_dir>/resources/tectonic.exe`.
+    let nested = resource.join("resources").join(exe_name);
+    if nested.is_file() {
+        return Some(nested);
+    }
+    // Some platforms flatten resources next to the binary — try that too.
+    let flat = resource.join(exe_name);
+    if flat.is_file() {
+        return Some(flat);
     }
     None
 }
@@ -270,7 +316,7 @@ pub async fn start_compile(
     if !workdir.is_dir() {
         return Err(CompileError::BadWorkdir(req.workdir.clone()));
     }
-    let (engine, binary) = resolve_engine(req.engine)?;
+    let (engine, binary) = resolve_engine(&app, req.engine)?;
     let job_id = Uuid::new_v4().to_string();
     let started_at = chrono::Utc::now();
     tracing::info!(?engine, binary=%binary.display(), workdir=%workdir.display(), main=%req.main_file, "starting compile");
@@ -553,4 +599,65 @@ pub async fn compile_read_pdf_base64(
     let bytes = std::fs::read(&pdf_path)
         .map_err(|e| WorkdirError::ReadFailed(format!("read pdf: {e}")))?;
     Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
+}
+
+/// Restore the last-compiled PDF for a project, if one exists on
+/// disk from a prior session. Returns `None` when the workdir or PDF
+/// is missing so the SPA can silently show the empty state instead
+/// of treating a fresh project mount as an error.
+#[tauri::command]
+pub async fn compile_load_existing_pdf(
+    app: AppHandle,
+    project_id: String,
+    main_file: Option<String>,
+) -> Result<Option<String>, WorkdirError> {
+    let data_dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| WorkdirError::Path(format!("app_local_data_dir: {e}")))?;
+    let workdir = data_dir.join("workdirs").join(&project_id);
+    if !workdir.is_dir() {
+        return Ok(None);
+    }
+    // Default to `main.tex` so a project with no explicit `mainFile`
+    // metadata still recovers a PDF named after the conventional file.
+    let main = main_file.unwrap_or_else(|| "main.tex".to_string());
+    let stem = Path::new(&main)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| WorkdirError::Path(format!("invalid main_file: {main}")))?;
+    let pdf_path = workdir.join(format!("{stem}.pdf"));
+    if !pdf_path.is_file() {
+        return Ok(None);
+    }
+    let bytes = std::fs::read(&pdf_path)
+        .map_err(|e| WorkdirError::ReadFailed(format!("read pdf: {e}")))?;
+    Ok(Some(
+        base64::engine::general_purpose::STANDARD.encode(&bytes),
+    ))
+}
+
+/// Read the .synctex.gz emitted by the local LaTeX engine and return
+/// it as base64 so the web side's existing client-side parser (which
+/// already knows how to gunzip + parse the server-fetched version)
+/// can take over without modification. `None` when the file is
+/// missing (common right after a compile failure).
+#[tauri::command]
+pub async fn compile_load_synctex(
+    workdir: String,
+    main_file: String,
+) -> Result<Option<String>, WorkdirError> {
+    let stem = Path::new(&main_file)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| WorkdirError::Path(format!("invalid main_file: {main_file}")))?;
+    let synctex_path = Path::new(&workdir).join(format!("{stem}.synctex.gz"));
+    if !synctex_path.is_file() {
+        return Ok(None);
+    }
+    let bytes = std::fs::read(&synctex_path)
+        .map_err(|e| WorkdirError::ReadFailed(format!("read synctex: {e}")))?;
+    Ok(Some(
+        base64::engine::general_purpose::STANDARD.encode(&bytes),
+    ))
 }

@@ -668,7 +668,23 @@ export function ProjectWorkspace({
         }
       }
     }
-    await compileSession.compile(project.mainFile);
+    // Mid-edit overlay (Tauri only — `compile()` ignores overrides
+    // in browser mode where the server is the source of truth).
+    // We hand the current editor buffer to the desktop compile path
+    // so it doesn't have to wait for the autosave round-trip to
+    // land before the workdir reflects what the user just typed.
+    //
+    // GUARD: only override when the editor actually has content.
+    // The Yjs binding fills the buffer asynchronously; hitting
+    // Compile mid-sync gives us `""`, which would write a zero-byte
+    // main.tex over the perfectly fine server copy and fail compile
+    // with an "Emergency stop" (no \documentclass found).
+    const liveBuffer = editorRef.current?.getContent() ?? editorContent;
+    const editorOverrides: Record<string, string> | undefined =
+      selectedFile !== null && !editorReadOnly && liveBuffer.length > 0
+        ? { [selectedFile.path]: liveBuffer }
+        : undefined;
+    await compileSession.compile(project.mainFile, editorOverrides);
     await queryClient.invalidateQueries({ queryKey: ['compiles', projectId] });
   }, [compileSession, editorContent, editorReadOnly, project.mainFile, projectId, queryClient, selectedFile]);
 
