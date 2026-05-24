@@ -102,7 +102,9 @@ export function MembersPanel({ projectId }: MembersPanelProps) {
           description: t('members.linkAutoCopied'),
           action: {
             label: t('members.copyLink'),
-            onClick: () => { void copyInviteLink(token, t); },
+            onClick: () => {
+              void copyInviteLink(token, t);
+            },
           },
         });
       } else {
@@ -134,7 +136,9 @@ export function MembersPanel({ projectId }: MembersPanelProps) {
       await queryClient.invalidateQueries({ queryKey: ['members', projectId] });
       toast.success(t('members.roleUpdated'));
     },
-    onError: (error) => { toast.error(error.body.message); },
+    onError: (error) => {
+      toast.error(error.body.message);
+    },
   });
 
   return (
@@ -207,10 +211,7 @@ export function MembersPanel({ projectId }: MembersPanelProps) {
             const hasInviteLink =
               member.pending && typeof member.inviteToken === 'string' && member.inviteToken !== '';
             return (
-              <li
-                key={member.id}
-                className="flex items-center gap-3 rounded-md border p-2 text-sm"
-              >
+              <li key={member.id} className="flex items-center gap-3 rounded-md border p-2 text-sm">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback>{initials(member)}</AvatarFallback>
                 </Avatar>
@@ -256,7 +257,9 @@ export function MembersPanel({ projectId }: MembersPanelProps) {
                   </span>
                 )}
 
-                {hasInviteLink && member.inviteToken !== null && member.inviteToken !== undefined ? (
+                {hasInviteLink &&
+                member.inviteToken !== null &&
+                member.inviteToken !== undefined ? (
                   <button
                     type="button"
                     onClick={() => {

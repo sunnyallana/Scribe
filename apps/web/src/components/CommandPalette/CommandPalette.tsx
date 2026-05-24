@@ -24,12 +24,7 @@ interface CommandPaletteProps {
 function score(query: string, item: CommandItem): number {
   if (query === '') return 1;
   const q = query.toLowerCase();
-  const haystack = [
-    item.label,
-    item.description ?? '',
-    item.group,
-    ...(item.keywords ?? []),
-  ]
+  const haystack = [item.label, item.description ?? '', item.group, ...(item.keywords ?? [])]
     .join(' ')
     .toLowerCase();
   if (!haystack.includes(q.split(' ')[0] ?? q)) return 0;
@@ -141,7 +136,9 @@ export function CommandPalette({ open, onOpenChange, commands }: CommandPaletteP
           type="text"
           autoComplete="off"
           value={query}
-          onChange={(e) => { setQuery(e.target.value); }}
+          onChange={(e) => {
+            setQuery(e.target.value);
+          }}
           onKeyDown={handleKeyDown}
           placeholder={t('command.placeholder')}
           className="w-full border-b bg-transparent px-4 py-3 text-sm outline-none placeholder:text-muted-foreground"
@@ -165,7 +162,9 @@ export function CommandPalette({ open, onOpenChange, commands }: CommandPaletteP
                       <button
                         type="button"
                         data-cmd-index={myIdx.toString()}
-                        onMouseEnter={() => { setActiveIdx(myIdx); }}
+                        onMouseEnter={() => {
+                          setActiveIdx(myIdx);
+                        }}
                         onClick={() => {
                           onOpenChange(false);
                           c.action();
@@ -175,7 +174,10 @@ export function CommandPalette({ open, onOpenChange, commands }: CommandPaletteP
                         }`}
                       >
                         {Icon !== undefined ? (
-                          <Icon className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" aria-hidden="true" />
+                          <Icon
+                            className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground"
+                            aria-hidden="true"
+                          />
                         ) : (
                           <span className="w-3.5" aria-hidden="true" />
                         )}

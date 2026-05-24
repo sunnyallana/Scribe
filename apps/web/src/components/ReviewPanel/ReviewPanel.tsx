@@ -190,7 +190,7 @@ export function ReviewPanel({
     { body: string; parentId?: string; replacementText?: string }
   >({
     mutationFn: ({ body, parentId, replacementText }) => {
-      const sel = parentId === undefined ? getEditorSelection?.() ?? null : null;
+      const sel = parentId === undefined ? (getEditorSelection?.() ?? null) : null;
       // Treat a non-empty highlighted selection as a true range.
       // No-selection (cursor only) degenerates to a point anchor at
       // the current cursor line/column.
@@ -204,18 +204,10 @@ export function ReviewPanel({
         body,
         ...(parentId !== undefined ? { parentId: parentId as never } : {}),
         ...(selectedFile !== null ? { fileId: selectedFile.id } : {}),
-        ...(anchorLine !== undefined && parentId === undefined
-          ? { anchorLine }
-          : {}),
-        ...(anchorColumn !== undefined && parentId === undefined
-          ? { anchorColumn }
-          : {}),
-        ...(anchorEndLine !== undefined && parentId === undefined
-          ? { anchorEndLine }
-          : {}),
-        ...(anchorEndColumn !== undefined && parentId === undefined
-          ? { anchorEndColumn }
-          : {}),
+        ...(anchorLine !== undefined && parentId === undefined ? { anchorLine } : {}),
+        ...(anchorColumn !== undefined && parentId === undefined ? { anchorColumn } : {}),
+        ...(anchorEndLine !== undefined && parentId === undefined ? { anchorEndLine } : {}),
+        ...(anchorEndColumn !== undefined && parentId === undefined ? { anchorEndColumn } : {}),
         ...(snippet !== undefined ? { anchorSnippet: snippet } : {}),
         ...(replacementText !== undefined ? { replacementText } : {}),
       });
@@ -275,8 +267,7 @@ export function ReviewPanel({
   });
 
   const resolveMutation = useMutation<unknown, ApiError, { id: Comment['id']; resolved: boolean }>({
-    mutationFn: ({ id, resolved }) =>
-      api.comments.update(projectId, id, { resolved }),
+    mutationFn: ({ id, resolved }) => api.comments.update(projectId, id, { resolved }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['comments', projectId] });
     },
@@ -325,7 +316,9 @@ export function ReviewPanel({
                 isRoot
                 canModerate={canModerate(thread.root, currentUserId, isProjectOwner)}
                 onJump={jumpToComment}
-                onReply={() => { setReplyTo(thread.root.id); }}
+                onReply={() => {
+                  setReplyTo(thread.root.id);
+                }}
                 onResolve={() => {
                   resolveMutation.mutate({
                     id: thread.root.id,
@@ -338,7 +331,11 @@ export function ReviewPanel({
                   }
                 }}
                 {...(thread.root.replacementText !== null
-                  ? { onApply: () => { applyMutation.mutate(thread.root); } }
+                  ? {
+                      onApply: () => {
+                        applyMutation.mutate(thread.root);
+                      },
+                    }
                   : {})}
                 applying={applyMutation.isPending && applyMutation.variables?.id === thread.root.id}
               />
@@ -420,12 +417,12 @@ export function ReviewPanel({
               placeholder={
                 suggestMode
                   ? t('suggestion.bodyPlaceholder')
-                  : (selectedFile !== null
-                      ? t('review.newCommentOnLine', {
-                          file: selectedFile.path,
-                          line: currentLine ?? 1,
-                        })
-                      : t('review.newCommentGeneric'))
+                  : selectedFile !== null
+                    ? t('review.newCommentOnLine', {
+                        file: selectedFile.path,
+                        line: currentLine ?? 1,
+                      })
+                    : t('review.newCommentGeneric')
               }
               value={draft}
               onChange={setDraft}
@@ -437,7 +434,9 @@ export function ReviewPanel({
                 rows={3}
                 placeholder={t('suggestion.replacementPlaceholder')}
                 value={replacement}
-                onChange={(e) => { setReplacement(e.target.value); }}
+                onChange={(e) => {
+                  setReplacement(e.target.value);
+                }}
                 disabled={createMutation.isPending}
                 className="mt-2 w-full resize-y rounded-md border bg-background px-2 py-1.5 font-mono text-[11px]"
               />
@@ -471,7 +470,10 @@ export function ReviewPanel({
               </Button>
               <button
                 type="button"
-                onClick={() => { setSuggestMode((v) => !v); setReplacement(''); }}
+                onClick={() => {
+                  setSuggestMode((v) => !v);
+                  setReplacement('');
+                }}
                 className={`flex h-7 items-center gap-1 rounded-md px-2 text-[10px] transition-colors ${
                   suggestMode
                     ? 'bg-accent text-accent-foreground'
@@ -651,7 +653,11 @@ function CommentCard({
                   disabled={applying}
                   className="flex h-6 items-center gap-1 rounded bg-emerald-600 px-2 text-[10px] font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
                 >
-                  {applying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                  {applying ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Check className="h-3 w-3" />
+                  )}
                   {t('suggestion.apply')}
                 </button>
                 {canModerate ? (
@@ -669,11 +675,16 @@ function CommentCard({
         ) : null}
         <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
           <span>{new Date(comment.createdAt).toLocaleString()}</span>
-          {isRoot && comment.anchorLine !== null && onJump !== undefined && comment.fileId !== null ? (
+          {isRoot &&
+          comment.anchorLine !== null &&
+          onJump !== undefined &&
+          comment.fileId !== null ? (
             <button
               type="button"
               className="underline decoration-dotted underline-offset-2 hover:text-foreground"
-              onClick={() => { onJump(comment); }}
+              onClick={() => {
+                onJump(comment);
+              }}
               // Show the snippet text on hover when it exists — it
               // disambiguates which block this comment is on, useful
               // when several comments share a line range.

@@ -42,11 +42,11 @@ services:
       # a restart is ~4 s instead of ~15 s.
       TECTONIC_CACHE_DIR: /var/cache/tectonic
     ports:
-      - "${SCRIBE_HTTP_PORT:-3000}:3000"
+      - '${SCRIBE_HTTP_PORT:-3000}:3000'
     volumes:
       - tectonic-cache:/var/cache/tectonic
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/health"]
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:3000/api/health']
       interval: 15s
       timeout: 3s
       retries: 5
@@ -59,17 +59,17 @@ services:
     container_name: scribe-redis
     restart: unless-stopped
     command:
-      - "redis-server"
-      - "--appendonly"
-      - "yes"
-      - "--maxmemory"
-      - "256mb"
-      - "--maxmemory-policy"
-      - "noeviction"
+      - 'redis-server'
+      - '--appendonly'
+      - 'yes'
+      - '--maxmemory'
+      - '256mb'
+      - '--maxmemory-policy'
+      - 'noeviction'
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 3s
       retries: 5

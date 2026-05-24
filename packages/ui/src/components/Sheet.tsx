@@ -47,7 +47,8 @@ const sheetVariants = cva(
 );
 
 export interface SheetContentProps
-  extends ComponentPropsWithoutRef<typeof SheetPrimitive.Content>,
+  extends
+    ComponentPropsWithoutRef<typeof SheetPrimitive.Content>,
     VariantProps<typeof sheetVariants> {
   /** Hide the default X close button in the top-right corner. Useful
    *  when the content already provides its own close affordance (e.g.
@@ -77,10 +78,7 @@ SheetContent.displayName = SheetPrimitive.Content.displayName;
 
 export function SheetHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div
-      className={cn('flex flex-col space-y-2 text-center sm:text-left', className)}
-      {...props}
-    />
+    <div className={cn('flex flex-col space-y-2 text-center sm:text-left', className)} {...props} />
   );
 }
 

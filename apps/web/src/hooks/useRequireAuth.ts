@@ -10,10 +10,9 @@ export function useRequireAuth(): { isAuthenticated: boolean; isLoading: boolean
 
   useEffect(() => {
     if (status === 'unauthenticated') {
-      void navigate(
-        `/login?from=${encodeURIComponent(location.pathname + location.search)}`,
-        { replace: true },
-      );
+      void navigate(`/login?from=${encodeURIComponent(location.pathname + location.search)}`, {
+        replace: true,
+      });
     }
   }, [status, navigate, location.pathname, location.search]);
 

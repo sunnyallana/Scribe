@@ -50,9 +50,7 @@ export function PageError({
           {title ?? t('errors.somethingWentWrong')}
         </h1>
         {description !== undefined && description.length > 0 ? (
-          <p className="break-words text-sm leading-relaxed text-muted-foreground">
-            {description}
-          </p>
+          <p className="break-words text-sm leading-relaxed text-muted-foreground">{description}</p>
         ) : null}
         <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
           {onRetry !== undefined ? (

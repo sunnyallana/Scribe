@@ -15,15 +15,21 @@ const triggers = await c.query(
 );
 console.log('triggers on projects:', JSON.stringify(triggers.rows, null, 2));
 
-const rls = await c.query("select tablename, rowsecurity from pg_tables where tablename = 'projects' and schemaname='public'");
+const rls = await c.query(
+  "select tablename, rowsecurity from pg_tables where tablename = 'projects' and schemaname='public'",
+);
 console.log('rls enabled:', rls.rows);
 
 // Try the insert as the same role PostgREST uses
 console.log('\n--- simulating auth context ---');
-await c.query("set local role authenticated");
-await c.query("set local request.jwt.claims to '{\"sub\":\"05a147f9-3d78-4216-80fe-764f38a6078a\",\"role\":\"authenticated\"}'");
+await c.query('set local role authenticated');
+await c.query(
+  'set local request.jwt.claims to \'{"sub":"05a147f9-3d78-4216-80fe-764f38a6078a","role":"authenticated"}\'',
+);
 try {
-  const r = await c.query("insert into public.projects (name, owner_id, template, compiler) values ('SQL Direct', '05a147f9-3d78-4216-80fe-764f38a6078a', 'article', 'tectonic') returning id, owner_id");
+  const r = await c.query(
+    "insert into public.projects (name, owner_id, template, compiler) values ('SQL Direct', '05a147f9-3d78-4216-80fe-764f38a6078a', 'article', 'tectonic') returning id, owner_id",
+  );
   console.log('SQL insert OK:', r.rows);
 } catch (e) {
   console.log('SQL insert FAILED:', e.message);

@@ -17,7 +17,10 @@ export interface CompileTriggerOptions {
  * compiler-client package so both the editor's "compile on save" path and
  * any future automatic compile-on-idle logic share one implementation.
  */
-export function createCompileTrigger({ delayMs, onCompile }: CompileTriggerOptions): CompileTrigger {
+export function createCompileTrigger({
+  delayMs,
+  onCompile,
+}: CompileTriggerOptions): CompileTrigger {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
   function clear(): void {

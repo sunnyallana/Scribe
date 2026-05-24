@@ -2,7 +2,8 @@
 // what our Fastify auth gate sees.
 
 const SUPABASE_URL = 'https://sgmbvxqgowbpyehwmedv.supabase.co';
-const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNnbWJ2eHFnb3dicHllaHdtZWR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNTQ0NDMsImV4cCI6MjA5NDkzMDQ0M30.5wsZnv6QVxUyLRMjuKx_rU0RB5MCzjSUN7-SzmynaFU';
+const ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNnbWJ2eHFnb3dicHllaHdtZWR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNTQ0NDMsImV4cCI6MjA5NDkzMDQ0M30.5wsZnv6QVxUyLRMjuKx_rU0RB5MCzjSUN7-SzmynaFU';
 
 const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
   method: 'POST',

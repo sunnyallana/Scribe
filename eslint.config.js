@@ -100,11 +100,7 @@ export default tseslint.config(
   },
 
   {
-    files: [
-      'apps/web/**/*.{ts,tsx}',
-      'packages/ui/**/*.{ts,tsx}',
-      'packages/editor/**/*.{ts,tsx}',
-    ],
+    files: ['apps/web/**/*.{ts,tsx}', 'packages/ui/**/*.{ts,tsx}', 'packages/editor/**/*.{ts,tsx}'],
     plugins: {
       react: reactPlugin,
       'react-hooks': reactHooksPlugin,

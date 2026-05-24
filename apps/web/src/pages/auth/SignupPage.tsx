@@ -101,9 +101,7 @@ export function SignupPage() {
                 {...form.register('password')}
               />
               {form.formState.errors.password !== undefined && (
-                <p className="text-xs text-destructive">
-                  {form.formState.errors.password.message}
-                </p>
+                <p className="text-xs text-destructive">{form.formState.errors.password.message}</p>
               )}
             </div>
             <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
@@ -119,9 +117,7 @@ export function SignupPage() {
               <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">
-                {t('auth.orContinueWith')}
-              </span>
+              <span className="bg-card px-2 text-muted-foreground">{t('auth.orContinueWith')}</span>
             </div>
           </div>
 

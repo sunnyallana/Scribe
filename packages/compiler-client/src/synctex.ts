@@ -42,7 +42,8 @@ const MAG_LINE = /^Magnification:(\d+)$/;
 const XOFF_LINE = /^X Offset:(-?\d+)$/;
 const YOFF_LINE = /^Y Offset:(-?\d+)$/;
 const PAGE_OPEN = /^\{(\d+)$/;
-const BOX_LINE = /^([hvxgka([])\s*(\d+),(\d+):(-?\d+),(-?\d+)(?::(-?\d+)(?:,(-?\d+)(?:,(-?\d+))?)?)?$/;
+const BOX_LINE =
+  /^([hvxgka([])\s*(\d+),(\d+):(-?\d+),(-?\d+)(?::(-?\d+)(?:,(-?\d+)(?:,(-?\d+))?)?)?$/;
 
 /**
  * Parse a SyncTeX text body (post-gunzip) into a forward lookup index.
@@ -299,9 +300,7 @@ export function lookupInverse(
       pivotVdist = d;
     }
   }
-  const bucket = candidates.filter(
-    (r) => Math.abs(r.v - pivotV) <= LINE_BUCKET_SP,
-  );
+  const bucket = candidates.filter((r) => Math.abs(r.v - pivotV) <= LINE_BUCKET_SP);
 
   // ---- Step 3: within bucket, find the right column ----
   // (a) Rightmost record with h <= targetH wins (we landed *into*
@@ -309,17 +308,14 @@ export function lookupInverse(
   //     to the left of all of them), pick the leftmost. (c) Ties on
   //     h resolve by kind rank.
   let best: SyncTeXRecord | null = null;
-  let bestH = -Infinity;        // for (a)
+  let bestH = -Infinity; // for (a)
   let bestRankAtBestH = Infinity;
   let leftmost: SyncTeXRecord | null = null; // for (b)
   let leftmostH = Infinity;
   for (const record of bucket) {
     if (record.h <= targetH) {
       const rank = KIND_RANK[record.kind];
-      if (
-        record.h > bestH ||
-        (record.h === bestH && rank < bestRankAtBestH)
-      ) {
+      if (record.h > bestH || (record.h === bestH && rank < bestRankAtBestH)) {
         best = record;
         bestH = record.h;
         bestRankAtBestH = rank;

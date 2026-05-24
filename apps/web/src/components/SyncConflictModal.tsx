@@ -41,8 +41,8 @@ export function SyncConflictModal({
   onAllResolved,
   onClose,
 }: SyncConflictModalProps) {
-  const [rows, setRows] = useState<Record<string, RowState>>(
-    () => Object.fromEntries(conflicts.map((c) => [c.fileId, INITIAL])),
+  const [rows, setRows] = useState<Record<string, RowState>>(() =>
+    Object.fromEntries(conflicts.map((c) => [c.fileId, INITIAL])),
   );
 
   function setRow(fileId: string, patch: Partial<RowState>): void {
@@ -69,26 +69,22 @@ export function SyncConflictModal({
   const allResolved = conflicts.every((c) => rows[c.fileId]?.resolved === true);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40">
-      <div className="w-full max-w-2xl rounded border border-border bg-card p-6 text-card-foreground shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-full max-w-2xl rounded bg-white p-6 shadow-xl dark:bg-zinc-900">
         <h2 className="mb-2 text-lg font-semibold">Sync conflicts</h2>
-        <p className="mb-4 text-sm text-muted-foreground">
+        <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
           These files changed both locally and on the server. Pick a resolution for each.
         </p>
-        <ul className="max-h-[60vh] divide-y divide-border overflow-y-auto">
+        <ul className="max-h-[60vh] divide-y divide-zinc-200 overflow-y-auto dark:divide-zinc-800">
           {conflicts.map((c) => {
             const state = rows[c.fileId] ?? INITIAL;
             return (
               <li key={c.fileId} className="py-3">
                 <div className="flex items-baseline justify-between">
                   <span className="font-mono text-sm">{c.path}</span>
-                  {state.resolved && (
-                    <span className="text-xs text-emerald-700 dark:text-emerald-400">
-                      Resolved
-                    </span>
-                  )}
+                  {state.resolved && <span className="text-xs text-emerald-600">Resolved</span>}
                 </div>
-                <div className="mt-1 text-xs text-muted-foreground">
+                <div className="mt-1 text-xs text-zinc-500">
                   local {c.localUpdatedAt} · remote {c.remoteUpdatedAt}
                 </div>
                 {!state.resolved && (
@@ -97,7 +93,7 @@ export function SyncConflictModal({
                       type="button"
                       disabled={state.resolving}
                       onClick={() => void resolve(c.fileId, 'local', c.path)}
-                      className="rounded border border-border bg-background px-2 py-1 text-xs hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+                      className="rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
                     >
                       Keep mine
                     </button>
@@ -105,7 +101,7 @@ export function SyncConflictModal({
                       type="button"
                       disabled={state.resolving}
                       onClick={() => void resolve(c.fileId, 'remote', c.path)}
-                      className="rounded border border-border bg-background px-2 py-1 text-xs hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+                      className="rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
                     >
                       Keep server
                     </button>
@@ -113,14 +109,14 @@ export function SyncConflictModal({
                       type="button"
                       disabled={state.resolving}
                       onClick={() => void resolve(c.fileId, 'copy', c.path)}
-                      className="rounded border border-border bg-background px-2 py-1 text-xs hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+                      className="rounded border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
                     >
                       Save copy
                     </button>
                   </div>
                 )}
                 {state.error !== null && (
-                  <div className="mt-1 text-xs text-destructive">{state.error}</div>
+                  <div className="mt-1 text-xs text-red-600">{state.error}</div>
                 )}
               </li>
             );
@@ -130,7 +126,7 @@ export function SyncConflictModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded border border-border bg-background px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+            className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
           >
             Close
           </button>
@@ -141,7 +137,7 @@ export function SyncConflictModal({
               onAllResolved();
               onClose();
             }}
-            className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            className="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             Done
           </button>

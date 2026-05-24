@@ -35,9 +35,7 @@ function member(
 
 describe('parseBody', () => {
   it('returns a single text token when there are no mentions', () => {
-    expect(parseBody('plain comment')).toEqual([
-      { kind: 'text', value: 'plain comment' },
-    ]);
+    expect(parseBody('plain comment')).toEqual([{ kind: 'text', value: 'plain comment' }]);
   });
 
   it('extracts mention tokens with display name and user id', () => {
@@ -54,9 +52,7 @@ describe('parseBody', () => {
 
 describe('extractMentionedUserIds', () => {
   it('deduplicates ids and returns insertion order', () => {
-    const ids = extractMentionedUserIds(
-      `@[A](${UUID_A}) @[B](${UUID_B}) again @[A](${UUID_A})`,
-    );
+    const ids = extractMentionedUserIds(`@[A](${UUID_A}) @[B](${UUID_B}) again @[A](${UUID_A})`);
     expect(ids).toEqual([UUID_A, UUID_B]);
   });
 });

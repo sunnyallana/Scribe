@@ -193,9 +193,21 @@ const CATEGORIES: readonly MathCategory[] = [
       { label: 'sqrt[n]', latex: '\\sqrt[n]{x}', keywords: ['sqrt'] },
       { label: 'x^n', latex: 'x^{n}', keywords: ['power', 'sup'] },
       { label: 'x_n', latex: 'x_{n}', keywords: ['sub', 'subscript'] },
-      { label: 'matrix', latex: '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}', keywords: ['matrix', 'pmatrix'] },
-      { label: 'cases', latex: '\\begin{cases} a & x > 0 \\\\ b & x \\leq 0 \\end{cases}', keywords: ['cases'] },
-      { label: 'align', latex: '\\begin{align}\n  a &= b \\\\\n  c &= d\n\\end{align}', keywords: ['align'] },
+      {
+        label: 'matrix',
+        latex: '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}',
+        keywords: ['matrix', 'pmatrix'],
+      },
+      {
+        label: 'cases',
+        latex: '\\begin{cases} a & x > 0 \\\\ b & x \\leq 0 \\end{cases}',
+        keywords: ['cases'],
+      },
+      {
+        label: 'align',
+        latex: '\\begin{align}\n  a &= b \\\\\n  c &= d\n\\end{align}',
+        keywords: ['align'],
+      },
     ],
   },
 ];
@@ -234,7 +246,9 @@ export function MathPalette({ onInsert, onClose }: MathPaletteProps) {
           name="math-palette-query"
           autoComplete="off"
           value={query}
-          onChange={(e) => { setQuery(e.target.value); }}
+          onChange={(e) => {
+            setQuery(e.target.value);
+          }}
           placeholder={t('math.searchPlaceholder')}
           className="w-full rounded border bg-transparent px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-ring"
         />
@@ -254,7 +268,9 @@ export function MathPalette({ onInsert, onClose }: MathPaletteProps) {
                   key={`${cat.id}-${s.latex}`}
                   type="button"
                   title={s.latex}
-                  onClick={() => { onInsert(s.latex); }}
+                  onClick={() => {
+                    onInsert(s.latex);
+                  }}
                   className="flex h-8 items-center justify-center rounded border bg-muted/30 text-sm hover:bg-accent hover:text-accent-foreground"
                 >
                   {s.label}

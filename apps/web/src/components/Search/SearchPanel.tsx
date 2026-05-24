@@ -1,7 +1,16 @@
 import { type ProjectFile, type ProjectId } from '@scribe/shared';
 import { Button, Input } from '@scribe/ui';
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
-import { CaseSensitive, FileText, Loader2, Regex, Replace, Search, WholeWord, X } from 'lucide-react';
+import {
+  CaseSensitive,
+  FileText,
+  Loader2,
+  Regex,
+  Replace,
+  Search,
+  WholeWord,
+  X,
+} from 'lucide-react';
 import { type FormEvent, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -35,7 +44,24 @@ interface Match {
 function isSearchable(file: ProjectFile): boolean {
   if (file.type === 'image') return false;
   const lower = file.path.toLowerCase();
-  const SKIP = ['.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.eps', '.zip', '.synctex.gz', '.log', '.aux', '.bbl', '.bcf', '.fls', '.out', '.toc'];
+  const SKIP = [
+    '.pdf',
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.gif',
+    '.webp',
+    '.eps',
+    '.zip',
+    '.synctex.gz',
+    '.log',
+    '.aux',
+    '.bbl',
+    '.bcf',
+    '.fls',
+    '.out',
+    '.toc',
+  ];
   return !SKIP.some((ext) => lower.endsWith(ext));
 }
 
@@ -109,10 +135,7 @@ export function SearchPanel({
       if (f === undefined) continue;
       // Prefer the live editor buffer for the active file so unsaved
       // edits show up in results immediately.
-      const content =
-        f.id === activeFileId
-          ? activeFileContent
-          : (q?.data?.content ?? '');
+      const content = f.id === activeFileId ? activeFileContent : (q?.data?.content ?? '');
       if (content === '') continue;
       const lines = content.split('\n');
       for (let lineIdx = 0; lineIdx < lines.length; lineIdx += 1) {
@@ -144,7 +167,16 @@ export function SearchPanel({
       if (out.length >= 1000) break;
     }
     return { matches: out, fileGroups: groups };
-  }, [query, caseSensitive, wholeWord, useRegex, searchable, fileQueries, activeFileId, activeFileContent]);
+  }, [
+    query,
+    caseSensitive,
+    wholeWord,
+    useRegex,
+    searchable,
+    fileQueries,
+    activeFileId,
+    activeFileContent,
+  ]);
 
   /** Replace-all in every non-active file with hits. The active
    *  file is skipped (Yjs doc owns its content; a direct write
@@ -192,7 +224,9 @@ export function SearchPanel({
     },
   });
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => { e.preventDefault(); };
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+  };
   const activeFileHits = activeFileId !== null ? (fileGroups.get(activeFileId)?.length ?? 0) : 0;
   const replaceableHits = matches.length - activeFileHits;
 
@@ -217,7 +251,9 @@ export function SearchPanel({
       <form onSubmit={handleSubmit} className="space-y-2 border-b p-2">
         <Input
           value={query}
-          onChange={(e) => { setQuery(e.target.value); }}
+          onChange={(e) => {
+            setQuery(e.target.value);
+          }}
           placeholder={t('search.placeholder')}
           className="h-7 text-xs"
           // eslint-disable-next-line jsx-a11y/no-autofocus -- panel opens via toolbar button; the keystroke that revealed it expects the cursor in the query field
@@ -226,39 +262,47 @@ export function SearchPanel({
         <div className="flex items-center gap-0.5">
           <Toggle
             on={caseSensitive}
-            onToggle={() => { setCaseSensitive((v) => !v); }}
+            onToggle={() => {
+              setCaseSensitive((v) => !v);
+            }}
             icon={CaseSensitive}
             label={t('search.caseSensitive')}
           />
           <Toggle
             on={wholeWord}
-            onToggle={() => { setWholeWord((v) => !v); }}
+            onToggle={() => {
+              setWholeWord((v) => !v);
+            }}
             icon={WholeWord}
             label={t('search.wholeWord')}
           />
           <Toggle
             on={useRegex}
-            onToggle={() => { setUseRegex((v) => !v); }}
+            onToggle={() => {
+              setUseRegex((v) => !v);
+            }}
             icon={Regex}
             label={t('search.regex')}
           />
           <Toggle
             on={showReplace}
-            onToggle={() => { setShowReplace((v) => !v); }}
+            onToggle={() => {
+              setShowReplace((v) => !v);
+            }}
             icon={Replace}
             label={t('search.toggleReplace')}
           />
           <span className="ml-auto text-[10px] tabular-nums text-muted-foreground">
-            {allReady
-              ? t('search.matchCount', { count: matches.length })
-              : t('search.loading')}
+            {allReady ? t('search.matchCount', { count: matches.length }) : t('search.loading')}
           </span>
         </div>
         {showReplace ? (
           <>
             <Input
               value={replaceText}
-              onChange={(e) => { setReplaceText(e.target.value); }}
+              onChange={(e) => {
+                setReplaceText(e.target.value);
+              }}
               placeholder={t('search.replacePlaceholder')}
               className="h-7 text-xs"
             />
@@ -305,8 +349,14 @@ export function SearchPanel({
               return (
                 <li key={fileId} className="rounded border bg-card">
                   <div className="flex items-center gap-1.5 border-b bg-muted/40 px-2 py-1">
-                    <FileText className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
-                    <span className="min-w-0 flex-1 truncate font-mono text-[10px]" title={file.path}>
+                    <FileText
+                      className="h-3 w-3 shrink-0 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <span
+                      className="min-w-0 flex-1 truncate font-mono text-[10px]"
+                      title={file.path}
+                    >
                       {file.path}
                     </span>
                     <span className="text-[10px] tabular-nums text-muted-foreground">
@@ -319,7 +369,9 @@ export function SearchPanel({
                         <button
                           type="button"
                           className="flex w-full gap-2 px-2 py-0.5 text-left hover:bg-muted/40"
-                          onClick={() => { onSelectFile(file, m.line); }}
+                          onClick={() => {
+                            onSelectFile(file, m.line);
+                          }}
                         >
                           <span className="w-8 shrink-0 text-right font-mono text-[10px] text-muted-foreground">
                             {m.line}
