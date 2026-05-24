@@ -60,7 +60,7 @@ export async function startDesktopCompile(
 }
 
 export async function cancelDesktopCompile(jobId: string): Promise<void> {
-  await invoke<void>('cancel_compile', { jobId });
+  await invoke('cancel_compile', { jobId });
 }
 
 export function onDesktopCompileLog(
@@ -79,4 +79,45 @@ export function onDesktopCompileCompleted(
   handler: (e: DesktopCompileCompletedEvent) => void,
 ): Promise<() => void> {
   return listen<DesktopCompileCompletedEvent>('compile:completed', handler);
+}
+
+// ---- Workdir + PDF helpers -------------------------------------------------
+
+export interface DesktopWorkdirInfo {
+  readonly workdir: string;
+  readonly filesWritten: number;
+}
+
+/**
+ * Materialise the SQLite-mirrored project files into a real on-disk
+ * directory the local LaTeX engine can read from.
+ *
+ * `overrides` — `path` → text body. Used for the project's `.tex` /
+ *   `.bib` / `.sty` content so the editor can swap the in-memory
+ *   buffer for the synced version mid-edit.
+ * `binaryOverrides` — `path` → base64-encoded bytes. Used for images
+ *   and any other binary asset `\includegraphics` references.
+ */
+export async function prepareDesktopWorkdir(
+  projectId: string,
+  overrides?: Readonly<Record<string, string>>,
+  binaryOverrides?: Readonly<Record<string, string>>,
+): Promise<DesktopWorkdirInfo> {
+  return invoke<DesktopWorkdirInfo>('compile_prepare_workdir', {
+    projectId,
+    overrides: overrides ?? null,
+    binaryOverrides: binaryOverrides ?? null,
+  });
+}
+
+/**
+ * Read the emitted PDF as base64. Pair with a `data:application/pdf;base64,`
+ * prefix and hand the result to pdf.js. Throws if the PDF is missing
+ * (compile failed before the writer ran).
+ */
+export async function readDesktopPdfBase64(
+  workdir: string,
+  mainFile: string,
+): Promise<string> {
+  return invoke<string>('compile_read_pdf_base64', { workdir, mainFile });
 }

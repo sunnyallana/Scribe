@@ -27,6 +27,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             compile::start_compile,
             compile::cancel_compile,
+            compile::compile_prepare_workdir,
+            compile::compile_read_pdf_base64,
             db::db_list_projects,
             db::db_get_project,
             db::db_upsert_project,
