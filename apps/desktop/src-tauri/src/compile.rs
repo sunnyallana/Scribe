@@ -6,19 +6,23 @@
 //! webview as `compile:log` events, and emits `compile:completed`
 //! with the exit code + duration on terminal transitions.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use base64::Engine as _;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 use tokio::time::timeout;
 use uuid::Uuid;
+
+use crate::db::Db;
 
 /// Concrete LaTeX engine. Mirrors `EngineKind` from the server-side
 /// `scribe-compile` crate plus single-shot pdflatex/xelatex/lualatex.
@@ -140,17 +144,18 @@ impl CompileRegistry {
     }
 }
 
-fn pick_engine(requested: Option<Engine>) -> Result<Engine, CompileError> {
+fn resolve_engine(requested: Option<Engine>) -> Result<(Engine, PathBuf), CompileError> {
     if let Some(e) = requested {
-        return which::which(e.binary())
-            .map(|_| e)
-            .map_err(|_| CompileError::EngineNotFound(e.binary().to_string()));
+        let path = locate_binary(e)
+            .ok_or_else(|| CompileError::EngineNotFound(e.binary().to_string()))?;
+        return Ok((e, path));
     }
-    // Auto-pick: tectonic > latexmk > pdflatex. Matches the server's
-    // default-engine preference order from `scribe-compile::engine`.
+    // Auto-pick: tectonic > latexmk > pdflatex. Tectonic comes first
+    // because it has no MiKTeX-style admin-token paranoia and is what
+    // `scripts/setup.ps1` installs by default.
     for candidate in [Engine::Tectonic, Engine::Latexmk, Engine::Pdflatex] {
-        if which::which(candidate.binary()).is_ok() {
-            return Ok(candidate);
+        if let Some(path) = locate_binary(candidate) {
+            return Ok((candidate, path));
         }
     }
     Err(CompileError::EngineNotFound(
@@ -158,8 +163,73 @@ fn pick_engine(requested: Option<Engine>) -> Result<Engine, CompileError> {
     ))
 }
 
-fn build_command(engine: Engine, workdir: &Path, main_file: &str) -> Command {
-    let mut cmd = Command::new(engine.binary());
+/// Find a LaTeX-engine binary on disk. Order:
+///   1. `which::which(name)` — anything on PATH wins
+///   2. Engine-specific environment overrides (TECTONIC_BIN etc.) —
+///      mirrors what the server uses so users who set these already
+///      get them honoured in the desktop shell too.
+///   3. Well-known install locations under the user profile (the
+///      `setup.ps1` script drops tectonic into `~/scribe-tools/
+///      tectonic-<ver>/` without touching PATH — without this branch,
+///      auto-detect would always fall through to latexmk on a fresh
+///      Windows install).
+fn locate_binary(engine: Engine) -> Option<PathBuf> {
+    let name = engine.binary();
+    if let Ok(p) = which::which(name) {
+        return Some(p);
+    }
+    let env_var = match engine {
+        Engine::Tectonic => Some("TECTONIC_BIN"),
+        Engine::Latexmk => Some("LATEXMK_BIN"),
+        _ => None,
+    };
+    if let Some(var) = env_var {
+        if let Ok(path) = std::env::var(var) {
+            let p = PathBuf::from(path);
+            if p.is_file() {
+                return Some(p);
+            }
+        }
+    }
+    if matches!(engine, Engine::Tectonic) {
+        if let Some(p) = locate_tectonic_in_scribe_tools() {
+            return Some(p);
+        }
+    }
+    None
+}
+
+fn locate_tectonic_in_scribe_tools() -> Option<PathBuf> {
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .ok()?;
+    let tools = Path::new(&home).join("scribe-tools");
+    if !tools.is_dir() {
+        return None;
+    }
+    let exe_name = if cfg!(windows) { "tectonic.exe" } else { "tectonic" };
+    let entries = std::fs::read_dir(&tools).ok()?;
+    for entry in entries.flatten() {
+        let dir = entry.path();
+        if !dir.is_dir() {
+            continue;
+        }
+        let Some(name) = dir.file_name().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        if !name.starts_with("tectonic-") {
+            continue;
+        }
+        let bin = dir.join(exe_name);
+        if bin.is_file() {
+            return Some(bin);
+        }
+    }
+    None
+}
+
+fn build_command(engine: Engine, binary: &Path, workdir: &Path, main_file: &str) -> Command {
+    let mut cmd = Command::new(binary);
     cmd.current_dir(workdir);
     match engine {
         Engine::Tectonic => {
@@ -200,11 +270,12 @@ pub async fn start_compile(
     if !workdir.is_dir() {
         return Err(CompileError::BadWorkdir(req.workdir.clone()));
     }
-    let engine = pick_engine(req.engine)?;
+    let (engine, binary) = resolve_engine(req.engine)?;
     let job_id = Uuid::new_v4().to_string();
     let started_at = chrono::Utc::now();
+    tracing::info!(?engine, binary=%binary.display(), workdir=%workdir.display(), main=%req.main_file, "starting compile");
 
-    let mut cmd = build_command(engine, &workdir, &req.main_file);
+    let mut cmd = build_command(engine, &binary, &workdir, &req.main_file);
     let mut child = cmd.spawn()?;
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
@@ -326,4 +397,160 @@ pub async fn cancel_compile(
         let _ = child.kill().await;
     }
     Ok(())
+}
+
+// ---- Workdir materialisation ----------------------------------------------
+
+#[derive(Debug, thiserror::Error)]
+pub enum WorkdirError {
+    #[error("path: {0}")]
+    Path(String),
+    #[error("io: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("sqlite: {0}")]
+    Sqlite(#[from] sqlx::Error),
+    #[error("tauri: {0}")]
+    Tauri(#[from] tauri::Error),
+    #[error("not found: file {0} (project {1})")]
+    Missing(String, String),
+    #[error("read failed: {0}")]
+    ReadFailed(String),
+}
+
+impl serde::Serialize for WorkdirError {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&self.to_string())
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkdirInfo {
+    /// Absolute path of the staging directory.
+    pub workdir: String,
+    /// Files actually written, useful for the UI's "synced N files" line.
+    pub files_written: u32,
+}
+
+/// Materialise the project's `project_files` rows into a real
+/// directory on disk so the local LaTeX engine can read them. The
+/// JS-side compile flow calls this right before `start_compile`.
+///
+/// `overrides` lets the editor swap a file's content for the current
+/// in-memory Y.Doc text without round-tripping through the server +
+/// SQLite mirror — typical use is `{ "main.tex": currentBuffer }`
+/// when the user hits Compile mid-edit.
+#[tauri::command]
+pub async fn compile_prepare_workdir(
+    app: AppHandle,
+    db: State<'_, Arc<Db>>,
+    project_id: String,
+    #[allow(non_snake_case)]
+    overrides: Option<HashMap<String, String>>,
+    #[allow(non_snake_case)]
+    binary_overrides: Option<HashMap<String, String>>,
+) -> Result<WorkdirInfo, WorkdirError> {
+    let data_dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| WorkdirError::Path(format!("app_local_data_dir: {e}")))?;
+    let workdir = data_dir.join("workdirs").join(&project_id);
+
+    // Clean → recreate. Compiles are isolated; we don't keep stale
+    // artefacts from previous runs (they'd shadow current `.bib` /
+    // image edits and produce confusing errors).
+    if workdir.exists() {
+        std::fs::remove_dir_all(&workdir)?;
+    }
+    std::fs::create_dir_all(&workdir)?;
+
+    // Pull every non-folder row. Image / binary content isn't stored
+    // in SQLite (the `content` column is TEXT-only); a follow-up pass
+    // will need to fetch those from Supabase Storage and stash them
+    // in the workdir too, but for the MVP we ship text files only.
+    let rows: Vec<(String, Option<String>, String)> = sqlx::query_as(
+        "SELECT path, content, type FROM project_files WHERE project_id = ?1 ORDER BY path",
+    )
+    .bind(&project_id)
+    .fetch_all(db.pool())
+    .await?;
+
+    let overrides = overrides.unwrap_or_default();
+    let mut written = 0u32;
+    for (path, content, _kind) in &rows {
+        let body = overrides
+            .get(path.as_str())
+            .cloned()
+            .or_else(|| content.clone());
+        let Some(body) = body else { continue };
+        let abs = workdir.join(path);
+        if let Some(parent) = abs.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&abs, body)?;
+        written += 1;
+    }
+    // Apply any overrides that don't correspond to an existing row —
+    // happens when the editor has a brand-new file open that hasn't
+    // synced to SQLite yet.
+    let known: std::collections::HashSet<&str> = rows.iter().map(|(p, _, _)| p.as_str()).collect();
+    for (path, body) in &overrides {
+        if known.contains(path.as_str()) {
+            continue;
+        }
+        let abs = workdir.join(path);
+        if let Some(parent) = abs.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&abs, body)?;
+        written += 1;
+    }
+
+    // Binary overrides — base64-encoded bytes that the JS fetched
+    // from Supabase Storage (images, PDFs referenced via
+    // `\includegraphics`). Decoded once per compile; no SQLite row
+    // is needed because binary content isn't mirrored locally yet.
+    for (path, b64) in &binary_overrides.unwrap_or_default() {
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(b64.as_bytes())
+            .map_err(|e| WorkdirError::ReadFailed(format!("base64 decode {path}: {e}")))?;
+        let abs = workdir.join(path);
+        if let Some(parent) = abs.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&abs, &bytes)?;
+        written += 1;
+    }
+
+    Ok(WorkdirInfo {
+        workdir: workdir.to_string_lossy().into_owned(),
+        files_written: written,
+    })
+}
+
+/// Returns the PDF emitted by the most recent compile as a
+/// base64-encoded string. The web layer wraps it in a `data:` URL
+/// and hands it to the existing pdf.js preview. Avoids registering
+/// the Tauri asset-protocol for now — we trade one extra megabyte of
+/// base64 overhead for not having to widen the security surface.
+#[tauri::command]
+pub async fn compile_read_pdf_base64(
+    workdir: String,
+    main_file: String,
+) -> Result<String, WorkdirError> {
+    let main_path = Path::new(&main_file);
+    let stem = main_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| WorkdirError::Path(format!("invalid main_file: {main_file}")))?;
+    let pdf_path = Path::new(&workdir).join(format!("{stem}.pdf"));
+    if !pdf_path.exists() {
+        return Err(WorkdirError::Missing(
+            pdf_path.to_string_lossy().into_owned(),
+            workdir,
+        ));
+    }
+    let bytes = std::fs::read(&pdf_path)
+        .map_err(|e| WorkdirError::ReadFailed(format!("read pdf: {e}")))?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
 }

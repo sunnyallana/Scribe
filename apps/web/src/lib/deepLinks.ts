@@ -20,11 +20,11 @@ function route(navigate: NavigateFunction, rawUrl: string): void {
     case 'invite': {
       const token = rest.join('/');
       if (token.length === 0) return;
-      navigate(`/invite/${token}`);
+      void navigate(`/invite/${token}`);
       return;
     }
     default:
-      navigate(`/${path}`);
+      void navigate(`/${path}`);
   }
 }
 
