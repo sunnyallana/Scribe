@@ -144,14 +144,13 @@ const editorStyleSheet = EditorView.theme(
 const editorHighlighting = syntaxHighlighting(highlightStyle());
 
 /**
- * Returns the editor's theme + syntax-highlight extensions. The `theme`
- * parameter is accepted for backward compatibility but no longer drives
- * the colour palette — every colour reaches the DOM through a
- * `var(--cm-*)` reference, and the variables themselves are defined
- * per-theme on `:root` in `packages/ui/src/styles/globals.css`. Toggle
- * `data-theme` and the editor flips with the rest of the chrome, no
- * reconfigure required.
+ * Returns the editor's theme + syntax-highlight extensions. Colour
+ * selection no longer depends on a parameter: every colour reaches
+ * the DOM through a `var(--cm-*)` reference, and the variables
+ * themselves are defined per-theme on `:root` in
+ * `packages/ui/src/styles/globals.css`. Toggle `data-theme` and the
+ * editor flips with the rest of the chrome, no reconfigure required.
  */
-export function latexTheme(_theme?: ScribeEditorTheme): Extension {
+export function latexTheme(): Extension {
   return [editorStyleSheet, editorHighlighting];
 }

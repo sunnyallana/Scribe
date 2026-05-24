@@ -46,7 +46,20 @@ function Test-Cmd($name) { return [bool](Get-Command $name -ErrorAction Silently
 # Reload PATH from the registry in this session — winget installs land on
 # the system PATH but the current process inherits the older one until we
 # re-read it. Without this, `Test-Cmd` returns false right after install.
+#
+# `SupportsShouldProcess` is required because "Update" is on the
+# state-changing approved-verb list and PSScriptAnalyzer's
+# PSUseShouldProcessForStateChangingFunctions rule fires otherwise.
+# In practice this script never passes `-WhatIf` / `-Confirm`, so the
+# `ShouldProcess` gate is purely there to satisfy the linter — the
+# default `ConfirmPreference` is `High`, well above `Medium`, so the
+# call returns `$true` without prompting.
 function Update-Path {
+  [CmdletBinding(SupportsShouldProcess)]
+  param()
+  if (-not $PSCmdlet.ShouldProcess('current shell $env:Path', 'reload from machine + user registry')) {
+    return
+  }
   $machine = [Environment]::GetEnvironmentVariable('Path', 'Machine')
   $user    = [Environment]::GetEnvironmentVariable('Path', 'User')
   $env:Path = "$machine;$user"
