@@ -25,6 +25,10 @@ pub struct Comment {
     /// Used as a resilient anchor when line numbers drift.
     pub anchor_snippet: Option<String>,
     pub body: String,
+    /// Suggestion comments: when populated, the comment proposes
+    /// replacing the anchored range with this text. Regular comments
+    /// have this as `None`.
+    pub replacement_text: Option<String>,
     pub resolved_at: Option<DateTime<Utc>>,
     pub resolved_by: Option<UserId>,
     pub created_at: DateTime<Utc>,
@@ -42,6 +46,10 @@ pub struct CreateCommentInput {
     pub anchor_end_column: Option<i32>,
     pub anchor_snippet: Option<String>,
     pub body: String,
+    /// When set, the comment is a suggestion proposing this text
+    /// for the anchored range.
+    #[serde(default)]
+    pub replacement_text: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]

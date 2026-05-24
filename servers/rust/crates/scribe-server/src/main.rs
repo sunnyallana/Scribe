@@ -231,6 +231,27 @@ async fn main() -> anyhow::Result<()> {
                 warn!(requested = eng, "unknown latex_engine; using pdflatex");
             }
         }
+        // chktex binary (optional). When unset, the lint pass is
+        // skipped and no warnings ever appear — exactly the v1 spec.
+        if let Some(bin) = config.chktex_bin.as_deref().filter(|s| !s.is_empty()) {
+            worker_cfg.chktex.binary = Some(bin.to_string());
+            info!(binary = %bin, "chktex linter enabled");
+        }
+        // Fallback engine. Only honour it when it differs from the
+        // primary — running the same engine twice tells us nothing
+        // and just doubles compile latency on a real failure.
+        if let Some(name) = config.compile_fallback_engine.as_deref().filter(|s| !s.is_empty()) {
+            if let Some(fb_kind) = EngineKind::from_str(name) {
+                if fb_kind != worker_cfg.engine.kind {
+                    worker_cfg.fallback_engine = Some(fb_kind);
+                    info!(primary = %worker_cfg.engine.kind.name(), fallback = %fb_kind.name(), "compile fallback enabled");
+                } else {
+                    warn!(engine = %fb_kind.name(), "fallback engine matches primary; ignoring");
+                }
+            } else {
+                warn!(requested = name, "unknown compile_fallback_engine; ignoring");
+            }
+        }
         match worker_cfg.engine.kind {
             EngineKind::Tectonic => info!(
                 engine = "tectonic",
@@ -353,6 +374,7 @@ fn build_router(
         .merge(routes::comments::router())
         .merge(routes::members::router())
         .merge(routes::invites::router())
+        .merge(routes::lint::router())
         .merge(routes::shares::router())
         .merge(routes::notifications::router())
         .merge(routes::versions::router())

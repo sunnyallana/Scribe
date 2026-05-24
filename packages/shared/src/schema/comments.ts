@@ -26,6 +26,12 @@ export const commentSchema = z.object({
   // this string. Capped at 1024 chars server-side.
   anchorSnippet: z.string().nullable(),
   body: z.string(),
+  /** When non-null, this comment is a SUGGESTION: it proposes
+   *  replacing the anchored range with this text. The Reviews panel
+   *  renders it with Apply / Dismiss buttons instead of the regular
+   *  comment thread. Suggestions never have replies — they're a
+   *  one-shot proposal. */
+  replacementText: z.string().nullable(),
   resolvedAt: z.string().nullable(),
   resolvedBy: userIdSchema.nullable(),
   createdAt: z.string(),
@@ -42,6 +48,12 @@ export const createCommentInputSchema = z.object({
   anchorEndColumn: z.number().int().nonnegative().optional(),
   anchorSnippet: z.string().max(1024).optional(),
   body: z.string().trim().min(1, 'Body is required').max(4000),
+  /** When provided, this is a suggestion comment proposing
+   *  `replacementText` for the anchored range. The server stores it
+   *  on the comment row; the Reviews panel renders the Apply /
+   *  Dismiss UX based on its presence. Capped at 8 KB so a single
+   *  suggestion can't bloat the comments table. */
+  replacementText: z.string().max(8192).optional(),
 });
 export type CreateCommentInput = z.infer<typeof createCommentInputSchema>;
 

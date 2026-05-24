@@ -17,12 +17,16 @@ import {
 } from '@scribe/ui';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
+import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
-import { TemplateGallery } from '../../components/TemplateGallery/TemplateGallery';
+import {
+  TemplateGallery,
+  type TemplateSelection,
+} from '../../components/TemplateGallery/TemplateGallery';
 import { api, type ApiError } from '../../lib/api';
 
 interface NewProjectDialogProps {
@@ -34,6 +38,12 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  // The selected template — either one of the six built-ins (single
+  // enum value) or a community template (full file list). The form's
+  // `template` field always carries a valid built-in enum so the
+  // create-project API call stays well-typed; for community
+  // selections we send `blank` then seed files after creation.
+  const [selection, setSelection] = useState<TemplateSelection>({ kind: 'builtin', id: 'blank' });
 
   const form = useForm<CreateProjectInput>({
     resolver: zodResolver(createProjectInputSchema),
@@ -41,11 +51,39 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
   });
 
   const mutation = useMutation<Project, ApiError, CreateProjectInput>({
-    mutationFn: (input) => api.projects.create(input),
+    mutationFn: async (input) => {
+      // Community templates: create the project as `blank`, then seed
+      // each file via api.files.create. This avoids any server-side
+      // changes — the existing template loader stays untouched and
+      // community content lives entirely on the client.
+      if (selection.kind === 'community') {
+        const created = await api.projects.create({ ...input, template: 'blank' });
+        // Best-effort file seeding. If one file fails (e.g. duplicate
+        // path), we keep going so the user still gets a usable project.
+        for (const f of selection.template.files) {
+          try {
+            await api.files.create(created.id, f.path, f.content);
+          } catch (err) {
+            // eslint-disable-next-line no-console
+            console.warn('community template seed failed for', f.path, err);
+          }
+        }
+        // Update mainFile to match the template's preferred entry
+        // point if it isn't already main.tex (the server defaults).
+        if (selection.template.mainFile !== 'main.tex') {
+          try {
+            await api.projects.update(created.id, { mainFile: selection.template.mainFile });
+          } catch { /* leave the default — user can change in settings */ }
+        }
+        return created;
+      }
+      return api.projects.create(input);
+    },
     onSuccess: async (project) => {
       await queryClient.invalidateQueries({ queryKey: ['projects'] });
       onOpenChange(false);
       form.reset();
+      setSelection({ kind: 'builtin', id: 'blank' });
       void navigate(`/project/${project.id}`);
     },
     onError: (error) => {
@@ -98,7 +136,17 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
               control={form.control}
               name="template"
               render={({ field }) => (
-                <TemplateGallery selected={field.value} onSelect={field.onChange} />
+                <TemplateGallery
+                  selected={selection}
+                  onSelect={(next) => {
+                    setSelection(next);
+                    // Keep the form's template field bound to a valid
+                    // built-in enum value — the server expects one of
+                    // the six. Community selections route through the
+                    // `blank` + seed-files path in the mutation.
+                    field.onChange(next.kind === 'builtin' ? next.id : 'blank');
+                  }}
+                />
               )}
             />
           </div>

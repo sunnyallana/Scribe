@@ -9,6 +9,11 @@ export interface EditorPreferences {
   readonly ghostText: boolean;
   readonly liveCompile: boolean;
   readonly liveCompileDelayMs: number;
+  /** When false, style-lint (chktex) entries are hidden from the
+   *  compile log AND the editor gutter. The server still runs the
+   *  linter — this is purely a display toggle, so flipping it back
+   *  on shows existing warnings immediately without recompiling. */
+  readonly lintEnabled: boolean;
 }
 
 export const DEFAULT_EDITOR_PREFS: EditorPreferences = {
@@ -19,6 +24,7 @@ export const DEFAULT_EDITOR_PREFS: EditorPreferences = {
   ghostText: false,
   liveCompile: false,
   liveCompileDelayMs: 3000,
+  lintEnabled: true,
 };
 
 interface SettingsState {
@@ -40,6 +46,6 @@ export const useSettings = create<SettingsState>()(
       },
       resetEditor: () => { set({ editor: DEFAULT_EDITOR_PREFS }); },
     }),
-    { name: 'scribe-settings', version: 2 },
+    { name: 'scribe-settings', version: 3 },
   ),
 );
