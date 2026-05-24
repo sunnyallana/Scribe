@@ -22,6 +22,7 @@
 
 import {
   type FileId,
+  type Project,
   type ProjectFile,
   type ProjectId,
   type RenameFileInput,
@@ -92,7 +93,7 @@ export class SyncManager {
   }
 
   /** Run one full pull→push cycle for the given project. */
-  async syncProject(projectId: ProjectId): Promise<SyncCycleResult> {
+  async syncProject(project: Project): Promise<SyncCycleResult> {
     if (!isTauri()) {
       return { conflicts: [], filesPushed: 0, filesPulled: 0 };
     }
@@ -102,7 +103,7 @@ export class SyncManager {
     }
     this.setStatus('syncing');
     try {
-      const result = await this.runCycle(projectId);
+      const result = await this.runCycle(project);
       this.setStatus('idle');
       return result;
     } catch (err) {
@@ -111,7 +112,19 @@ export class SyncManager {
     }
   }
 
-  private async runCycle(projectId: ProjectId): Promise<SyncCycleResult> {
+  private async runCycle(project: Project): Promise<SyncCycleResult> {
+    // The local `project_files` table has a FK on `projects(id)`, so
+    // we MUST seed the parent row before any file insert — otherwise
+    // every row gets rejected and the transaction rolls back, leaving
+    // SQLite empty even though api.files.list succeeded.
+    await desktopDb.projects.upsert({
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      mainFile: project.mainFile,
+      localOnly: false,
+    });
+    const projectId = project.id;
     // Pull
     const serverFiles = await api.files.list(projectId);
     const applyResult = await invoke<SyncApplyResult>('sync_apply_remote_files', {
@@ -128,7 +141,7 @@ export class SyncManager {
       const content = await desktopDb.files.readContent(local.id);
       if (content === null) continue;
       const written = await api.files.writeContent(projectId, local.id as FileId, content);
-      await invoke<void>('sync_mark_file_clean', {
+      await invoke('sync_mark_file_clean', {
         fileId: local.id,
         serverUpdatedAt: written.updatedAt,
       });
@@ -149,7 +162,7 @@ export class SyncManager {
       throw new Error(`local file ${fileId} has no content to push`);
     }
     const written = await api.files.writeContent(projectId, fileId as FileId, content);
-    await invoke<void>('sync_mark_file_clean', {
+    await invoke('sync_mark_file_clean', {
       fileId,
       serverUpdatedAt: written.updatedAt,
     });
@@ -163,7 +176,7 @@ export class SyncManager {
     if (server === undefined) {
       throw new Error(`server file ${fileId} disappeared during conflict resolution`);
     }
-    await invoke<void>('sync_apply_remote_content', {
+    await invoke('sync_apply_remote_content', {
       fileId,
       content,
       remoteUpdatedAt: server.updatedAt,
@@ -186,12 +199,12 @@ export class SyncManager {
     }
     // Push a brand-new file with the conflict suffix so both versions exist on the server.
     const createdRemote = await api.files.create(projectId, suggestedNewPath, localContent);
-    await invoke<void>('sync_resolve_make_copy', {
+    await invoke('sync_resolve_make_copy', {
       sourceFileId: fileId,
       newFileId: createdRemote.id,
       newPath: suggestedNewPath,
     });
-    await invoke<void>('sync_mark_file_clean', {
+    await invoke('sync_mark_file_clean', {
       fileId: createdRemote.id,
       serverUpdatedAt: createdRemote.updatedAt,
     });
@@ -233,7 +246,7 @@ export async function syncRename(
       path: result.path,
       type: result.type,
     });
-    await invoke<void>('sync_mark_file_clean', {
+    await invoke('sync_mark_file_clean', {
       fileId: result.id,
       serverUpdatedAt: result.updatedAt,
     });

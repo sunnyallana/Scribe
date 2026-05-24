@@ -262,7 +262,7 @@ export function ProjectWorkspace({
     let cancelled = false;
     void (async () => {
       try {
-        const result = await syncManager.syncProject(projectId);
+        const result = await syncManager.syncProject(project);
         if (cancelled) return;
         if (result.conflicts.length > 0) {
           setSyncConflicts(result.conflicts);
@@ -274,7 +274,7 @@ export function ProjectWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [project, projectId]);
 
   function toggleRightPanel(id: NonNullable<RightPanelId>) {
     setRightPanel((current) => (current === id ? null : id));
