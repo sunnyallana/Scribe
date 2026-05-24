@@ -61,7 +61,7 @@ impl CommentService {
                    u.display_name as author_display_name,
                    c.anchor_line, c.anchor_column,
                    c.anchor_end_line, c.anchor_end_column, c.anchor_snippet,
-                   c.body,
+                   c.body, c.replacement_text,
                    c.resolved_at, c.resolved_by, c.created_at, c.updated_at
             from public.comments c
             left join public.users u on u.id = c.author_id
@@ -90,19 +90,19 @@ impl CommentService {
                     (project_id, file_id, parent_id, author_id,
                      anchor_line, anchor_column,
                      anchor_end_line, anchor_end_column, anchor_snippet,
-                     body)
-                values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                     body, replacement_text)
+                values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                 returning id, project_id, file_id, parent_id, author_id,
                           anchor_line, anchor_column,
                           anchor_end_line, anchor_end_column, anchor_snippet,
-                          body,
+                          body, replacement_text,
                           resolved_at, resolved_by, created_at, updated_at
             )
             select i.id, i.project_id, i.file_id, i.parent_id, i.author_id,
                    u.display_name as author_display_name,
                    i.anchor_line, i.anchor_column,
                    i.anchor_end_line, i.anchor_end_column, i.anchor_snippet,
-                   i.body,
+                   i.body, i.replacement_text,
                    i.resolved_at, i.resolved_by, i.created_at, i.updated_at
             from inserted i
             left join public.users u on u.id = i.author_id
@@ -118,6 +118,7 @@ impl CommentService {
         .bind(input.anchor_end_column)
         .bind(input.anchor_snippet.as_deref())
         .bind(&input.body)
+        .bind(input.replacement_text.as_deref())
         .fetch_one(&self.pool)
         .await
         .map_err(internal)?;
@@ -263,14 +264,14 @@ impl CommentService {
                 returning id, project_id, file_id, parent_id, author_id,
                           anchor_line, anchor_column,
                           anchor_end_line, anchor_end_column, anchor_snippet,
-                          body,
+                          body, replacement_text,
                           resolved_at, resolved_by, created_at, updated_at
             )
             select u.id, u.project_id, u.file_id, u.parent_id, u.author_id,
                    au.display_name as author_display_name,
                    u.anchor_line, u.anchor_column,
                    u.anchor_end_line, u.anchor_end_column, u.anchor_snippet,
-                   u.body,
+                   u.body, u.replacement_text,
                    u.resolved_at, u.resolved_by, u.created_at, u.updated_at
             from updated u
             left join public.users au on au.id = u.author_id
@@ -358,6 +359,10 @@ fn row_to_comment(row: sqlx::postgres::PgRow) -> Comment {
         anchor_end_column: row.get("anchor_end_column"),
         anchor_snippet: row.get("anchor_snippet"),
         body: row.get("body"),
+        // `try_get` so older rows without the column don't blow up
+        // — we landed the migration first, but defensive coding here
+        // matches the pattern the comment range columns followed.
+        replacement_text: row.try_get("replacement_text").ok(),
         resolved_at: row.get::<Option<DateTime<Utc>>, _>("resolved_at"),
         resolved_by: row.get::<Option<Uuid>, _>("resolved_by").map(UserId::new),
         created_at: row.get("created_at"),

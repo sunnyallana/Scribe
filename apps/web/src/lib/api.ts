@@ -6,6 +6,7 @@ import {
   type CommentId,
   type CompileJob,
   type CompileJobId,
+  type CompileLogEntryDTO,
   type CreateCommentInput,
   type CreateCompileJobInput,
   type CreateProjectInput,
@@ -251,6 +252,20 @@ export const api = {
     details: (token: InviteToken): Promise<InviteDetails> => fetchJson(`/api/invites/${token}`),
     accept: (token: InviteToken): Promise<AcceptInviteResponse> =>
       fetchJson(`/api/invites/${token}/accept`, { method: 'POST' }),
+  },
+  lint: {
+    /** Run chktex against an unsaved buffer of `content` for the
+     *  given file path. Returns lint entries (`source: 'chktex'`).
+     *  Server returns an empty list if CHKTEX_BIN is unset. */
+    run: (
+      projectId: ProjectId,
+      filePath: string,
+      content: string,
+    ): Promise<CompileLogEntryDTO[]> =>
+      fetchJson(`/api/projects/${projectId}/lint`, {
+        method: 'POST',
+        body: JSON.stringify({ filePath, content }),
+      }),
   },
   notifications: {
     list: (opts: { readonly unread?: boolean; readonly limit?: number } = {}): Promise<Notification[]> => {

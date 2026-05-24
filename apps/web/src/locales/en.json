@@ -189,6 +189,9 @@
     "logTitle": "Compile log",
     "empty": "Logs will appear here after compile.",
     "noIssues": "No errors or warnings.",
+    "sectionEngine": "Compile output",
+    "sectionLint": "Style lint (chktex)",
+    "lastDurationTitle": "Duration of the previous compile (a new one is running)",
     "idle": "Idle",
     "prevPage": "Previous page",
     "nextPage": "Next page",
@@ -275,6 +278,8 @@
       "letter": "Business letter with signature and recipient blocks."
     },
     "gallerySearch": "Search templates…",
+    "galleryCommunity": "Community templates",
+    "galleryEmpty": "No templates match your search.",
     "galleryCategory": {
       "all": "All",
       "general": "General",
@@ -422,6 +427,8 @@
       "ghostTextDesc": "Inline AI suggestions after a brief pause. Tab to accept, Esc to dismiss.",
       "vimMode": "Vim mode",
       "vimModeDesc": "Modal editing with hjkl, :w, etc. (Coming in a follow-up.)",
+      "lint": "Style lint (chktex)",
+      "lintDesc": "Show style warnings from chktex alongside compile errors in the editor and log panel. The server still runs the linter — turning this off only hides the entries.",
       "resetDefaults": "Reset to defaults"
     },
     "ai": {
@@ -480,6 +487,22 @@
     "createdBib": "Created {{path}} with {{key}}",
     "addFailed": "Couldn't add citation",
     "insertCite": "Insert \\cite{{{key}}} at cursor"
+  },
+
+  "suggestion": {
+    "toggle": "Suggest edit",
+    "toggleHint": "Propose a text replacement for the selected range instead of leaving a plain comment.",
+    "addSuggestion": "Add suggestion",
+    "bodyPlaceholder": "Why are you proposing this edit?",
+    "replacementPlaceholder": "Proposed replacement text — replaces the currently selected range when applied.",
+    "proposed": "Suggested edit",
+    "replacingLabel": "Replacing",
+    "withLabel": "With",
+    "apply": "Apply",
+    "dismiss": "Dismiss",
+    "applied": "Suggestion applied.",
+    "applyFailed": "Couldn't apply suggestion.",
+    "openFileFirst": "Open the suggestion's file first, then apply."
   },
 
   "notifications": {

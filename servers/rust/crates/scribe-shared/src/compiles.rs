@@ -84,8 +84,19 @@ pub struct CompileLogEntry {
     pub file: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub line: Option<i32>,
+    /// 1-based column. Currently only populated by chktex; the TeX
+    /// log parser leaves this `None` because tectonic / latexmk
+    /// don't emit column info in their error stream.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub column: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub raw: Option<String>,
+    /// Which tool produced this entry. `None` (omitted) means the
+    /// compile engine itself (tectonic / latexmk); other values seen
+    /// so far are `"chktex"`. The frontend keys off this to split
+    /// the log panel into "Compile" vs "Style lint" sections.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub source: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

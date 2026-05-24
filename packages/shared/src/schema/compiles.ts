@@ -25,6 +25,9 @@ export const compileLogEntrySchema = z.object({
   line: z.number().int().positive().optional(),
   column: z.number().int().positive().optional(),
   raw: z.string().optional(),
+  /** Producer of the entry: undefined / "tectonic" / "latexmk" / "chktex".
+   *  Drives the UI split between compile output and lint warnings. */
+  source: z.string().optional(),
 });
 export type CompileLogEntryDTO = z.infer<typeof compileLogEntrySchema>;
 

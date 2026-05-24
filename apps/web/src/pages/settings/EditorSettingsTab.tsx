@@ -94,6 +94,13 @@ export function EditorSettingsTab() {
           label={t('settings.editor.vimMode')}
           description={t('settings.editor.vimModeDesc')}
         />
+        <Toggle
+          name="editor-lint-enabled"
+          checked={editor.lintEnabled}
+          onChange={bound('lintEnabled')}
+          label={t('settings.editor.lint')}
+          description={t('settings.editor.lintDesc')}
+        />
       </div>
 
       <div className="border-t pt-3">

@@ -41,6 +41,8 @@ pub fn parse(log: &str) -> Vec<CompileLogEntry> {
                 message: rest.to_string(),
                 file: current_file.clone(),
                 line: None,
+                column: None,
+                source: None,
                 raw: Some(raw_line.to_string()),
             });
             continue;
@@ -52,6 +54,8 @@ pub fn parse(log: &str) -> Vec<CompileLogEntry> {
                 message: rest.to_string(),
                 file: current_file.clone(),
                 line: None,
+                column: None,
+                source: None,
                 raw: Some(raw_line.to_string()),
             });
             continue;
@@ -63,6 +67,8 @@ pub fn parse(log: &str) -> Vec<CompileLogEntry> {
                 message: rest.to_string(),
                 file: current_file.clone(),
                 line: extract_line_suffix(rest),
+                column: None,
+                source: None,
                 raw: Some(raw_line.to_string()),
             });
             continue;
@@ -74,6 +80,8 @@ pub fn parse(log: &str) -> Vec<CompileLogEntry> {
                 message: line.to_string(),
                 file: current_file.clone(),
                 line: None,
+                column: None,
+                source: None,
                 raw: Some(raw_line.to_string()),
             });
             continue;

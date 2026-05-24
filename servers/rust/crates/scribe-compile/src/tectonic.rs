@@ -36,6 +36,15 @@ pub struct TectonicConfig {
     /// Falls back to tectonic's default (`XDG_CACHE_HOME` on Unix,
     /// `%LOCALAPPDATA%` on Windows) when None.
     pub cache_dir: Option<std::path::PathBuf>,
+    /// Pass `--only-cached` to tectonic, which skips the per-compile
+    /// freshness check against the CTAN bundle (saves 1-3 s on warm
+    /// runs). Defaults to true because:
+    ///   • the bundle's already cached after the first compile, and
+    ///   • the worker has a fallback engine to handle the rare case
+    ///     where a needed package isn't cached yet.
+    /// Set to false to force tectonic to revalidate against the
+    /// network on every compile.
+    pub only_cached: bool,
 }
 
 impl Default for TectonicConfig {
@@ -44,6 +53,7 @@ impl Default for TectonicConfig {
             binary: "tectonic".to_string(),
             timeout: Duration::from_secs(120),
             cache_dir: None,
+            only_cached: true,
         }
     }
 }
@@ -59,9 +69,14 @@ pub async fn run_tectonic(
         .arg("--synctex")
         .arg("--keep-logs")
         .arg("--outdir")
-        .arg(workdir.as_os_str())
-        .arg(main_file)
-        .kill_on_drop(true);
+        .arg(workdir.as_os_str());
+    // `--only-cached` skips the bundle freshness handshake on every
+    // compile. Big win on warm runs (1-3 s). Place BEFORE the main
+    // file argument; tectonic's CLI takes the file as positional.
+    if config.only_cached {
+        cmd.arg("--only-cached");
+    }
+    cmd.arg(main_file).kill_on_drop(true);
 
     // Point tectonic at a persistent cache so package downloads from
     // CTAN are reused between compiles. tectonic respects

@@ -168,6 +168,10 @@ pub struct AppConfig {
     /// pdflatex/xelatex/lualatex against a local TeX Live / MiKTeX).
     /// Empty / unrecognised falls back to tectonic.
     pub compile_engine: Option<String>,
+    /// Fallback engine. When the primary engine returns non-zero,
+    /// the worker re-runs the compile with this engine and uses its
+    /// outcome. Empty / unset disables the fallback path.
+    pub compile_fallback_engine: Option<String>,
     /// Path to the tectonic binary. Defaults to `tectonic` (PATH lookup).
     pub tectonic_bin: Option<String>,
     /// Path to the latexmk binary when `compile_engine="latexmk"`.
@@ -191,6 +195,12 @@ pub struct AppConfig {
     /// Number of compile worker tasks to spawn — each does an
     /// independent BRPOP loop on Redis. Defaults to 2.
     pub compile_worker_concurrency: Option<u32>,
+    /// Path to the chktex binary used to lint .tex files after a
+    /// compile. When unset, the lint pass is skipped — there's no
+    /// fallback to `chktex` on PATH because most deployments don't
+    /// have it installed, and a noisy ENOENT log per compile is
+    /// worse UX than a silent opt-in.
+    pub chktex_bin: Option<String>,
 }
 
 impl Default for AppConfig {
@@ -211,6 +221,7 @@ impl Default for AppConfig {
             cors_origin: None,
             scribe_static_dir: None,
             compile_engine: None,
+            compile_fallback_engine: None,
             tectonic_bin: None,
             latexmk_bin: None,
             latex_engine: None,
@@ -218,6 +229,7 @@ impl Default for AppConfig {
             compile_timeout_ms: None,
             tectonic_cache_dir: None,
             compile_worker_concurrency: None,
+            chktex_bin: None,
         }
     }
 }
@@ -257,9 +269,10 @@ impl AppConfig {
             "supabase_anon_key", "supabase_service_role_key",
             "supabase_jwt_secret", "redis_url", "ai_key_encryption_key",
             "file_size_max_bytes", "cors_origin", "scribe_static_dir",
-            "compile_engine", "tectonic_bin", "latexmk_bin", "latex_engine",
+            "compile_engine", "compile_fallback_engine",
+            "tectonic_bin", "latexmk_bin", "latex_engine",
             "pandoc_bin", "compile_timeout_ms", "tectonic_cache_dir",
-            "compile_worker_concurrency",
+            "compile_worker_concurrency", "chktex_bin",
         ]));
 
         // Map SCRIBE_FEATURE_<NAME>=value to features.name.

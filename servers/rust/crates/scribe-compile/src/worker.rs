@@ -43,6 +43,16 @@ pub struct WorkerConfig {
     /// Working-directory root. Per-job scratch dirs are created underneath.
     /// Defaults to the OS temp dir.
     pub workdir_root: std::path::PathBuf,
+    /// chktex linter integration. Disabled by default — only runs
+    /// when `CHKTEX_BIN` is set in the server config.
+    pub chktex: crate::ChktexConfig,
+    /// Fallback engine kind. When the primary engine returns a
+    /// non-success exit code, the worker re-runs the compile with
+    /// this engine and uses its outcome instead. `None` (default)
+    /// disables the fallback. Same `engine` struct carries the
+    /// binary paths for both candidates, so we just swap `kind`
+    /// at fallback time.
+    pub fallback_engine: Option<crate::EngineKind>,
 }
 
 impl Default for WorkerConfig {
@@ -50,6 +60,8 @@ impl Default for WorkerConfig {
         Self {
             engine: EngineConfig::default(),
             workdir_root: std::env::temp_dir(),
+            chktex: crate::ChktexConfig::default(),
+            fallback_engine: None,
         }
     }
 }
@@ -291,11 +303,104 @@ impl Worker {
 
         // ---- run the compile engine ----
         let t_tex = std::time::Instant::now();
-        let outcome = run_compile(&self.config.engine, workdir, &payload.main_file).await;
-        let engine_ms = t_tex.elapsed().as_millis();
+        let mut outcome = run_compile(&self.config.engine, workdir, &payload.main_file).await;
+        let mut engine_used = self.config.engine.kind;
+        let mut engine_ms = t_tex.elapsed().as_millis();
+        // Fallback path: if the primary engine returned non-zero AND
+        // a fallback was configured AND it isn't the same engine,
+        // re-run with the fallback and use that outcome instead.
+        // We log both attempts so the user can see what happened.
+        if !outcome.success {
+            if let Some(fb_kind) = self.config.fallback_engine {
+                if fb_kind != self.config.engine.kind {
+                    tracing::warn!(
+                        %job_id,
+                        primary = %self.config.engine.kind.name(),
+                        primary_exit = outcome.exit_code,
+                        fallback = %fb_kind.name(),
+                        "primary engine failed; retrying with fallback"
+                    );
+                    let mut fb_config = self.config.engine.clone();
+                    fb_config.kind = fb_kind;
+                    let t_fb = std::time::Instant::now();
+                    let fb_outcome = run_compile(&fb_config, workdir, &payload.main_file).await;
+                    let fb_ms = t_fb.elapsed().as_millis();
+                    if fb_outcome.success {
+                        tracing::info!(%job_id, fallback = %fb_kind.name(), fb_ms, "fallback engine succeeded");
+                        outcome = fb_outcome;
+                        engine_used = fb_kind;
+                        engine_ms += fb_ms;
+                    } else {
+                        tracing::warn!(%job_id, fallback = %fb_kind.name(), fb_ms, "fallback engine also failed");
+                        // Stick with the primary outcome — its stdout
+                        // is more likely the one the user wants to
+                        // debug. We still record the fallback's stderr
+                        // by appending it for log-parser visibility.
+                        outcome.stderr = format!(
+                            "{}\n--- fallback {} also failed ---\n{}",
+                            outcome.stderr, fb_kind.name(), fb_outcome.stderr,
+                        );
+                        engine_ms += fb_ms;
+                    }
+                }
+            }
+        }
+        // Stamp the engine that actually produced the result onto the
+        // outcome (debug only — used in the timings log line below).
+        let _ = engine_used;
 
-        let combined = format!("{}\n{}", outcome.stdout, outcome.stderr);
-        let entries = log_parser::parse(&combined);
+        // Tectonic writes its progress to stdout/stderr, but the
+        // actual TeX engine warnings (Overfull/Underfull \hbox, font
+        // substitutions, hyperref complaints, …) live in the `.log`
+        // file the engine emits. We have to parse both to surface
+        // them — `keep_logs` ensures it's on disk by the time we get
+        // here. The file may not exist on a hard failure; skip
+        // silently when that happens.
+        let combined = {
+            let base = payload
+                .main_file
+                .rsplit_once('.')
+                .map(|(stem, _)| stem)
+                .unwrap_or(&payload.main_file);
+            let log_path = workdir.join(format!("{base}.log"));
+            // 4 MiB cap on what we feed the parser. Real-world
+            // project logs run 50-500 KiB; the 32 MiB cap on the
+            // *upload* side is generous on purpose, but pushing
+            // 32 MiB of text through a regex parser per compile
+            // would burn a noticeable amount of CPU. Truncation here
+            // never hides the full log — that's still uploaded as
+            // an artifact and viewable via the "raw log" link.
+            const PARSE_LOG_CAP: u64 = 4 * 1024 * 1024;
+            let log_text = match read_capped(&log_path, PARSE_LOG_CAP).await {
+                // LaTeX engines write log files in a mix of UTF-8 and
+                // platform-default; lossy decode is the safe choice.
+                Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+                Err(_) => String::new(),
+            };
+            // Order is stdout, stderr, then the TeX log. The parser
+            // is line-oriented and stateful (file-token tracking),
+            // so concatenation order only matters for `current_file`
+            // attribution — putting the engine log LAST means entries
+            // it produces inherit `(./path.tex` markers from the
+            // engine log itself, not from tectonic's progress noise.
+            format!("{}\n{}\n{}", outcome.stdout, outcome.stderr, log_text)
+        };
+        let mut entries = log_parser::parse(&combined);
+        // chktex pass — runs after the engine even if compile failed,
+        // because style issues are surfaced regardless of whether the
+        // PDF rendered. Skipped silently when CHKTEX_BIN isn't set.
+        if self.config.chktex.enabled() {
+            let lint = crate::chktex::run_chktex(
+                &self.config.chktex,
+                workdir,
+                &payload.main_file,
+            )
+            .await;
+            if !lint.is_empty() {
+                tracing::debug!(%job_id, count = lint.len(), "chktex warnings appended");
+            }
+            entries.extend(lint);
+        }
         for entry in &entries {
             self.publish(
                 payload.compile_job_id,
