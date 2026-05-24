@@ -199,7 +199,7 @@ async fn main() -> anyhow::Result<()> {
         // fall back to the default (Tectonic) — the option is logged
         // below so misconfig is visible at startup.
         if let Some(name) = config.compile_engine.as_deref().filter(|s| !s.is_empty()) {
-            if let Some(kind) = EngineKind::from_str(name) {
+            if let Some(kind) = EngineKind::parse_name(name) {
                 worker_cfg.engine.kind = kind;
             } else {
                 warn!(
@@ -225,7 +225,7 @@ async fn main() -> anyhow::Result<()> {
             worker_cfg.engine.latexmk.binary = bin.to_string();
         }
         if let Some(eng) = config.latex_engine.as_deref().filter(|s| !s.is_empty()) {
-            if let Some(parsed) = LatexEngine::from_str(eng) {
+            if let Some(parsed) = LatexEngine::parse_name(eng) {
                 worker_cfg.engine.latexmk.engine = parsed;
             } else {
                 warn!(requested = eng, "unknown latex_engine; using pdflatex");
@@ -241,7 +241,7 @@ async fn main() -> anyhow::Result<()> {
         // primary — running the same engine twice tells us nothing
         // and just doubles compile latency on a real failure.
         if let Some(name) = config.compile_fallback_engine.as_deref().filter(|s| !s.is_empty()) {
-            if let Some(fb_kind) = EngineKind::from_str(name) {
+            if let Some(fb_kind) = EngineKind::parse_name(name) {
                 if fb_kind != worker_cfg.engine.kind {
                     worker_cfg.fallback_engine = Some(fb_kind);
                     info!(primary = %worker_cfg.engine.kind.name(), fallback = %fb_kind.name(), "compile fallback enabled");

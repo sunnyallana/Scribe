@@ -919,16 +919,45 @@ That should be one focused session. Phase 1 begins next.
 > pipeline gates pass: cargo check, web typecheck, web lint (new files
 > warning-free), and vite build.
 >
-> **What's not wired yet:** the desktop primitives are shipped but the
-> existing `useFileTree` / `useYjsDoc` / `useCompileSession` hooks
-> still target the server-online path. Mounting `useDeepLinkRouter`
-> in `App.tsx`, branching the compile session on `isTauri()`, and
-> persisting Yjs updates through `desktopDb.yjs.append` are the
-> integration steps; expect them in a Phase 6.5 polish pass alongside
-> a real `pnpm tauri dev` smoke test and a signed release bundle.
+> **Phase 6.5: complete (2026-05-24).** All desktop adapters wired into
+> the SPA hooks: `useCompileSession` branches on `isTauri()` and routes
+> through `desktopCompile.ts` (workdir prep + bundled-engine dispatch +
+> live log/status/completion event streams + PDF / SyncTeX restoration);
+> `useYjsDoc` replays persisted updates from `desktopDb.yjs.load` on
+> mount and mirrors every doc update via `syncManager.persistYjsUpdate`;
+> `ProjectWorkspace` kicks `syncManager.syncProject` once per project
+> mount and renders `SyncConflictModal` on hard collisions;
+> `useDeepLinkRouter` is mounted at the routed root so
+> `scribe://invite/<token>` resolves through React Router; a new
+> `useDesktopUpdater` hook (`lib/desktopUpdates.ts`) pings the updater
+> endpoint ~5 s after boot and surfaces a sonner toast with an
+> "Install & restart" action when a signed bundle is newer than the
+> running version. First `pnpm tauri build --no-bundle` succeeded
+> (5 m 00 s, produced `scribe-desktop.exe` under
+> `apps/desktop/src-tauri/target/release/`). All pipeline gates pass
+> with `-D warnings`: pnpm lint, pnpm typecheck, vite build,
+> `cargo clippy --workspace --all-targets -- -D warnings` on both
+> Rust workspaces.
 >
-> **Next action:** Phase 6.5 polish — wire the desktop adapters into
-> the existing SPA hooks and run the first `tauri build` for Windows.
+> **Phase 7: complete (2026-05-24).** `docker-compose.yml` at the repo
+> root brings up the Rust server (existing multi-stage Dockerfile at
+> `servers/rust/Dockerfile` — cargo-chef cache, tectonic baked into the
+> distroless runtime, non-root user, SPA bundle pre-built into
+> `/opt/scribe/web`) plus a Redis 7 sidecar. Supabase stays external
+> (hosted free tier or local `supabase start`). `.dockerignore` trims
+> the build context. `docs/self-hosting.md` walks through the full
+> deployment: prereqs, Supabase setup (hosted + local), `.env` minimum,
+> build + boot + healthcheck, reverse-proxy snippet (Caddy), day-2 ops
+> (logs, backups, upgrades, resource budget), and a troubleshooting
+> matrix. `docs/env-vars.md` documents where each `.env` value comes
+> from (Supabase dashboard paths, `openssl rand -base64 32` for the
+> AI key, SMTP provider quick-setups, OAuth app creation, observability
+> vendors). `CONTRIBUTING.md` lays out the workflow, the locally-runnable
+> pipeline-gate commands, commit-message conventions, and the open
+> issue (GitHub sync) for new contributors. README's "Run from source"
+> section now splits explicitly into web vs desktop with prereq tables
+> and a callout that the desktop app still needs the Rust API for any
+> account-bound feature.
 
 ## 12. Overleaf-parity candidates (post-v1)
 

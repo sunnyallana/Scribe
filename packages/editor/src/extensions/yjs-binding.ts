@@ -184,8 +184,12 @@ export function scribeYjsBinding(opts: ScribeYjsCollab): Extension {
         // while an update is in progress" — which kills the whole
         // plugin and the observer below never gets installed. Defer
         // the snap to a microtask so the construction completes first.
-        Promise.resolve().then(() => {
+        void Promise.resolve().then(() => {
           if (this.destroyed) return;
+          // `Y.Text#toString` overrides `Object.prototype.toString` and
+          // returns the document body; the eslint rule can't see the
+          // override through the Y.Text types so we suppress here.
+          // eslint-disable-next-line @typescript-eslint/no-base-to-string
           const remote = yText.toString();
           const local = view.state.doc.toString();
           if (remote === local) return;
@@ -202,7 +206,7 @@ export function scribeYjsBinding(opts: ScribeYjsCollab): Extension {
             // Our own write — the editor already has it.
             return;
           }
-          const changes: Array<{ from: number; to?: number; insert?: string }> = [];
+          const changes: { from: number; to?: number; insert?: string }[] = [];
           let cursor = 0;
           for (const op of event.delta) {
             if (op.retain !== undefined) {
@@ -249,11 +253,11 @@ export function scribeYjsBinding(opts: ScribeYjsCollab): Extension {
             // network read happens off the main update loop, but
             // belt-and-braces). Defer to a microtask so we never
             // dispatch from inside another dispatch.
-            Promise.resolve().then(() => { this.refreshRemoteCursors(); });
+            void Promise.resolve().then(() => { this.refreshRemoteCursors(); });
           };
           awareness.on('change', this.awarenessHandler);
           // Initial paint (peers already present at attach time).
-          Promise.resolve().then(() => { this.refreshRemoteCursors(); });
+          void Promise.resolve().then(() => { this.refreshRemoteCursors(); });
         } else {
           this.awarenessHandler = null;
         }
@@ -320,9 +324,9 @@ export function scribeYjsBinding(opts: ScribeYjsCollab): Extension {
 
         // States is a Map<number, AwarenessState>. Sort by clientID so
         // overlapping carets render in a stable order across frames.
-        const entries: Array<[number, AwarenessState]> = [];
+        const entries: [number, AwarenessState][] = [];
         states.forEach((value, key) => {
-          entries.push([key, value as AwarenessState]);
+          entries.push([key, value]);
         });
         entries.sort((a, b) => a[0] - b[0]);
 

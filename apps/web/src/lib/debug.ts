@@ -121,8 +121,8 @@ export function debugEnabled(): boolean {
 //   window.__scribeDebug.on()  / .off() / .status()
 if (typeof window !== 'undefined') {
   (window as unknown as { __scribeDebug?: unknown }).__scribeDebug = {
-    on: () => { setDebug(true); console.info('[Scribe] debug ON'); },
-    off: () => { setDebug(false); console.info('[Scribe] debug OFF'); },
+    on: () => { setDebug(true); console.warn('[Scribe] debug ON'); },
+    off: () => { setDebug(false); console.warn('[Scribe] debug OFF'); },
     status: () => enabled(),
   };
 }

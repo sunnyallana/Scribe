@@ -12,14 +12,14 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 import { api, ApiError } from '../../lib/api';
+import { log } from '../../lib/debug';
 import {
   downloadCompiledPdf,
   exportAsMarkdown,
   exportAsWord,
 } from '../../lib/projectExports';
-import { log } from '../../lib/debug';
-import { useProjectChrome } from '../../stores/projectChrome';
 import { supabase } from '../../lib/supabase';
+import { useProjectChrome } from '../../stores/projectChrome';
 
 export function ExportMenuItems() {
   const { t } = useTranslation();

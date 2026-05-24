@@ -1,0 +1,85 @@
+# Scribe — single-host self-host stack.
+#
+# Brings up the API + compile worker + Yjs hub (one process) and Redis.
+# Supabase is intentionally external — pick hosted (free tier is plenty
+# for a small team) or run `supabase start` locally. See
+# docs/self-hosting.md for the walkthrough and docs/env-vars.md for what
+# each value below means.
+#
+# Usage:
+#   cp .env.example .env       # fill in Supabase + AI_KEY_ENCRYPTION_KEY
+#   docker compose up -d       # build and start in the background
+#   docker compose logs -f app # follow the server log
+#
+# Volumes:
+#   redis-data            Redis AOF, keeps the compile queue across restarts.
+#   tectonic-cache        CTAN bundle cache. ~100 MB after the first compile;
+#                         persisting it shaves 10–15 s off every cold compile.
+
+services:
+  app:
+    image: scribe/server:latest
+    build:
+      context: .
+      dockerfile: servers/rust/Dockerfile
+    container_name: scribe-app
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      # Override anything in .env that has to differ inside the
+      # compose network. Service names resolve to the right IPs
+      # automatically, so we point Redis at the service name.
+      HOST: 0.0.0.0
+      PORT: 3000
+      REDIS_URL: redis://redis:6379
+      # When the operator hasn't pinned a static-files dir explicitly
+      # in their .env, fall back to the path the Dockerfile writes to.
+      SCRIBE_STATIC_DIR: /opt/scribe/web
+      # Persist tectonic's CTAN cache so the first warm compile after
+      # a restart is ~4 s instead of ~15 s.
+      TECTONIC_CACHE_DIR: /var/cache/tectonic
+    ports:
+      - "${SCRIBE_HTTP_PORT:-3000}:3000"
+    volumes:
+      - tectonic-cache:/var/cache/tectonic
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - scribe-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: scribe-redis
+    restart: unless-stopped
+    command:
+      - "redis-server"
+      - "--appendonly"
+      - "yes"
+      - "--maxmemory"
+      - "256mb"
+      - "--maxmemory-policy"
+      - "noeviction"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - scribe-net
+
+volumes:
+  redis-data:
+  tectonic-cache:
+
+networks:
+  scribe-net:
+    driver: bridge

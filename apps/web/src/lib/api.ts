@@ -190,7 +190,7 @@ export const api = {
     /** Read-only snapshot of who's currently in the project's
      *  voice room. Used by clients that aren't on the call to
      *  show a "N on call" badge. */
-    peers: (projectId: ProjectId): Promise<{ peers: Array<{ connId: string; userId: string }> }> =>
+    peers: (projectId: ProjectId): Promise<{ peers: { connId: string; userId: string }[] }> =>
       fetchJson(`/api/projects/${projectId}/voice/peers`),
   },
   comments: {

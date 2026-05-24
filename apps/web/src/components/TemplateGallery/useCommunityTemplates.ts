@@ -18,19 +18,32 @@ export interface CommunityTemplate {
   readonly monogram: string;
   readonly accent: string;
   readonly mainFile: string;
-  readonly files: ReadonlyArray<{
+  readonly files: readonly {
     readonly path: string;
     readonly content: string;
-  }>;
-}
-
-interface ManifestShape {
-  readonly version: number;
-  readonly updatedAt: string;
-  readonly templates: readonly CommunityTemplate[];
+  }[];
 }
 
 const MANIFEST_URL = '/community-templates.json';
+
+function isCommunityTemplate(value: unknown): value is CommunityTemplate {
+  if (typeof value !== 'object' || value === null) return false;
+  const t = value as {
+    id?: unknown;
+    name?: unknown;
+    mainFile?: unknown;
+    files?: unknown;
+  };
+  if (typeof t.id !== 'string') return false;
+  if (typeof t.name !== 'string') return false;
+  if (typeof t.mainFile !== 'string') return false;
+  if (!Array.isArray(t.files)) return false;
+  return (t.files as unknown[]).every((f) => {
+    if (typeof f !== 'object' || f === null) return false;
+    const file = f as { path?: unknown; content?: unknown };
+    return typeof file.path === 'string' && typeof file.content === 'string';
+  });
+}
 
 /** Cached fetch of the manifest. Stale-while-revalidate is fine —
  *  manifest content is curated; an hour-old copy isn't a problem. */
@@ -40,21 +53,11 @@ export function useCommunityTemplates() {
     queryFn: async () => {
       const res = await fetch(MANIFEST_URL, { cache: 'no-cache' });
       if (!res.ok) return [];
-      const data = (await res.json()) as Partial<ManifestShape>;
-      if (!Array.isArray(data.templates)) return [];
-      // Light client-side validation so a malformed manifest doesn't
-      // crash the dialog. Drop entries missing required fields.
-      return data.templates.filter(
-        (t): t is CommunityTemplate =>
-          typeof t.id === 'string' &&
-          typeof t.name === 'string' &&
-          typeof t.mainFile === 'string' &&
-          Array.isArray(t.files) &&
-          t.files.every(
-            (f: { path: unknown; content: unknown }) =>
-              typeof f.path === 'string' && typeof f.content === 'string',
-          ),
-      );
+      const raw: unknown = await res.json();
+      if (typeof raw !== 'object' || raw === null) return [];
+      const candidate = raw as { templates?: unknown };
+      if (!Array.isArray(candidate.templates)) return [];
+      return (candidate.templates as unknown[]).filter(isCommunityTemplate);
     },
     staleTime: 60 * 60 * 1000,
     refetchOnWindowFocus: false,

@@ -19,11 +19,7 @@ scripts/
 │   └── apply-suggestions.mjs    20260524000004_comment_suggestions.sql
 ├── probes/                ← read-only DB / auth diagnostics
 │   └── probe-*.mjs              (auth, RLS, triggers, helpers, …)
-└── utils/                 ← misc one-off helpers
-    ├── create-whoami.mjs        seed the /api/whoami fixture
-    ├── demo.mjs                 Playwright walkthrough → demo-screenshots/
-    ├── fix-policy.mjs           one-off RLS-policy patch
-    ├── fix-storage-rls.mjs      one-off storage-bucket RLS patch
+└── utils/                 ← misc helpers
     └── test-jwt.mjs             local JWT verifier
 ```
 

@@ -90,6 +90,17 @@ impl VerifiedTokenCache {
         );
     }
 
+    /// Current entry count. Cheap O(shard-count) sum across DashMap shards;
+    /// fine for tests and operational metrics, not for tight loops.
+    #[allow(dead_code)]
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    #[allow(dead_code)]
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
 }
 
 impl Default for VerifiedTokenCache {

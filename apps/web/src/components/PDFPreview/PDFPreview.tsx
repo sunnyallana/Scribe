@@ -11,8 +11,8 @@ import {
 } from 'lucide-react';
 // Vite-friendly worker URL. `?worker&url` resolves to a chunk URL that the
 // browser fetches lazily — keeps the main bundle small.
-import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?worker&url';
 import * as pdfjs from 'pdfjs-dist';
+import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?worker&url';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -597,7 +597,7 @@ function PageCanvas({ doc, pageNumber, zoom, highlight, onInverseSync }: PageCan
         ) {
           // Surface the error via console; the parent toolbar shows a
           // status banner on real failures.
-          // eslint-disable-next-line no-console
+           
           console.warn(`PDF page ${pageNumber.toString()} render failed`, err);
         }
       }

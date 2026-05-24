@@ -66,12 +66,14 @@ export function ShareLinks({ projectId, isOwner }: ShareLinksProps) {
     enabled: isOwner,
   });
 
-  const createMutation = useMutation<ShareLink, ApiError, void>({
-    mutationFn: () =>
-      api.shares.create(projectId, {
+  const createMutation = useMutation<ShareLink, ApiError>({
+    mutationFn: () => {
+      const expiresAt = expiryToIso(expiry);
+      return api.shares.create(projectId, {
         role,
-        ...(expiryToIso(expiry) !== undefined ? { expiresAt: expiryToIso(expiry)! } : {}),
-      }),
+        ...(expiresAt !== undefined ? { expiresAt } : {}),
+      });
+    },
     onSuccess: async (link) => {
       await queryClient.invalidateQueries({ queryKey: ['share-links', projectId] });
       await copyShareLink(link.token, t('share.linkAutoCopied'));
