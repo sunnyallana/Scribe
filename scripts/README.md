@@ -1,6 +1,6 @@
 # Scripts
 
-Operational tooling for Scribe. Top level holds the four user-facing
+Operational tooling for Scribe. Top level holds the six user-facing
 scripts; everything else is grouped under three subfolders.
 
 ```
@@ -8,8 +8,10 @@ scripts/
 ├── README.md              ← you are here
 ├── setup.sh               ← one-shot install (Linux + macOS)
 ├── setup.ps1              ← one-shot install (Windows)
-├── run.sh                 ← start Redis + API + SPA together
-├── run.ps1                ← start Redis + API + SPA together (Windows)
+├── run.sh                 ← start Redis + API + Vite SPA together
+├── run.ps1                ← start Redis + API + Vite SPA together (Windows)
+├── run-desktop.sh         ← start Redis + API + Tauri desktop together
+├── run-desktop.ps1        ← start Redis + API + Tauri desktop together (Windows)
 ├── migrations/            ← one-shot DB migration runners
 │   ├── apply-migrations.mjs     bulk: every .sql in supabase/migrations
 │   ├── apply-share-links.mjs    20260524000002_project_share_links.sql
@@ -27,11 +29,11 @@ scripts/
 
 ## Quick start
 
-| OS                                      | Setup (once)              | Run (every session)       |
-|-----------------------------------------|---------------------------|---------------------------|
-| Linux (Debian, Ubuntu, Fedora, Arch)    | `./scripts/setup.sh`      | `./scripts/run.sh`        |
-| macOS                                   | `./scripts/setup.sh`      | `./scripts/run.sh`        |
-| Windows 10/11                           | `.\scripts\setup.ps1`     | `.\scripts\run.ps1`       |
+| OS                                      | Setup (once)              | Browser run              | Desktop run                    |
+|-----------------------------------------|---------------------------|--------------------------|--------------------------------|
+| Linux (Debian, Ubuntu, Fedora, Arch)    | `./scripts/setup.sh`      | `./scripts/run.sh`       | `./scripts/run-desktop.sh`     |
+| macOS                                   | `./scripts/setup.sh`      | `./scripts/run.sh`       | `./scripts/run-desktop.sh`     |
+| Windows 10/11                           | `.\scripts\setup.ps1`     | `.\scripts\run.ps1`      | `.\scripts\run-desktop.ps1`    |
 
 ## What `setup` installs
 
@@ -52,6 +54,15 @@ It then runs `pnpm install` and `cargo build` so a `run` after this won't pause 
 3. **Vite SPA** (`pnpm --filter @scribe/web dev`) on `:5173`.
 
 Output from API and SPA is multiplexed with `[api]` / `[web]` line prefixes so a single terminal is enough. `Ctrl+C` tears all three down cleanly.
+
+## What `run-desktop` starts
+
+Use this when you want to drive the native Tauri window instead of the browser SPA.
+
+1. **Redis** + **Rust API** — same as above.
+2. **Tauri desktop** (`pnpm --filter @scribe/desktop tauri dev`). Tauri's own `beforeDevCommand` spawns the Vite SPA on `:5173` as a child, so don't run `./scripts/run.sh` at the same time — port 5173 must be free (the script pre-checks and bails out fast if it isn't).
+
+Output is prefixed `[api]` / `[tauri]`. First launch links the Rust shell from scratch (~1–2 min); subsequent launches reuse cargo's incremental cache.
 
 ## `.env`
 
