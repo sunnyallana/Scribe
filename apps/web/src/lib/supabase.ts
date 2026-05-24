@@ -34,15 +34,25 @@ export const supabase = createClient<Database>(url, anonKey, {
  */
 function resolveApiUrl(): string {
   if (typeof window !== 'undefined') {
-    const host = window.location.hostname;
-    const isLocal =
-      host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
-    if (!isLocal) {
-      // Empty string → fetches use relative paths → SPA's
-      // existing `${API_URL}/api/...` becomes `/api/...`, which
-      // the Vite proxy forwards to the Rust API on the host
-      // machine.
-      return '';
+    // Tauri's installed-app webview loads the SPA from
+    // `https://tauri.localhost/` (Windows / Linux) or
+    // `tauri://localhost/` (macOS) — neither matches the
+    // `localhost`/`127.0.0.1` heuristic below, and neither has a
+    // `/api/*` route to proxy through. We MUST honour the explicit
+    // `VITE_API_URL` baked at build time. Without this branch the
+    // SPA fetches its own index.html for every API call and the
+    // JSON parser bombs with "<!doctype" tokens.
+    const inTauri = '__TAURI_INTERNALS__' in window;
+    if (!inTauri) {
+      const host = window.location.hostname;
+      const isLocal =
+        host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+      if (!isLocal) {
+        // Browser tab on a tunnel / phone / LAN IP — same-origin
+        // paths so requests flow through Vite's `/api` proxy.
+        // Avoids mixed-content blocks on HTTPS tunnels and CORS pain.
+        return '';
+      }
     }
   }
   const env = import.meta.env.VITE_API_URL;

@@ -1,4 +1,10 @@
-import { type Project, type ProjectFile, projectIdSchema } from '@scribe/shared';
+import {
+  type FileId,
+  type Project,
+  type ProjectFile,
+  type ProjectId,
+  projectIdSchema,
+} from '@scribe/shared';
 import {
   Button,
   DropdownMenu,
@@ -21,11 +27,31 @@ import { ExportMenuItems } from '../../components/ProjectActions/ExportMenuItems
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { api, type ApiError } from '../../lib/api';
+import { type LocalFile, desktopDb } from '../../lib/desktopDb';
+import { isTauri } from '../../lib/tauri';
 import { useProjectChrome } from '../../stores/projectChrome';
 
 import { FileTree } from './FileTree';
 import { ProjectSettingsSheet } from './ProjectSettingsSheet';
 import { ProjectWorkspace } from './ProjectWorkspace';
+
+function localFileToProjectFile(f: LocalFile): ProjectFile {
+  // Branded-id cast: the SQLite mirror stores plain strings; the
+  // server's UUID-validated branding is preserved by construction
+  // (every row originally arrived via api.files.list). `createdBy`
+  // isn't mirrored — surfacing null is fine since the file tree
+  // doesn't read it.
+  return {
+    id: f.id as FileId,
+    projectId: f.projectId as ProjectId,
+    path: f.path,
+    type: f.type,
+    sizeBytes: f.size ?? 0,
+    createdBy: null,
+    createdAt: f.createdAt,
+    updatedAt: f.updatedAt,
+  };
+}
 
 export function ProjectPage() {
   const { t } = useTranslation();
@@ -78,8 +104,17 @@ export function ProjectPage() {
   const filesQuery = useQuery<ProjectFile[], ApiError>({
     queryKey: ['files', projectId],
     enabled: projectId !== null,
-    queryFn: () => {
+    queryFn: async () => {
       if (projectId === null) throw new Error('projectId is null');
+      // Tauri + offline: serve from the local SQLite mirror so the
+      // file tree still renders without network. Online (or in the
+      // browser) keeps using the server as the source of truth; the
+      // mirror gets refreshed by `syncManager.syncProject` on
+      // project mount.
+      if (isTauri() && typeof navigator !== 'undefined' && !navigator.onLine) {
+        const local = await desktopDb.files.list(projectId);
+        return local.map(localFileToProjectFile);
+      }
       return api.files.list(projectId);
     },
   });

@@ -38,13 +38,36 @@
     ],
     "category": "DeveloperTool",
     "shortDescription": "Self-hostable collaborative LaTeX editor",
-    "longDescription": "Scribe is a self-hostable collaborative LaTeX editor — an open alternative to Overleaf."
+    "longDescription": "Scribe is a self-hostable collaborative LaTeX editor — an open alternative to Overleaf.",
+    "resources": [
+      "resources/tectonic.exe",
+      "resources/PREREQUISITES.md"
+    ],
+    "windows": {
+      "nsis": {
+        "installerHooks": "./installer-hooks.nsh",
+        "installerIcon": "icons/icon.ico",
+        "headerImage": "installer-assets/nsis-header.bmp",
+        "sidebarImage": "installer-assets/nsis-sidebar.bmp"
+      },
+      "wix": {
+        "bannerPath": "installer-assets/wix-banner.bmp",
+        "dialogImagePath": "installer-assets/wix-dialog.bmp"
+      }
+    }
   },
   "plugins": {
     "deep-link": {
       "desktop": {
         "schemes": ["scribe"]
       }
+    },
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://github.com/sunnyallana/scribe/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY5MUQzOUY3RUI2MjBBMzcKUldRM0NtTHI5emtkYWFBaWplalFJb0ovaXBVdE02eG9LdTRta1JCdS92cHd0U0t5U0xPcUlxRlAK"
     }
   }
 }
