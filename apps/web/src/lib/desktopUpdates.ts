@@ -21,5 +21,5 @@ export function checkForUpdates(): Promise<UpdateInfo> {
 }
 
 export function installUpdate(): Promise<void> {
-  return invoke<void>('install_update');
+  return invoke('install_update');
 }

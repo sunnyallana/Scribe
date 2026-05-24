@@ -3,6 +3,8 @@ import {
   type CompileJobId,
   type CompileJobStatus,
   type CompileLogEntryDTO,
+  type CompileLogLevel,
+  type CompilerEngine,
   compileLogStreamMessageSchema,
   type ProjectId,
 } from '@scribe/shared';
@@ -10,7 +12,63 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api, ApiError } from '../lib/api';
 import { log } from '../lib/debug';
+import {
+  type DesktopCompileCompletedEvent,
+  type DesktopCompileLogEvent,
+  type DesktopCompileStatus,
+  type DesktopCompileStatusEvent,
+  onDesktopCompileCompleted,
+  onDesktopCompileLog,
+  onDesktopCompileStatus,
+  prepareDesktopWorkdir,
+  readDesktopPdfBase64,
+  startDesktopCompile,
+} from '../lib/desktopCompile';
 import { supabase, wsOrigin } from '../lib/supabase';
+import { isTauri } from '../lib/tauri';
+
+function mapDesktopStatus(s: DesktopCompileStatus): CompileJobStatus {
+  if (s === 'completed') return 'success';
+  if (s === 'failed' || s === 'timedout') return 'error';
+  if (s === 'cancelled') return 'cancelled';
+  return 'running';
+}
+
+function mapDesktopLog(e: DesktopCompileLogEvent): CompileLogEntryDTO {
+  const level: CompileLogLevel = e.stream === 'stderr' ? 'warning' : 'info';
+  return { level, message: e.line, raw: e.line };
+}
+
+function isPlainTextSource(path: string): boolean {
+  // Two extensions known to be user-authored UTF-8. Everything else
+  // (.sty / .cls / .tikz / .latex / images / pdfs) ships as bytes
+  // so non-UTF-8 encodings survive the round-trip. See compile()
+  // for the routing.
+  const lower = path.toLowerCase();
+  return lower.endsWith('.tex') || lower.endsWith('.bib');
+}
+
+function arrayBufferToBase64(buf: ArrayBuffer): string {
+  // Chunked to dodge the call-stack limit on large images; the
+  // single-shot `String.fromCharCode(...bytes)` form blows up around
+  // 64 KiB on most engines.
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+
+function desktopEngineToCompilerEngine(e: string): CompilerEngine {
+  // The shared `CompilerEngine` enum doesn't include `latexmk` — it's
+  // an orchestration name, not a distinct binary. Coerce to `pdflatex`
+  // so the synthetic CompileJob conforms; the engine field is purely
+  // cosmetic in the UI.
+  if (e === 'pdflatex' || e === 'xelatex' || e === 'lualatex' || e === 'tectonic') return e;
+  return 'pdflatex';
+}
 
 export interface CompileSessionState {
   readonly status: CompileJobStatus | 'idle';
@@ -62,8 +120,16 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
   // call + one signed-URL call). If the most recent job is still
   // in-flight, we just hold the snapshot we have; the user can
   // recompile to take over the stream.
+  //
+  // Skipped in Tauri mode: we don't persist compile history locally
+  // yet, so there's nothing to restore. The user gets the empty
+  // state until they hit Compile.
   useEffect(() => {
     if (projectId === null) {
+      setState(INITIAL);
+      return;
+    }
+    if (isTauri()) {
       setState(INITIAL);
       return;
     }
@@ -93,6 +159,23 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
     })();
     return () => { cancelled = true; };
   }, [projectId]);
+
+  // Desktop event-subscription cleanup. Each compile registers three
+  // listeners (log / status / completed); we keep their unlisten
+  // callbacks in a ref so the next compile (or unmount) can drop the
+  // previous round before installing fresh ones.
+  const desktopUnlistenersRef = useRef<readonly (() => void)[]>([]);
+  const cleanupDesktopListeners = useCallback(() => {
+    for (const u of desktopUnlistenersRef.current) {
+      try {
+        u();
+      } catch (err) {
+        log.compile.warn('failed to unsubscribe desktop compile listener', err);
+      }
+    }
+    desktopUnlistenersRef.current = [];
+  }, []);
+  useEffect(() => cleanupDesktopListeners, [cleanupDesktopListeners]);
 
   // Forward-ref so the bootstrap effect above can call the
   // memoised `refreshArtifactUrls` without listing it as a dep
@@ -212,6 +295,139 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
         ...INITIAL,
         status: 'queued',
       });
+      if (isTauri()) {
+        cleanupDesktopListeners();
+        try {
+          // Pull current file content from the server and hand it
+          // directly to the Rust workdir-prep.
+          //
+          // Routing rule: `.tex` / `.bib` go through
+          // `api.files.readContent` which returns the body as a JS
+          // string (the editor surfaces these as text buffers). Every
+          // other extension — `.sty`, `.cls`, `.tikz`, `.latex`,
+          // images, PDFs, EPS — goes through a signed download URL +
+          // fetch → ArrayBuffer → base64 so the on-disk bytes match
+          // what Storage holds. JS-string round-trips through UTF-16
+          // mojibake any non-UTF-8 byte (the canonical example being
+          // Latin-1 `.sty` files lifted from old templates); going
+          // binary preserves them exactly.
+          const files = await api.files.list(projectId);
+          const overrides: Record<string, string> = {};
+          const binaryOverrides: Record<string, string> = {};
+          await Promise.all(
+            files.map(async (f) => {
+              try {
+                if (isPlainTextSource(f.path)) {
+                  const { content } = await api.files.readContent(projectId, f.id);
+                  overrides[f.path] = content;
+                } else {
+                  const { url } = await api.files.downloadUrl(projectId, f.id);
+                  const res = await fetch(url);
+                  if (!res.ok) {
+                    throw new Error(`download ${res.status.toString()}`);
+                  }
+                  const buf = await res.arrayBuffer();
+                  binaryOverrides[f.path] = arrayBufferToBase64(buf);
+                }
+              } catch (err) {
+                log.compile.warn('failed to fetch file for compile', {
+                  path: f.path,
+                  type: f.type,
+                  err,
+                });
+              }
+            }),
+          );
+          const prep = await prepareDesktopWorkdir(projectId, overrides, binaryOverrides);
+          if (prep.filesWritten === 0) {
+            throw new Error(
+              'no project files materialised — the project may be empty or every fetch failed',
+            );
+          }
+          const { workdir } = prep;
+          const resolvedMain = mainFile ?? 'main.tex';
+          const info = await startDesktopCompile({
+            workdir,
+            mainFile: resolvedMain,
+          });
+          const syntheticJob: CompileJob = {
+            id: info.jobId as CompileJobId,
+            projectId,
+            triggeredBy: null,
+            status: 'running',
+            engine: desktopEngineToCompilerEngine(info.engine),
+            mainFile: resolvedMain,
+            exitCode: null,
+            pdfKey: null,
+            logKey: null,
+            synctexKey: null,
+            errorMessage: null,
+            durationMs: null,
+            enqueuedAt: info.startedAt,
+            startedAt: info.startedAt,
+            completedAt: null,
+          };
+          setState((s) => ({ ...s, job: syntheticJob, status: 'running' }));
+
+          const unlistenLog = await onDesktopCompileLog((e: DesktopCompileLogEvent) => {
+            if (e.jobId !== info.jobId) return;
+            setState((s) => ({ ...s, entries: [...s.entries, mapDesktopLog(e)] }));
+          });
+          const unlistenStatus = await onDesktopCompileStatus(
+            (e: DesktopCompileStatusEvent) => {
+              if (e.jobId !== info.jobId) return;
+              setState((s) => ({ ...s, status: mapDesktopStatus(e.status) }));
+            },
+          );
+          const unlistenDone = await onDesktopCompileCompleted(
+            (e: DesktopCompileCompletedEvent) => {
+              if (e.jobId !== info.jobId) return;
+              const finalStatus = mapDesktopStatus(e.status);
+              if (e.status === 'completed') {
+                // Load the PDF asynchronously; let state finalize first
+                // so the log panel shows "success" without waiting on
+                // base64 transfer over the bridge.
+                void (async () => {
+                  try {
+                    const b64 = await readDesktopPdfBase64(workdir, resolvedMain);
+                    setState((s) => ({
+                      ...s,
+                      pdfUrl: `data:application/pdf;base64,${b64}`,
+                    }));
+                  } catch (err) {
+                    log.compile.warn('failed to read desktop pdf', err);
+                  }
+                })();
+              }
+              setState((s) => ({
+                ...s,
+                status: finalStatus,
+                errorMessage:
+                  e.status === 'failed' || e.status === 'timedout'
+                    ? `compile ${e.status} (exit ${e.exitCode.toString()})`
+                    : s.errorMessage,
+                job:
+                  s.job !== null
+                    ? {
+                        ...s.job,
+                        status: finalStatus,
+                        durationMs: e.durationMs,
+                        exitCode: e.exitCode,
+                        completedAt: new Date().toISOString(),
+                      }
+                    : s.job,
+              }));
+              cleanupDesktopListeners();
+            },
+          );
+          desktopUnlistenersRef.current = [unlistenLog, unlistenStatus, unlistenDone];
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Desktop compile failed';
+          setState((s) => ({ ...s, status: 'error', errorMessage: msg }));
+          cleanupDesktopListeners();
+        }
+        return;
+      }
       try {
         const job = await api.compiles.enqueue(
           projectId,
@@ -224,7 +440,7 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
         setState((s) => ({ ...s, status: 'error', errorMessage: msg }));
       }
     },
-    [projectId, openStream],
+    [projectId, openStream, cleanupDesktopListeners],
   );
 
   return {

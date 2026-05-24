@@ -60,7 +60,7 @@ export const desktopDb = {
       return invoke<LocalProject | null>('db_get_project', { id });
     },
     upsert(input: UpsertProjectInput): Promise<void> {
-      return invoke<void>('db_upsert_project', {
+      return invoke('db_upsert_project', {
         input: {
           id: input.id,
           name: input.name,
@@ -71,7 +71,7 @@ export const desktopDb = {
       });
     },
     touch(id: string): Promise<void> {
-      return invoke<void>('db_touch_project', { id });
+      return invoke('db_touch_project', { id });
     },
   },
   files: {
@@ -82,7 +82,7 @@ export const desktopDb = {
       return invoke<string | null>('db_read_file', { fileId });
     },
     upsert(input: UpsertFileInput): Promise<void> {
-      return invoke<void>('db_upsert_file', {
+      return invoke('db_upsert_file', {
         input: {
           id: input.id,
           projectId: input.projectId,
@@ -92,10 +92,10 @@ export const desktopDb = {
       });
     },
     writeContent(fileId: string, content: string): Promise<void> {
-      return invoke<void>('db_write_file_content', { fileId, content });
+      return invoke('db_write_file_content', { fileId, content });
     },
     remove(fileId: string): Promise<void> {
-      return invoke<void>('db_remove_file', { fileId });
+      return invoke('db_remove_file', { fileId });
     },
   },
   yjs: {
@@ -109,7 +109,7 @@ export const desktopDb = {
       return invoke<YjsUpdateRow[]>('db_pending_yjs_updates', { docId });
     },
     markPushed(ids: number[]): Promise<void> {
-      return invoke<void>('db_mark_yjs_pushed', { ids });
+      return invoke('db_mark_yjs_pushed', { ids });
     },
   },
   syncState: {
@@ -117,7 +117,7 @@ export const desktopDb = {
       return invoke<string | null>('db_get_sync_state', { key });
     },
     set(key: string, value: string): Promise<void> {
-      return invoke<void>('db_set_sync_state', { key, value });
+      return invoke('db_set_sync_state', { key, value });
     },
   },
 } as const;
