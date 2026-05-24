@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const shotsDir = join(__dirname, '..', 'demo-screenshots');
+const shotsDir = join(__dirname, '..', '..', 'demo-screenshots');
 await mkdir(shotsDir, { recursive: true });
 
 const SUPABASE_URL = 'https://sgmbvxqgowbpyehwmedv.supabase.co';

@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "updatedAt": "2026-05-24",
+  "templates": [
+    {
+      "id": "ieee-conference",
+      "name": "IEEE conference paper",
+      "description": "Two-column IEEEtran conference template with abstract, sections, bibliography stub.",
+      "category": "academic",
+      "monogram": "IE",
+      "accent": "hsl(220 90% 45%)",
+      "mainFile": "main.tex",
+      "files": [
+        {
+          "path": "main.tex",
+          "content": "\\documentclass[conference]{IEEEtran}\n\\IEEEoverridecommandlockouts\n\\usepackage{cite}\n\\usepackage{amsmath,amssymb,amsfonts}\n\\usepackage{graphicx}\n\\usepackage{hyperref}\n\n\\begin{document}\n\n\\title{Your Paper Title Here}\n\n\\author{\n  \\IEEEauthorblockN{First Author}\n  \\IEEEauthorblockA{\\textit{Affiliation} \\\\\n  City, Country \\\\\n  first.author@example.com}\n}\n\n\\maketitle\n\n\\begin{abstract}\nReplace with a 150-word abstract describing the problem, approach, and key result.\n\\end{abstract}\n\n\\begin{IEEEkeywords}\nkeyword, keyword, keyword\n\\end{IEEEkeywords}\n\n\\section{Introduction}\nMotivate the problem, summarise contributions, and outline the paper.\n\n\\section{Related Work}\nDiscuss prior art~\\cite{example2024}.\n\n\\section{Method}\nDescribe the approach. Reference Equation~\\eqref{eq:example}:\n\\begin{equation}\n  y = f(x) + \\epsilon\n  \\label{eq:example}\n\\end{equation}\n\n\\section{Results}\nReport experiments. Reference Figure~\\ref{fig:example} as needed.\n\n\\section{Conclusion}\nSummarise findings and outline future work.\n\n\\bibliographystyle{IEEEtran}\n\\bibliography{references}\n\n\\end{document}\n"
+        },
+        {
+          "path": "references.bib",
+          "content": "@article{example2024,\n  author  = {Doe, Jane},\n  title   = {An Illustrative Example of a Bibliography Entry},\n  journal = {Journal of Examples},\n  year    = {2024},\n  volume  = {1},\n  number  = {1},\n  pages   = {1--10}\n}\n"
+        }
+      ]
+    },
+    {
+      "id": "acm-article",
+      "name": "ACM article (acmart)",
+      "description": "ACM SIG conference layout with acmart, title block, abstract, sections, bibliography stub.",
+      "category": "academic",
+      "monogram": "Ac",
+      "accent": "hsl(195 70% 40%)",
+      "mainFile": "main.tex",
+      "files": [
+        {
+          "path": "main.tex",
+          "content": "\\documentclass[sigconf,review,anonymous]{acmart}\n\\usepackage{amsmath,amssymb}\n\\usepackage{graphicx}\n\n\\begin{document}\n\n\\title{Your ACM Paper Title}\n\n\\author{Anonymous Author(s)}\n\\affiliation{\\institution{Submission under review}}\n\\email{anon@example.com}\n\n\\begin{abstract}\nReplace with a short abstract. Anonymous review pass shows this only.\n\\end{abstract}\n\n\\keywords{datasets, neural networks, gaze detection}\n\n\\maketitle\n\n\\section{Introduction}\nMotivate the problem.\n\n\\section{Approach}\nDescribe the method.\n\n\\section{Experiments}\nReport results.\n\n\\section{Conclusion}\nSummarise and outline future work.\n\n\\bibliographystyle{ACM-Reference-Format}\n\\bibliography{references}\n\n\\end{document}\n"
+        },
+        {
+          "path": "references.bib",
+          "content": "@inproceedings{example2024,\n  author    = {Doe, Jane and Smith, John},\n  title     = {A Worked-out Example for the Reference List},\n  booktitle = {Proc. of the ACM Conference},\n  year      = {2024}\n}\n"
+        }
+      ]
+    },
+    {
+      "id": "thesis",
+      "name": "Master's / PhD thesis",
+      "description": "Multi-chapter scaffold using the report class. Title page, abstract, chapters/ folder, bibliography.",
+      "category": "academic",
+      "monogram": "Th",
+      "accent": "hsl(280 60% 45%)",
+      "mainFile": "thesis.tex",
+      "files": [
+        {
+          "path": "thesis.tex",
+          "content": "\\documentclass[12pt,a4paper,oneside]{report}\n\\usepackage[utf8]{inputenc}\n\\usepackage[T1]{fontenc}\n\\usepackage{lmodern}\n\\usepackage[english]{babel}\n\\usepackage{geometry}\n\\geometry{margin=2.5cm}\n\\usepackage{graphicx}\n\\usepackage{amsmath,amssymb}\n\\usepackage{hyperref}\n\n\\title{Your Thesis Title}\n\\author{Your Name}\n\\date{\\today}\n\n\\begin{document}\n\n\\maketitle\n\n\\begin{abstract}\nReplace with the abstract of your thesis.\n\\end{abstract}\n\n\\tableofcontents\n\n\\input{chapters/introduction.tex}\n\\input{chapters/background.tex}\n\\input{chapters/method.tex}\n\\input{chapters/results.tex}\n\\input{chapters/conclusion.tex}\n\n\\bibliographystyle{plain}\n\\bibliography{references}\n\n\\end{document}\n"
+        },
+        {
+          "path": "chapters/introduction.tex",
+          "content": "\\chapter{Introduction}\n\\label{ch:introduction}\n\nMotivate the problem and outline the structure of the thesis.\n"
+        },
+        {
+          "path": "chapters/background.tex",
+          "content": "\\chapter{Background}\n\\label{ch:background}\n\nReview foundational concepts the rest of the thesis builds on.\n"
+        },
+        {
+          "path": "chapters/method.tex",
+          "content": "\\chapter{Method}\n\\label{ch:method}\n\nDescribe the approach, hypotheses, and design decisions.\n"
+        },
+        {
+          "path": "chapters/results.tex",
+          "content": "\\chapter{Results}\n\\label{ch:results}\n\nReport experiments, observations, and statistical analysis.\n"
+        },
+        {
+          "path": "chapters/conclusion.tex",
+          "content": "\\chapter{Conclusion}\n\\label{ch:conclusion}\n\nSummarise contributions and propose directions for future work.\n"
+        },
+        {
+          "path": "references.bib",
+          "content": "@book{example2024,\n  author    = {Doe, Jane},\n  title     = {An Example Reference Book},\n  publisher = {Example Press},\n  year      = {2024}\n}\n"
+        }
+      ]
+    },
+    {
+      "id": "homework",
+      "name": "Homework set",
+      "description": "Problem-set scaffold with numbered exercises, proof environments, and a header for course / student info.",
+      "category": "academic",
+      "monogram": "Hw",
+      "accent": "hsl(35 85% 45%)",
+      "mainFile": "main.tex",
+      "files": [
+        {
+          "path": "main.tex",
+          "content": "\\documentclass[11pt]{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage[a4paper,margin=2.5cm]{geometry}\n\\usepackage{amsmath,amssymb,amsthm}\n\\usepackage{enumitem}\n\\usepackage{fancyhdr}\n\n\\pagestyle{fancy}\n\\fancyhf{}\n\\lhead{Course Name --- Assignment N}\n\\rhead{Your Name}\n\\cfoot{\\thepage}\n\n\\theoremstyle{definition}\n\\newtheorem{exercise}{Exercise}\n\\newtheorem*{solution*}{Solution}\n\n\\title{Assignment N}\n\\author{Your Name}\n\\date{\\today}\n\n\\begin{document}\n\\maketitle\n\n\\begin{exercise}\n  State the first problem here, verbatim from the course.\n\\end{exercise}\n\\begin{solution*}\n  Write out the solution. Use equations and proof environments freely:\n  \\[\n    \\int_0^1 x^2 \\, dx = \\tfrac{1}{3}.\n  \\]\n\\end{solution*}\n\n\\begin{exercise}\n  State the second problem.\n\\end{exercise}\n\\begin{solution*}\n  Solution to the second problem.\n\\end{solution*}\n\n\\end{document}\n"
+        }
+      ]
+    },
+    {
+      "id": "poster",
+      "name": "Conference poster (a0poster)",
+      "description": "Single-page A0 poster split into columns. Drop-in title, abstract, results, references.",
+      "category": "presentation",
+      "monogram": "Po",
+      "accent": "hsl(335 70% 50%)",
+      "mainFile": "poster.tex",
+      "files": [
+        {
+          "path": "poster.tex",
+          "content": "\\documentclass[a0,landscape]{a0poster}\n\\usepackage[utf8]{inputenc}\n\\usepackage{multicol}\n\\usepackage{amsmath,amssymb}\n\\usepackage{graphicx}\n\\usepackage{xcolor}\n\n\\begin{document}\n\n\\noindent\n\\begin{center}\n  {\\Huge\\bfseries Your Poster Title}\\\\[0.3em]\n  {\\Large First Author$^{1}$, Second Author$^{2}$}\\\\[0.2em]\n  {\\large $^{1}$Institution One \\quad $^{2}$Institution Two}\n\\end{center}\n\n\\vspace{1em}\n\\hrule\n\\vspace{1em}\n\n\\begin{multicols}{3}\n\n\\section*{Motivation}\nWhy this matters in a few sentences.\n\n\\section*{Method}\nHigh-level summary of the approach.\n\n\\section*{Results}\nPrincipal findings, ideally with one big figure or table.\n\n\\section*{Conclusion}\nWhat the work shows and where it could go.\n\n\\section*{References}\n[1] Author. Paper Title. Venue, Year.\n\n\\end{multicols}\n\n\\end{document}\n"
+        }
+      ]
+    }
+  ]
+}

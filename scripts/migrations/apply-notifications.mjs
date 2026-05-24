@@ -1,16 +1,10 @@
-// One-shot: apply 20260524000002_project_share_links.sql to the
-// hosted Supabase demo. Use this for new migrations that haven't been
-// applied yet (the bulk runner re-runs everything and trips on
-// "already exists" for prior migrations).
-
+// Apply 20260524000003_notifications.sql to the hosted Supabase demo.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-
 import pg from 'pg';
 
 const { Client } = pg;
-
 const projectRef = 'sgmbvxqgowbpyehwmedv';
 const dbPassword = process.env.SUPABASE_DB_PASSWORD;
 if (!dbPassword) {
@@ -19,9 +13,9 @@ if (!dbPassword) {
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const file = join(__dirname, '..', 'supabase', 'migrations', '20260524000002_project_share_links.sql');
+const file = join(__dirname, '..', '..', 'supabase', 'migrations', '20260524000003_notifications.sql');
 
-const cfg = {
+const client = new Client({
   host: 'aws-1-ap-southeast-2.pooler.supabase.com',
   port: 5432,
   user: `postgres.${projectRef}`,
@@ -29,20 +23,17 @@ const cfg = {
   database: 'postgres',
   ssl: { rejectUnauthorized: false },
   connectionTimeoutMillis: 10_000,
-};
-
-const client = new Client(cfg);
+});
 await client.connect();
 console.log('Connected.');
 
 const sql = await readFile(file, 'utf-8');
 try {
   await client.query(sql);
-  console.log('Applied 20260524000002_project_share_links.sql');
+  console.log('Applied 20260524000003_notifications.sql');
 } catch (e) {
   console.log(`FAILED: ${e.message}`);
   await client.end();
   process.exit(2);
 }
-
 await client.end();
