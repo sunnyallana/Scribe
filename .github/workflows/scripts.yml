@@ -207,9 +207,25 @@ jobs:
       - name: PSScriptAnalyzer (Windows scripts)
         shell: pwsh
         run: |
-          Install-Module -Name PSScriptAnalyzer -Force -SkipPublisherCheck -Scope CurrentUser
-          $results = Invoke-ScriptAnalyzer -Path scripts/setup.ps1, scripts/run.ps1, scripts/run-desktop.ps1 `
-            -Severity Error,Warning -ExcludeRule PSAvoidUsingWriteHost,PSUseDeclaredVarsMoreThanAssignments
+          # `Install-Module -Force` against a pre-installed module
+          # (the GitHub-hosted runner ships PSScriptAnalyzer) emits a
+          # "version is currently in use" warning but doesn't fail —
+          # `-SkipPublisherCheck` keeps it noise-only. We skip the
+          # install entirely when an importable version is already
+          # present, which is the common case on `ubuntu-latest`.
+          if (-not (Get-Module -ListAvailable PSScriptAnalyzer)) {
+            Install-Module -Name PSScriptAnalyzer -Force -SkipPublisherCheck -Scope CurrentUser
+          }
+          # `Invoke-ScriptAnalyzer -Path` on v1.25 takes a single
+          # string, not a string[] — passing an array fails with
+          # "Cannot convert 'System.Object[]' to 'System.String'".
+          # Loop over the files instead and aggregate.
+          $files = @('scripts/setup.ps1', 'scripts/run.ps1', 'scripts/run-desktop.ps1')
+          $results = foreach ($file in $files) {
+            Invoke-ScriptAnalyzer -Path $file `
+              -Severity Error, Warning `
+              -ExcludeRule PSAvoidUsingWriteHost, PSUseDeclaredVarsMoreThanAssignments
+          }
           if ($results) {
             $results | Format-Table -AutoSize
             throw "PSScriptAnalyzer reported issues"
