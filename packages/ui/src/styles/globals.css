@@ -3,35 +3,52 @@
 @tailwind utilities;
 
 @layer base {
+  /* ──────────────────────────────────────────────────────────────────
+   * Light theme — "Overleaf Mono".
+   *
+   * Pure-white page, deep charcoal text, royal-blue primary. Tuned for
+   * long log-reading sessions: muted-foreground is dark enough that
+   * verbose log lines stay legible (contrast ≥ 6.5:1 against the
+   * background) while the chrome elements still look quiet.
+   *
+   *   bg     #FFFFFF  pure white
+   *   fg     #1A1A1A  charcoal ink (contrast 17:1 on bg)
+   *   prim   #2563EB  royal blue (buttons, focus ring)
+   *   acc    #EFF6FF  pale royal-blue (hover surface)
+   *   muted  #F4F4F5  neutral panel tint
+   *   muted-fg #525252  mid-slate logs (contrast 7.6:1)
+   *   bord   #D4D4D8  cool neutral divider
+   *   destr  #DC2626  vivid red (hang-up, danger)
+   * ──────────────────────────────────────────────────────────────── */
   :root,
   [data-theme='light'] {
     --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --foreground: 0 0% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 0 0% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
+    --popover-foreground: 0 0% 10%;
 
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 0 0% 10%;
 
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 0 0% 32%;
 
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
+    --accent: 214 100% 97%;
+    --accent-foreground: 221 83% 40%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 73% 51%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 10% 3.9%;
+    --border: 240 5% 84%;
+    --input: 240 5% 90%;
+    --ring: 221 83% 53%;
 
     --radius: 0.5rem;
   }
@@ -123,7 +140,9 @@
  */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.20) transparent;
+  /* Slate-navy at 22% — softer against the parchment background than
+     pure black, picks up the same hue as `--foreground`. */
+  scrollbar-color: rgba(35, 43, 58, 0.22) transparent;
 }
 [data-theme='dark'] *,
 [data-theme='high-contrast'] * {
@@ -137,13 +156,13 @@
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.20);
+  background-color: rgba(35, 43, 58, 0.22);
   border-radius: 8px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(0, 0, 0, 0.35);
+  background-color: rgba(35, 43, 58, 0.38);
   background-clip: padding-box;
 }
 [data-theme='dark'] *::-webkit-scrollbar-thumb,

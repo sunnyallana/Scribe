@@ -1,4 +1,4 @@
-# Scribe - bring up Redis + Rust API + Vite SPA together on Windows.
+﻿# Scribe - bring up Redis + Rust API + Vite SPA together on Windows.
 #
 # Behaviour:
 #   - Starts Redis if it isn't already listening on 127.0.0.1:6379

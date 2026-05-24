@@ -26,7 +26,7 @@ RUN cargo build --release --bin scribe-server
 # Strip is already enabled via Cargo.toml release profile.
 
 # Frontend build is a separate stage so a backend-only change skips it.
-FROM node:20-bookworm AS web
+FROM node:22-bookworm AS web
 WORKDIR /web
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps apps
