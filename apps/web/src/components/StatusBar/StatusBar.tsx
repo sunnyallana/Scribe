@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 
 export type CompileStatusKind = 'idle' | 'queued' | 'running' | 'success' | 'error' | 'cancelled';
 
+export type RoleKind = 'owner' | 'editor' | 'commenter' | 'viewer';
+
 interface StatusBarProps {
   readonly path: string | null;
   readonly line: number;
@@ -14,6 +16,10 @@ interface StatusBarProps {
   readonly collabSynced: boolean | null;
   readonly peerCount: number;
   readonly compileStatus: CompileStatusKind;
+  /** Caller's role on this project. Status bar only renders a badge when
+   *  the role is read-only (`viewer`/`commenter`) — owners and editors
+   *  don't need the reminder. */
+  readonly role: RoleKind | null;
 }
 
 function formatRelative(timestamp: number, now: number): string {
@@ -36,6 +42,7 @@ export function StatusBar({
   collabSynced,
   peerCount,
   compileStatus,
+  role,
 }: StatusBarProps) {
   const { t } = useTranslation();
   const [now, setNow] = useState(() => Date.now());
@@ -85,6 +92,14 @@ export function StatusBar({
         )}
         {saveLabel}
       </span>
+      {role === 'viewer' || role === 'commenter' ? (
+        <>
+          <span aria-hidden="true">·</span>
+          <span className="rounded-sm border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
+            {t(`members.roles.${role}`)} · {t('members.readOnly')}
+          </span>
+        </>
+      ) : null}
       {collabIcon !== null ? (
         <>
           <span aria-hidden="true">·</span>
