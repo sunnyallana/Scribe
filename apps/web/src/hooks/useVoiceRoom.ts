@@ -315,7 +315,7 @@ export function useVoiceRoom(projectId: ProjectId | null): VoiceRoomHandle {
 
   const sendSignal = useCallback((to: string, payload: unknown) => {
     const ws = wsRef.current;
-    if (ws === null || ws.readyState !== WebSocket.OPEN) return;
+    if (ws?.readyState !== WebSocket.OPEN) return;
     ws.send(JSON.stringify({ type: 'signal', to, payload }));
   }, []);
 
@@ -511,7 +511,7 @@ export function useVoiceRoom(projectId: ProjectId | null): VoiceRoomHandle {
       if (msg.type === 'welcome') {
         const w = msg as ServerMsg & {
           readonly welcomeFor: string;
-          readonly peers: ReadonlyArray<{ readonly connId: string; readonly userId: string }>;
+          readonly peers: readonly { readonly connId: string; readonly userId: string }[];
         };
         myConnIdRef.current = w.welcomeFor;
         // On reconnect, tear down any stale RTCPeerConnections —

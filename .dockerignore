@@ -1,0 +1,42 @@
+# Anything cached / generated locally — let the build container regenerate
+# from sources. Trims the build context from ~3 GB to ~50 MB.
+**/node_modules
+**/dist
+**/build
+**/.next
+**/.turbo
+**/.vite
+**/target
+**/.cargo-cache
+
+# Editor / OS noise
+.git
+.gitignore
+.idea
+.vscode
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs that accumulate during local dev
+**/*.log
+.tectonic-test
+runtime.redis.*.log
+servers/rust/redis.*.log
+servers/rust/err.log
+servers/rust/out.log
+
+# Local environment files — operators write .env themselves on the host
+.env
+.env.local
+.env.*.local
+
+# Desktop bundle outputs (Cargo target above already excludes most)
+apps/desktop/src-tauri/gen
+
+# Anything we don't ship to runtime
+docs
+scripts/probes
+scripts/utils
+.tmp-*

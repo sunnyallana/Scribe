@@ -23,18 +23,13 @@ use serde::{Deserialize, Serialize};
 /// and the logging layer (pretty + debug for dev, JSON + info for prod).
 /// `Testing` is for CI / integration tests — compile worker off, no
 /// caches, no metrics, no rate limit.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum AppEnv {
+    #[default]
     Development,
     Production,
     Testing,
-}
-
-impl Default for AppEnv {
-    fn default() -> Self {
-        Self::Development
-    }
 }
 
 impl AppEnv {
@@ -235,6 +230,7 @@ impl Default for AppConfig {
 }
 
 impl AppConfig {
+    #[allow(clippy::result_large_err)] // figment::Error is large but only ever fires once at startup
     pub fn from_env() -> Result<Self, figment::Error> {
         // ── 1. Detect env upfront so we can seed per-env feature
         //       defaults before the TOML/env layers override them.

@@ -36,9 +36,10 @@ impl MemberRole {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum InviteRole {
+    #[default]
     Editor,
     Commenter,
     Viewer,
@@ -51,12 +52,6 @@ impl InviteRole {
             Self::Commenter => "commenter",
             Self::Viewer => "viewer",
         }
-    }
-}
-
-impl Default for InviteRole {
-    fn default() -> Self {
-        Self::Editor
     }
 }
 

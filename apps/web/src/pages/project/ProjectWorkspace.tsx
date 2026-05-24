@@ -39,43 +39,44 @@ import { useTranslation } from 'react-i18next';
 import { type ImperativePanelHandle, Panel, PanelGroup } from 'react-resizable-panels';
 import { toast } from 'sonner';
 
-import { findBibKeyInBbl, findEntryLineInBib } from '../../lib/bblToBib';
-import { log } from '../../lib/debug';
 
-import { ErrorBoundary } from '../../components/ErrorBoundary/ErrorBoundary';
-import { Splitter } from '../../components/Layout/Splitter';
 
 import { AIChat } from '../../components/AIChat/AIChat';
 import { AICommandPalette } from '../../components/AICommandPalette/AICommandPalette';
 import { BibliographyPanel } from '../../components/Bibliography/BibliographyPanel';
 import { CitationLookup } from '../../components/Citations/CitationLookup';
-import { SearchPanel } from '../../components/Search/SearchPanel';
 import { CommandPalette, type CommandItem } from '../../components/CommandPalette/CommandPalette';
-import { MathPalette } from '../../components/MathPalette/MathPalette';
-import { ImageViewer } from '../../components/ImageViewer/ImageViewer';
-import { OutlinePanel } from '../../components/Outline/OutlinePanel';
 import { EditorTabs } from '../../components/Editor/EditorTabs';
 import { LatexEditor, type LatexEditorImperativeHandle } from '../../components/Editor/LatexEditor';
 import { PresenceAvatars } from '../../components/Editor/PresenceAvatars';
-import { VoiceControls } from '../../components/Voice/VoiceControls';
-import { StatusBar, type CompileStatusKind } from '../../components/StatusBar/StatusBar';
+import { ErrorBoundary } from '../../components/ErrorBoundary/ErrorBoundary';
+import { ImageViewer } from '../../components/ImageViewer/ImageViewer';
+import { Splitter } from '../../components/Layout/Splitter';
+import { MathPalette } from '../../components/MathPalette/MathPalette';
+import { OutlinePanel } from '../../components/Outline/OutlinePanel';
 import { ReviewPanel } from '../../components/ReviewPanel/ReviewPanel';
-import { VersionHistory } from '../../components/VersionHistory/VersionHistory';
-import { PreviewPanel } from './PreviewPanel';
+import { SearchPanel } from '../../components/Search/SearchPanel';
+import { StatusBar, type CompileStatusKind } from '../../components/StatusBar/StatusBar';
 import { SyncConflictModal } from '../../components/SyncConflictModal';
+import { VersionHistory } from '../../components/VersionHistory/VersionHistory';
+import { VoiceControls } from '../../components/Voice/VoiceControls';
 import { useCompileSession } from '../../hooks/useCompileSession';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { lookup, lookupReverse, useSyncTeX } from '../../hooks/useSyncTeX';
 import { useYjsDoc } from '../../hooks/useYjsDoc';
 import { api, ApiError } from '../../lib/api';
+import { findBibKeyInBbl, findEntryLineInBib } from '../../lib/bblToBib';
+import { log } from '../../lib/debug';
 import { API_URL, getAccessTokenSync } from '../../lib/supabase';
 import { type SyncConflict, syncManager } from '../../lib/sync';
 import { isTauri } from '../../lib/tauri';
 import { useAuthStore } from '../../stores/auth';
-import { useSettings } from '../../stores/settings';
 import { useProjectChrome } from '../../stores/projectChrome';
+import { useSettings } from '../../stores/settings';
 
-import type { AutocompleteSources } from '@scribe/editor';
+import { PreviewPanel } from './PreviewPanel';
+
+import type { AutocompleteSources, HoverPreviewSources } from '@scribe/editor';
 
 interface ProjectWorkspaceProps {
   readonly project: Project;
@@ -133,11 +134,11 @@ type RightPanelId = 'outline' | 'review' | 'history' | 'bibliography' | 'citatio
 // (narrow layouts) iterate the exact same list — labels and icons stay
 // in lock-step without us hand-syncing two copies.
 import type { LucideIcon } from 'lucide-react';
-const PANEL_TOGGLES: ReadonlyArray<{
+const PANEL_TOGGLES: readonly {
   readonly id: NonNullable<RightPanelId>;
   readonly icon: LucideIcon;
   readonly labelKey: string;
-}> = [
+}[] = [
   { id: 'outline', icon: ListTree, labelKey: 'outline.title' },
   { id: 'review', icon: MessageSquare, labelKey: 'review.title' },
   { id: 'history', icon: History, labelKey: 'history.title' },
@@ -520,7 +521,7 @@ export function ProjectWorkspace({
   // Hover preview lookups. The editor extension calls these lazily
   // (only when the user hovers a `\ref{...}` / `\cite{...}`) so the
   // O(N) scan over project contents only runs on demand.
-  const hoverSources = useMemo<import('@scribe/editor').HoverPreviewSources>(
+  const hoverSources = useMemo<HoverPreviewSources>(
     () => ({
       resolveLabel: (name) => resolveLabelPreview(name, outlineContents),
       resolveCitation: (name) => resolveCitationPreview(name, bibEntries),
@@ -982,7 +983,7 @@ export function ProjectWorkspace({
       // Bibliography path: translate (.bbl, line) into the matching
       // .bib entry. Async because we have to fetch the .bbl.
       if (loc.filename.toLowerCase().endsWith('.bbl')) {
-        void handleBblInverseSync(loc.line);
+        handleBblInverseSync(loc.line);
         return;
       }
       const target = resolveProjectFile(loc.filename);
@@ -1684,7 +1685,7 @@ function resolveLabelPreview(name: string, contents: Map<string, string>): RefPr
  *  pulling fields from the already-parsed bib entries. */
 function resolveCitationPreview(
   name: string,
-  entries: ReadonlyArray<{ readonly key: string; readonly type: string; readonly fields: Readonly<Record<string, string>> }>,
+  entries: readonly { readonly key: string; readonly type: string; readonly fields: Readonly<Record<string, string>> }[],
 ): RefPreview | null {
   if (name === '') return null;
   const entry = entries.find((e) => e.key === name);

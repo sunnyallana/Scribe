@@ -71,7 +71,7 @@ function ProjectMenu({ project, openSettings, t }: ProjectMenuProps) {
   });
 
   const duplicateMutation = useMutation<{ id: string }, ApiError>({
-    mutationFn: () => api.projects.duplicate(project.id) as Promise<{ id: string }>,
+    mutationFn: () => api.projects.duplicate(project.id),
     onSuccess: async (copied) => {
       await queryClient.invalidateQueries({ queryKey: ['projects'] });
       toast.success(t('project.duplicated'));
@@ -160,6 +160,7 @@ function ProjectMenu({ project, openSettings, t }: ProjectMenuProps) {
           >
             <Input
               ref={inputRef}
+              // eslint-disable-next-line jsx-a11y/no-autofocus -- rename popover replaces the click target; user expects the cursor in the field they just opened
               autoFocus
               value={draftName}
               onChange={(e) => { setDraftName(e.target.value); }}

@@ -69,7 +69,8 @@ function parseOutline(
     const candidates = [referenced];
     if (!referenced.toLowerCase().endsWith('.tex')) candidates.push(`${referenced}.tex`);
     for (const candidate of candidates) {
-      if (contents.has(candidate)) return { path: candidate, text: contents.get(candidate)! };
+      const text = contents.get(candidate);
+      if (text !== undefined) return { path: candidate, text };
     }
     // Last resort: suffix match on path so `\input{intro}` resolves
     // to `sec/intro.tex`.
@@ -171,7 +172,7 @@ export function OutlinePanel({ contents, mainFile, onJump, onClose }: OutlinePan
           <ul className="space-y-px p-2">
             {entries.map((e, idx) => {
               const prev = idx > 0 ? entries[idx - 1] : undefined;
-              const showFileHeader = multiFile && (prev === undefined || prev.filePath !== e.filePath);
+              const showFileHeader = multiFile && (prev?.filePath !== e.filePath);
               return (
                 <li key={`${e.filePath}:${e.line.toString()}:${idx.toString()}`}>
                   {showFileHeader ? (

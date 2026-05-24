@@ -208,18 +208,15 @@ function RemoteStreams({ voice }: { readonly voice: VoiceRoomHandle }) {
     <>
       {voice.peers.map((peer) =>
         peer.stream !== null ? (
+          // eslint-disable-next-line jsx-a11y/media-has-caption -- live-conference audio has no caption track to attach
           <audio
             key={peer.connId}
             ref={(el) => {
-              // React's audio element doesn't have a `srcObject`
-              // prop, so we set it imperatively. Setting `null`
-              // releases the previous stream cleanly on unmount.
               if (el !== null && el.srcObject !== peer.stream) {
                 el.srcObject = peer.stream;
               }
             }}
             autoPlay
-            playsInline
             muted={!voice.speakerEnabled}
           />
         ) : null,

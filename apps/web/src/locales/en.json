@@ -566,5 +566,12 @@
       "7d": "7 days",
       "30d": "30 days"
     }
+  },
+
+  "updater": {
+    "available": "Scribe {{version}} is available",
+    "installPrompt": "Install now to restart and apply the update.",
+    "installAction": "Install & restart",
+    "installFailed": "Update failed to install. Try again from the menu."
   }
 }
