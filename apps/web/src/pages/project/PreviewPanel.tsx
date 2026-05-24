@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 
 import { CompileLog } from '../../components/CompileLog/CompileLog';
 import type { CompileSessionState } from '../../hooks/useCompileSession';
+import { useSettings } from '../../stores/settings';
 
 // PDFPreview pulls in pdfjs-dist (~150 KB) plus a worker bundle, so we
 // keep it lazy — the preview panel only renders after a compile.
@@ -63,18 +64,22 @@ export function PreviewPanel({
   }, [view]);
 
   const { entries, status, errorMessage } = compileSession;
+  const lintEnabled = useSettings((s) => s.editor.lintEnabled);
 
   // Tally counts once; the auto-switch effect and the toolbar badge
-  // both want them.
+  // both want them. Lint entries (chktex) are excluded when the
+  // user has the linter turned off — otherwise the warning badge
+  // would reflect entries they can't see.
   const counts = useMemo(() => {
     let errors = 0;
     let warnings = 0;
     for (const e of entries) {
+      if (!lintEnabled && e.source === 'chktex') continue;
       if (e.level === 'error') errors += 1;
       else if (e.level === 'warning') warnings += 1;
     }
     return { errors, warnings };
-  }, [entries]);
+  }, [entries, lintEnabled]);
 
   const hasErrors = counts.errors > 0 || status === 'error' || errorMessage !== null;
   const hasWarnings = counts.warnings > 0;
@@ -178,6 +183,7 @@ export function PreviewPanel({
             durationMs={compileSession.job?.durationMs ?? null}
             errorMessage={compileSession.errorMessage}
             onJumpTo={onJumpTo}
+            lintEnabled={lintEnabled}
           />
         )}
       </div>

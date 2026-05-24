@@ -506,6 +506,38 @@ export function ProjectWorkspace({
   const liveCompileDelayMs = useSettings((s) => s.editor.liveCompileDelayMs);
   const liveCompileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Live-lint: debounced fire on typing pauses (separate from auto-
+  // save so a user with `liveCompile=false` still gets fast lint
+  // feedback). Results live in a per-file map so switching tabs
+  // doesn't drop the previous file's lint state. 800 ms matches the
+  // autosave debounce — same UX cadence the user already feels.
+  const lintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [liveLintByPath, setLiveLintByPath] = useState<ReadonlyMap<string, readonly CompileLogEntryDTO[]>>(new Map());
+  const LINT_DEBOUNCE_MS = 800;
+
+  const triggerLint = useCallback(
+    (filePath: string, content: string) => {
+      // Avoid sending massive buffers to lint; server caps at 4 MiB
+      // and rejects with 413, so just stop here too.
+      if (content.length === 0 || content.length > 4 * 1024 * 1024) return;
+      void api.lint
+        .run(projectId, filePath, content)
+        .then((entries) => {
+          setLiveLintByPath((prev) => {
+            const next = new Map(prev);
+            next.set(filePath, entries);
+            return next;
+          });
+        })
+        .catch((err: unknown) => {
+          // Network blip or 503 when chktex isn't installed —
+          // surface in dev console but don't toast at the user.
+          log.api.warn('live-lint failed', err);
+        });
+    },
+    [projectId],
+  );
+
   const handleChange = useCallback(
     (next: string) => {
       // Loud, verbose log so anyone debugging "edits don't persist"
@@ -549,9 +581,22 @@ export function ProjectWorkspace({
           void handleCompile();
         }, liveCompileDelayMs);
       }
+      // Schedule a lint pass too. Independent of liveCompile — lint
+      // is cheap (~50-100 ms server-side) so we don't want to gate
+      // it on a heavyweight compile. Only fires for .tex-like files
+      // (chktex doesn't understand .bib / images / etc.).
+      const isTex = selectedFile.type === 'tex' || selectedFile.path.toLowerCase().endsWith('.tex');
+      if (isTex) {
+        if (lintTimerRef.current !== null) clearTimeout(lintTimerRef.current);
+        const filePath = selectedFile.path;
+        lintTimerRef.current = setTimeout(() => {
+          const live = editorRef.current?.getContent() ?? next;
+          triggerLint(filePath, live);
+        }, LINT_DEBOUNCE_MS);
+      }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedFile, writeMutation, liveCompile, liveCompileDelayMs],
+    [selectedFile, writeMutation, liveCompile, liveCompileDelayMs, triggerLint],
   );
 
   const handleSave = useCallback(() => {
@@ -926,7 +971,33 @@ export function ProjectWorkspace({
     ],
   );
 
-  const logEntries = compileSession.entries;
+  // Honour the user's lint toggle here so the editor's gutter
+  // squiggles + the diagnostic counts skip chktex entries when
+  // it's off, without us needing to thread the flag any deeper.
+  const lintEnabledPref = useSettings((s) => s.editor.lintEnabled);
+  // Merge compile-time chktex entries with live-lint results. For
+  // files where live-lint has produced output, drop the compile
+  // entries for that file — live-lint is always fresher because
+  // it reflects the unsaved buffer. Compile entries for files
+  // *not* in the live-lint map stay (e.g. you compiled, then
+  // switched to another file without editing — old lint on the
+  // unrelated file is still useful).
+  const logEntries = useMemo(() => {
+    const compileEntries = compileSession.entries;
+    if (!lintEnabledPref) {
+      return compileEntries.filter((e) => e.source !== 'chktex');
+    }
+    const filesWithLiveLint = new Set(liveLintByPath.keys());
+    const merged: CompileLogEntryDTO[] = [];
+    for (const e of compileEntries) {
+      if (e.source === 'chktex' && e.file !== undefined && filesWithLiveLint.has(e.file)) continue;
+      merged.push(e);
+    }
+    for (const entries of liveLintByPath.values()) {
+      for (const e of entries) merged.push(e);
+    }
+    return merged;
+  }, [compileSession.entries, lintEnabledPref, liveLintByPath]);
 
   const highlight = useMemo(() => {
     if (selectedFile === null || synctex.index === null) return null;
@@ -1315,6 +1386,7 @@ export function ProjectWorkspace({
               ...(e.line !== undefined ? { line: e.line } : {}),
               ...(e.column !== undefined ? { column: e.column } : {}),
               ...(e.raw !== undefined ? { raw: e.raw } : {}),
+              ...(e.source !== undefined ? { source: e.source } : {}),
             }))}
             onChange={handleChange}
             onCompile={() => { void handleCompile(); }}
@@ -1384,6 +1456,17 @@ export function ProjectWorkspace({
                   onClose={() => { setRightPanel(null); }}
                   currentUserId={authUser?.id ?? null}
                   isProjectOwner={myRole === 'owner'}
+                  onApplySuggestion={async ({ replacement }) => {
+                    // ReviewPanel already positioned the selection
+                    // via onJumpToRange. Give it a microtask so the
+                    // editor's scroll + selection settle, then paste.
+                    await new Promise<void>((resolve) => {
+                      window.setTimeout(() => {
+                        editorRef.current?.insertAtCursor(replacement);
+                        resolve();
+                      }, 30);
+                    });
+                  }}
                 />
               ) : null}
               {rightPanel === 'history' ? (

@@ -19,7 +19,7 @@ if (!dbPassword) {
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const migrationsDir = join(__dirname, '..', 'supabase', 'migrations');
+const migrationsDir = join(__dirname, '..', '..', 'supabase', 'migrations');
 
 const REGIONS = [
   'ap-south-1',

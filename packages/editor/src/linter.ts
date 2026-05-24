@@ -13,9 +13,27 @@ function entryToDiagnostic(view: EditorView, entry: CompileLogEntry): Diagnostic
   const doc = view.state.doc;
   const lineNo = Math.min(Math.max(entry.line, 1), doc.lines);
   const line = doc.line(lineNo);
+  // chktex emits a column; tectonic / latexmk don't. When we have
+  // one, narrow the underline to that token instead of underlining
+  // the whole line — much less visually noisy in a paragraph of prose.
+  let from = line.from;
+  let to = line.to;
+  if (entry.column !== undefined && entry.column > 0) {
+    const colOffset = Math.min(entry.column - 1, line.length);
+    from = line.from + colOffset;
+    // Extend to the end of the current word (or 1 char if at EOL).
+    // Good-enough heuristic since chktex doesn't tell us match length.
+    const tail = line.text.slice(colOffset);
+    const wordMatch = /^\S+/.exec(tail);
+    to = wordMatch !== null ? from + wordMatch[0].length : Math.min(from + 1, line.to);
+  }
+  // Source string drives the small "chktex" / "tectonic" label
+  // shown in the diagnostic tooltip. We tell them apart by the
+  // [chktex N] prefix the server appends in chktex.rs.
+  const isChktex = entry.message.startsWith('[chktex');
   return {
-    from: line.from,
-    to: line.to,
+    from,
+    to,
     severity:
       entry.level === 'error'
         ? 'error'
@@ -23,7 +41,7 @@ function entryToDiagnostic(view: EditorView, entry: CompileLogEntry): Diagnostic
           ? 'warning'
           : 'info',
     message: entry.message,
-    source: 'tectonic',
+    source: isChktex ? 'chktex' : 'tectonic',
   };
 }
 

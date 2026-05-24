@@ -14,6 +14,11 @@ export interface CompileLogEntry {
   readonly line?: number | undefined;
   readonly column?: number | undefined;
   readonly raw?: string | undefined;
+  /** Producer of this entry: "tectonic" / "latexmk" / "chktex" /
+   *  undefined (treated as compile-engine). The log panel groups
+   *  entries by this so lint warnings stay visually separate from
+   *  engine output. */
+  readonly source?: string | undefined;
 }
 
 export interface CompileResultSummary {

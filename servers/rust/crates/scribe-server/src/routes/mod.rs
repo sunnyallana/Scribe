@@ -8,6 +8,7 @@ pub mod exports;
 pub mod files;
 pub mod health;
 pub mod invites;
+pub mod lint;
 pub mod members;
 pub mod notifications;
 pub mod projects;

@@ -176,6 +176,13 @@ export function useCompileSession(projectId: ProjectId | null): CompileSessionSt
               ...s,
               status: msg.status,
               errorMessage: msg.errorMessage,
+              // Stamp the final duration onto `state.job` so the
+              // log panel's `(2.34s)` indicator updates immediately.
+              // Without this the WS told us we're done but the job
+              // row stayed frozen at its enqueue-time `durationMs:
+              // null` until a manual refetch — i.e. the timing
+              // never showed in the UI.
+              job: s.job !== null ? { ...s.job, status: msg.status, durationMs: msg.durationMs } : s.job,
             }));
             if (msg.pdfKey !== null) {
               void refreshArtifactUrls(jobId);
