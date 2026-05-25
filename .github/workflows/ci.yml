@@ -79,6 +79,76 @@ jobs:
         # service container when the test suite grows to need them.
         run: cargo test --manifest-path servers/rust/Cargo.toml --workspace --lib --bins
 
+  e2e:
+    name: E2E smoke (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Runs against the built SPA via `vite preview`. No live API /
+    # Supabase / Redis — see `apps/web/playwright.config.ts` for what's
+    # exercised. The full signup→compile flow is parked behind a `.skip`
+    # until docker-compose-in-CI lands.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.3
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install workspace
+        env:
+          CI: 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          # `~/.cache/ms-playwright` is the default install location on
+          # Linux runners. Keyed on the @playwright/test version so a
+          # bump invalidates the cache automatically.
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @scribe/web exec playwright install --with-deps chromium
+
+      - name: Install system deps for Chromium (cache-hit path)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        # `--with-deps` above also installs apt packages; when the
+        # browser binary is cached we still need to ensure those are
+        # present on a fresh runner. `playwright install-deps` is a
+        # no-op on a hot runner image but cheap to run unconditionally.
+        run: pnpm --filter @scribe/web exec playwright install-deps chromium
+
+      - name: Build the SPA
+        env:
+          # The build needs SOMETHING in these slots so the module-load
+          # config parser doesn't throw. Smoke specs never auth, so
+          # placeholders are fine. Promote to repository secrets when
+          # wiring the full-stack flow.
+          VITE_SUPABASE_URL: http://localhost:54321
+          VITE_SUPABASE_ANON_KEY: e2e-ci-placeholder-anon-key
+          VITE_API_URL: http://localhost:3000
+        run: pnpm --filter @scribe/web build
+
+      - name: Run Playwright smoke
+        run: pnpm --filter @scribe/web e2e
+
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
+
   rust-desktop:
     name: Tauri shell (apps/desktop/src-tauri)
     runs-on: ubuntu-latest

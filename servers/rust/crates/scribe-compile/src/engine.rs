@@ -64,3 +64,63 @@ pub async fn run_compile(
         EngineKind::Latexmk => run_latexmk(&config.latexmk, workdir, main_file).await,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_name_canonical_values() {
+        assert_eq!(EngineKind::parse_name("tectonic"), Some(EngineKind::Tectonic));
+        assert_eq!(EngineKind::parse_name("latexmk"), Some(EngineKind::Latexmk));
+    }
+
+    #[test]
+    fn parse_name_accepts_overleaf_alias() {
+        // Operators coming from Overleaf often think of the latexmk
+        // pipeline as "the Overleaf engine"; we accept it as a synonym
+        // so `COMPILE_ENGINE=overleaf` Just Works.
+        assert_eq!(EngineKind::parse_name("overleaf"), Some(EngineKind::Latexmk));
+    }
+
+    #[test]
+    fn parse_name_is_case_and_whitespace_insensitive() {
+        for input in ["TECTONIC", "Tectonic", "  tectonic  ", "\ttectonic\n"] {
+            assert_eq!(
+                EngineKind::parse_name(input),
+                Some(EngineKind::Tectonic),
+                "input '{input}' should normalise to Tectonic"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_name_rejects_unknown() {
+        for input in ["", "pdflatex", "xelatex", "garbage", "tectonic-overleaf"] {
+            assert_eq!(
+                EngineKind::parse_name(input),
+                None,
+                "input '{input}' must not parse"
+            );
+        }
+    }
+
+    #[test]
+    fn default_kind_is_tectonic() {
+        // The "no LaTeX install required" promise depends on this.
+        assert_eq!(EngineKind::default(), EngineKind::Tectonic);
+    }
+
+    #[test]
+    fn name_round_trips_parse() {
+        for engine in [EngineKind::Tectonic, EngineKind::Latexmk] {
+            assert_eq!(EngineKind::parse_name(engine.name()), Some(engine));
+        }
+    }
+
+    #[test]
+    fn engine_config_default_picks_tectonic() {
+        let config = EngineConfig::default();
+        assert_eq!(config.kind, EngineKind::Tectonic);
+    }
+}

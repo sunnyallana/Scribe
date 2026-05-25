@@ -96,3 +96,11 @@ apps/web/dev.err.log
 # Scribe runtime config — copy of `scribe.config.toml.example`.
 # Tracked is fine but most devs keep theirs gitignored.
 scribe.config.toml
+
+# Playwright artefacts. `apps/web/e2e/` (the specs) IS tracked; these
+# are what `playwright test` generates per run — screenshots, traces,
+# the HTML report. Regenerated on each run; don't commit.
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/blob-report/
+apps/web/.playwright-cache/

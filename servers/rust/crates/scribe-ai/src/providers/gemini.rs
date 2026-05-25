@@ -203,3 +203,99 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use scribe_shared::{AIProvider, ChatMessage, ChatRole};
+
+    fn sample_request(base_url: Option<&str>) -> CompleteRequest {
+        CompleteRequest {
+            provider: AIProvider::Gemini,
+            model: "gemini-1.5-pro".into(),
+            base_url: base_url.map(String::from),
+            api_key: "ga-test".into(),
+            messages: vec![
+                ChatMessage { role: ChatRole::System, content: "be terse".into() },
+                ChatMessage { role: ChatRole::User, content: "hi".into() },
+            ],
+            temperature: 0.6,
+            max_tokens: Some(256),
+        }
+    }
+
+    #[test]
+    fn base_url_defaults_to_gemini() {
+        let req = sample_request(None);
+        assert_eq!(base_url(&req), GEMINI_BASE);
+    }
+
+    #[test]
+    fn base_url_strips_trailing_slash_and_honours_override() {
+        let req = sample_request(Some("https://generativelanguage.example.test/"));
+        assert_eq!(base_url(&req), "https://generativelanguage.example.test");
+    }
+
+    #[test]
+    fn build_request_lifts_system_to_system_instruction_field() {
+        // Gemini's wire format: system prompts go in a top-level
+        // `systemInstruction` object with a "system" role and a parts
+        // array. Pin this so a refactor that drops the `Content` struct
+        // doesn't quietly change the shape.
+        let req = sample_request(None);
+        let json = serde_json::to_value(build_request(&req)).unwrap();
+        assert_eq!(json["systemInstruction"]["role"], "system");
+        assert_eq!(json["systemInstruction"]["parts"][0]["text"], "be terse");
+    }
+
+    #[test]
+    fn build_request_omits_system_instruction_when_no_system_message() {
+        let mut req = sample_request(None);
+        req.messages = vec![ChatMessage { role: ChatRole::User, content: "hi".into() }];
+        let json = serde_json::to_value(build_request(&req)).unwrap();
+        assert!(json.get("systemInstruction").is_none());
+    }
+
+    #[test]
+    fn build_request_maps_assistant_role_to_model() {
+        // Gemini uses "model" for what OpenAI / Anthropic call
+        // "assistant". A regression here would 400 with "invalid role".
+        let mut req = sample_request(None);
+        req.messages = vec![
+            ChatMessage { role: ChatRole::User, content: "q".into() },
+            ChatMessage { role: ChatRole::Assistant, content: "a".into() },
+        ];
+        let json = serde_json::to_value(build_request(&req)).unwrap();
+        assert_eq!(json["contents"][0]["role"], "user");
+        assert_eq!(json["contents"][1]["role"], "model");
+    }
+
+    #[test]
+    fn build_request_wraps_text_in_parts_array() {
+        // Each Content has `parts: [{ text: "..." }]`. The text doesn't
+        // live as a string directly — that'd be a different (older)
+        // shape Google has since deprecated.
+        let req = sample_request(None);
+        let json = serde_json::to_value(build_request(&req)).unwrap();
+        assert_eq!(json["contents"][0]["parts"][0]["text"], "hi");
+    }
+
+    #[test]
+    fn build_request_clamps_temperature_to_gemini_range() {
+        // Gemini's documented range is [0, 1] for most v1beta models.
+        let mut req = sample_request(None);
+        req.temperature = 1.7;
+        assert_eq!(build_request(&req).generation_config.temperature, 1.0);
+        req.temperature = -0.5;
+        assert_eq!(build_request(&req).generation_config.temperature, 0.0);
+    }
+
+    #[test]
+    fn build_request_emits_max_output_tokens_under_camelcase_key() {
+        // `#[serde(rename = "maxOutputTokens")]` is what Google's API
+        // expects; the snake_case Rust field would be silently ignored.
+        let req = sample_request(None);
+        let json = serde_json::to_value(build_request(&req)).unwrap();
+        assert_eq!(json["generationConfig"]["maxOutputTokens"], 256);
+    }
+}

@@ -184,3 +184,112 @@ async fn db_health(State(state): State<AppState>) -> Response {
             .into_response(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::response_cache::ResponseCache;
+    use axum::body::{to_bytes, Body};
+    use axum::http::Request;
+    use serde_json::Value;
+    use tower::ServiceExt;
+
+    /// Build the smallest possible test state — every dependency `None`
+    /// so the routes exercise the unconfigured / 503 paths. The actual
+    /// configured paths need testcontainers and live in Phase 2b.
+    fn unconfigured_state() -> AppState {
+        AppState::new(None, None, None, None, ResponseCache::with_flags(None, false, false))
+    }
+
+    async fn read_json(body: Body) -> Value {
+        let bytes = to_bytes(body, 64 * 1024).await.unwrap();
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    #[tokio::test]
+    async fn live_endpoint_returns_plain_ok() {
+        // Liveness must NEVER depend on anything — the orchestrator
+        // reads this to decide whether to restart the pod. A bug
+        // here would cause restart storms in prod.
+        let app = router().with_state(unconfigured_state());
+        let response = app
+            .oneshot(Request::builder().uri("/healthz/live").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), 64).await.unwrap();
+        assert_eq!(body.as_ref(), b"ok\n");
+    }
+
+    #[tokio::test]
+    async fn health_endpoint_reports_unconfigured_when_state_is_empty() {
+        let app = router().with_state(unconfigured_state());
+        let response = app
+            .oneshot(Request::builder().uri("/api/health").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let json = read_json(response.into_body()).await;
+        assert_eq!(json["ok"], true);
+        assert_eq!(json["service"], "scribe-server");
+        assert_eq!(json["db"], "unconfigured");
+        assert_eq!(json["storage"], "unconfigured");
+    }
+
+    #[tokio::test]
+    async fn db_health_returns_503_when_db_unconfigured() {
+        // Without DATABASE_URL, the route surfaces a 503 rather than
+        // crashing or returning a misleading 200.
+        let app = router().with_state(unconfigured_state());
+        let response = app
+            .oneshot(Request::builder().uri("/api/health/db").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let json = read_json(response.into_body()).await;
+        assert_eq!(json["ok"], false);
+        assert_eq!(json["error"], "db not configured");
+    }
+
+    #[tokio::test]
+    async fn ready_endpoint_returns_200_when_all_deps_are_skipped() {
+        // With every dep unconfigured, each check resolves to `Skipped`.
+        // `is_ok_or_skipped()` treats Skipped as success, so the
+        // top-level `ok` is true. Locks in the "boot with no deps
+        // configured succeeds" contract that lets a fresh checkout
+        // pass /healthz/ready immediately.
+        let app = router().with_state(unconfigured_state());
+        let response = app
+            .oneshot(Request::builder().uri("/healthz/ready").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let json = read_json(response.into_body()).await;
+        assert_eq!(json["ok"], true);
+        assert_eq!(json["checks"]["db"]["state"], "skipped");
+        assert_eq!(json["checks"]["storage"]["state"], "skipped");
+        assert_eq!(json["checks"]["redis"]["state"], "skipped");
+    }
+
+    #[tokio::test]
+    async fn unknown_route_returns_404() {
+        // Negative test: only the four health endpoints are mounted on
+        // `router()`. Anything else falls through to Axum's default
+        // 404. Catches the case where someone wires a route to the
+        // wrong router by mistake.
+        let app = router().with_state(unconfigured_state());
+        let response = app
+            .oneshot(Request::builder().uri("/api/nope").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn check_result_classifies_failure() {
+        // Direct unit on the helper that drives the readiness aggregation.
+        assert!(CheckResult::Ok.is_ok_or_skipped());
+        assert!(CheckResult::Skipped { reason: "x" }.is_ok_or_skipped());
+        assert!(!CheckResult::Failed { error: "boom".into() }.is_ok_or_skipped());
+    }
+}

@@ -67,3 +67,7 @@ tracing-opentelemetry = "0.28"
 parking_lot.workspace = true
 # Auto-cleaned scratch directories for the per-request pandoc workdir.
 tempfile = "3.13"
+
+[dev-dependencies]
+# Mint HS256 test tokens for the auth-middleware integration tests.
+jsonwebtoken.workspace = true

@@ -72,8 +72,11 @@ const OPUS_TARGET_BITRATE = 48_000;
  * The negotiation is done by appending an `fmtp` line for the Opus
  * payload type discovered in the SDP. Works on Chrome, Firefox,
  * Safari, and Edge — no codec swap, just parameter tuning.
+ *
+ * Exported (not module-local) so unit tests can pin down the SDP
+ * mutation without spinning up a full RTCPeerConnection.
  */
-function tuneOpusSdp(sdp: string): string {
+export function tuneOpusSdp(sdp: string): string {
   // Each m=audio line is followed by a/v lines; we find the Opus
   // payload type from `a=rtpmap:N opus/48000/2`, then either update
   // or insert the matching `a=fmtp:N …` line.

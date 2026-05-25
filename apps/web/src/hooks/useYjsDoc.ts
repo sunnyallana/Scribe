@@ -8,7 +8,9 @@ import { supabase, wsOrigin } from '../lib/supabase';
 import { syncManager } from '../lib/sync';
 import { isTauri } from '../lib/tauri';
 
-function bytesToBase64(bytes: Uint8Array): string {
+// Exported so the unit tests can pin down the chunked-encode behaviour
+// without going through the full hook + Yjs provider.
+export function bytesToBase64(bytes: Uint8Array): string {
   // Chunked to dodge the call-stack limit on very long updates (the
   // single-shot `String.fromCharCode(...bytes)` form blows up around
   // 64 KiB on most engines).
@@ -20,7 +22,7 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-function base64ToBytes(b64: string): Uint8Array {
+export function base64ToBytes(b64: string): Uint8Array {
   const binary = atob(b64);
   const out = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);

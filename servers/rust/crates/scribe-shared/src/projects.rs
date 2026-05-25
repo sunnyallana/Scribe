@@ -148,3 +148,98 @@ where
     }
     Ok(trimmed.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compiler_engine_parse_round_trip() {
+        for engine in [
+            CompilerEngine::Tectonic,
+            CompilerEngine::Pdflatex,
+            CompilerEngine::Xelatex,
+            CompilerEngine::Lualatex,
+        ] {
+            assert_eq!(CompilerEngine::parse(engine.as_str()), Some(engine));
+        }
+    }
+
+    #[test]
+    fn compiler_engine_default_is_tectonic() {
+        // The whole project's "works on a fresh box" promise depends on
+        // tectonic being the default — pin it down.
+        assert_eq!(CompilerEngine::default(), CompilerEngine::Tectonic);
+    }
+
+    #[test]
+    fn compiler_engine_parse_rejects_unknown() {
+        assert_eq!(CompilerEngine::parse(""), None);
+        assert_eq!(CompilerEngine::parse("Tectonic"), None); // case-sensitive
+        assert_eq!(CompilerEngine::parse("latexmk"), None); // not a CompilerEngine — that's an orchestrator
+    }
+
+    #[test]
+    fn project_template_default_is_blank() {
+        assert_eq!(ProjectTemplate::default(), ProjectTemplate::Blank);
+    }
+
+    #[test]
+    fn project_template_serde_lowercase() {
+        // All six variants must serialise as lowercase JSON strings —
+        // the SPA's template gallery uses these as object keys.
+        for (template, expected) in [
+            (ProjectTemplate::Blank, "\"blank\""),
+            (ProjectTemplate::Article, "\"article\""),
+            (ProjectTemplate::Report, "\"report\""),
+            (ProjectTemplate::Beamer, "\"beamer\""),
+            (ProjectTemplate::Cv, "\"cv\""),
+            (ProjectTemplate::Letter, "\"letter\""),
+        ] {
+            assert_eq!(serde_json::to_string(&template).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn create_project_input_trims_name() {
+        let payload = r#"{"name": "  My Paper  "}"#;
+        let parsed: CreateProjectInput = serde_json::from_str(payload).unwrap();
+        assert_eq!(parsed.name, "My Paper");
+        // Optional defaults stay at their `Default` values.
+        assert_eq!(parsed.template, ProjectTemplate::Blank);
+        assert_eq!(parsed.compiler, CompilerEngine::Tectonic);
+    }
+
+    #[test]
+    fn create_project_input_rejects_blank_name() {
+        for blank in ["", "   ", "\t\n"] {
+            let payload = format!(r#"{{"name": "{blank}"}}"#);
+            let result: Result<CreateProjectInput, _> = serde_json::from_str(&payload);
+            assert!(result.is_err(), "blank name '{blank}' should be rejected");
+        }
+    }
+
+    #[test]
+    fn create_project_input_rejects_overlong_name() {
+        let long = "x".repeat(201);
+        let payload = format!(r#"{{"name": "{long}"}}"#);
+        let result: Result<CreateProjectInput, _> = serde_json::from_str(&payload);
+        assert!(result.is_err(), "201-char name should be rejected");
+    }
+
+    #[test]
+    fn update_project_distinguishes_missing_from_null_description() {
+        // "field absent" → leave description alone.
+        let absent: UpdateProjectInput = serde_json::from_str("{}").unwrap();
+        assert!(absent.description.is_none());
+
+        // "field: null" → clear description.
+        let cleared: UpdateProjectInput = serde_json::from_str(r#"{"description": null}"#).unwrap();
+        assert_eq!(cleared.description, Some(None));
+
+        // "field: value" → set description.
+        let set: UpdateProjectInput =
+            serde_json::from_str(r#"{"description": "hello"}"#).unwrap();
+        assert_eq!(set.description, Some(Some("hello".to_string())));
+    }
+}

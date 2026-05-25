@@ -29,19 +29,25 @@ import {
 import { supabase, wsOrigin } from '../lib/supabase';
 import { isTauri } from '../lib/tauri';
 
-function mapDesktopStatus(s: DesktopCompileStatus): CompileJobStatus {
+// ── Pure helpers (exported for unit tests) ────────────────────────────
+// The hook itself is a tangle of WebSocket / Tauri / React state; these
+// pieces are the only parts that are pure and worth pinning down with
+// direct tests. Exporting them carries no runtime cost — the hook uses
+// the same identifier internally.
+
+export function mapDesktopStatus(s: DesktopCompileStatus): CompileJobStatus {
   if (s === 'completed') return 'success';
   if (s === 'failed' || s === 'timedout') return 'error';
   if (s === 'cancelled') return 'cancelled';
   return 'running';
 }
 
-function mapDesktopLog(e: DesktopCompileLogEvent): CompileLogEntryDTO {
+export function mapDesktopLog(e: DesktopCompileLogEvent): CompileLogEntryDTO {
   const level: CompileLogLevel = e.stream === 'stderr' ? 'warning' : 'info';
   return { level, message: e.line, raw: e.line };
 }
 
-function isPlainTextSource(path: string): boolean {
+export function isPlainTextSource(path: string): boolean {
   // Two extensions known to be user-authored UTF-8. Everything else
   // (.sty / .cls / .tikz / .latex / images / pdfs) ships as bytes
   // so non-UTF-8 encodings survive the round-trip. See compile()
@@ -50,7 +56,7 @@ function isPlainTextSource(path: string): boolean {
   return lower.endsWith('.tex') || lower.endsWith('.bib');
 }
 
-function arrayBufferToBase64(buf: ArrayBuffer): string {
+export function arrayBufferToBase64(buf: ArrayBuffer): string {
   // Chunked to dodge the call-stack limit on large images; the
   // single-shot `String.fromCharCode(...bytes)` form blows up around
   // 64 KiB on most engines.
@@ -63,7 +69,7 @@ function arrayBufferToBase64(buf: ArrayBuffer): string {
   return btoa(binary);
 }
 
-function desktopEngineToCompilerEngine(e: string): CompilerEngine {
+export function desktopEngineToCompilerEngine(e: string): CompilerEngine {
   // The shared `CompilerEngine` enum doesn't include `latexmk` — it's
   // an orchestration name, not a distinct binary. Coerce to `pdflatex`
   // so the synthetic CompileJob conforms; the engine field is purely

@@ -204,3 +204,117 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use scribe_shared::{AIProvider, ChatMessage, ChatRole};
+
+    fn sample_request(provider: AIProvider, base_url: Option<&str>) -> CompleteRequest {
+        CompleteRequest {
+            provider,
+            model: "gpt-4o-mini".into(),
+            base_url: base_url.map(String::from),
+            api_key: "sk-test".into(),
+            messages: vec![
+                ChatMessage { role: ChatRole::System, content: "you are helpful".into() },
+                ChatMessage { role: ChatRole::User, content: "say hi".into() },
+            ],
+            temperature: 0.5,
+            max_tokens: Some(128),
+        }
+    }
+
+    #[test]
+    fn base_url_defaults_to_openai_for_openai_provider() {
+        let req = sample_request(AIProvider::Openai, None);
+        assert_eq!(base_url(&req).unwrap(), OPENAI_BASE);
+    }
+
+    #[test]
+    fn base_url_uses_override_when_provided() {
+        let req = sample_request(AIProvider::Openai, Some("http://localhost:11434/"));
+        // Trailing slash must be stripped so the `/v1/chat/completions`
+        // append doesn't double-slash and 404 on strict routers.
+        assert_eq!(base_url(&req).unwrap(), "http://localhost:11434");
+    }
+
+    #[test]
+    fn base_url_ignores_empty_override() {
+        // Empty string is treated as "not configured" — important for
+        // env-var-driven configs where the variable exists but is "".
+        let req = sample_request(AIProvider::Openai, Some(""));
+        assert_eq!(base_url(&req).unwrap(), OPENAI_BASE);
+    }
+
+    #[test]
+    fn base_url_requires_override_for_local_providers() {
+        // Ollama / LM Studio / openai-compatible have no canonical base
+        // — the user MUST supply one. Returning an error here surfaces
+        // the misconfig as a 400 to the client rather than a confusing
+        // DNS failure to openai.com.
+        for provider in [AIProvider::Ollama, AIProvider::Lmstudio, AIProvider::OpenaiCompatible] {
+            let req = sample_request(provider, None);
+            assert!(
+                matches!(base_url(&req), Err(AdapterError::MissingBaseUrl { provider: p }) if p == provider),
+                "provider {:?} should require base_url",
+                provider
+            );
+        }
+    }
+
+    #[test]
+    fn build_request_emits_canonical_openai_body() {
+        // Pin the wire format. OpenAI's Chat Completions API expects:
+        //   { model, messages: [{role, content}], stream, temperature, max_tokens }
+        // System messages stay in the `messages` array (unlike Anthropic).
+        let req = sample_request(AIProvider::Openai, None);
+        let body = build_request(&req);
+        let json = serde_json::to_value(&body).unwrap();
+        assert_eq!(json["model"], "gpt-4o-mini");
+        assert_eq!(json["stream"], true);
+        assert_eq!(json["temperature"], 0.5);
+        assert_eq!(json["max_tokens"], 128);
+        assert_eq!(json["messages"][0]["role"], "system");
+        assert_eq!(json["messages"][0]["content"], "you are helpful");
+        assert_eq!(json["messages"][1]["role"], "user");
+        assert_eq!(json["messages"][1]["content"], "say hi");
+    }
+
+    #[test]
+    fn build_request_clamps_temperature_to_openai_range() {
+        // OpenAI rejects temperatures outside [0, 2]. The adapter clamps
+        // so an over-eager caller (or a coercion bug elsewhere) doesn't
+        // get a 400 from the upstream.
+        let mut req = sample_request(AIProvider::Openai, None);
+        req.temperature = 5.0;
+        assert_eq!(build_request(&req).temperature, 2.0);
+        req.temperature = -1.0;
+        assert_eq!(build_request(&req).temperature, 0.0);
+    }
+
+    #[test]
+    fn build_request_omits_max_tokens_when_none() {
+        // The field is `skip_serializing_if = "Option::is_none"` so that
+        // OpenAI uses its own default rather than the adapter forcing
+        // an arbitrary cap.
+        let mut req = sample_request(AIProvider::Openai, None);
+        req.max_tokens = None;
+        let json = serde_json::to_value(build_request(&req)).unwrap();
+        assert!(json.get("max_tokens").is_none(), "max_tokens must be omitted when None");
+    }
+
+    #[test]
+    fn build_request_maps_assistant_role() {
+        let mut req = sample_request(AIProvider::Openai, None);
+        req.messages = vec![
+            ChatMessage { role: ChatRole::User, content: "q".into() },
+            ChatMessage { role: ChatRole::Assistant, content: "a".into() },
+            ChatMessage { role: ChatRole::User, content: "q2".into() },
+        ];
+        let json = serde_json::to_value(build_request(&req)).unwrap();
+        let roles: Vec<&str> =
+            json["messages"].as_array().unwrap().iter().map(|m| m["role"].as_str().unwrap()).collect();
+        assert_eq!(roles, vec!["user", "assistant", "user"]);
+    }
+}

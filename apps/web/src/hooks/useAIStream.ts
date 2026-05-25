@@ -16,6 +16,34 @@ export interface AIStreamHandle extends AIStreamState {
   reset: () => void;
 }
 
+/** Pure decoder for a single SSE line emitted by `/api/ai/complete`.
+ *  Extracted from the hook body so the parsing rules can be unit-tested
+ *  without spinning up a fetch + ReadableStream pipeline. Returns
+ *  `'skip'` for anything that isn't a recognisable event so the caller
+ *  can keep reading without special-casing. */
+export type SSEEvent =
+  | { kind: 'text'; text: string }
+  | { kind: 'done' }
+  | { kind: 'error'; error: string }
+  | { kind: 'skip' };
+
+export function parseSSELine(line: string): SSEEvent {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith('data:')) return { kind: 'skip' };
+  const payload = trimmed.slice(5).trim();
+  if (payload === '[DONE]') return { kind: 'done' };
+  try {
+    const json = JSON.parse(payload) as { text?: string; error?: string };
+    if (json.error !== undefined) return { kind: 'error', error: json.error };
+    if (json.text !== undefined) return { kind: 'text', text: json.text };
+    return { kind: 'skip' };
+  } catch {
+    // Malformed JSON in a `data:` line — recoverable; the streaming
+    // caller skips it and keeps reading subsequent lines.
+    return { kind: 'skip' };
+  }
+}
+
 /**
  * Posts to /api/ai/complete and parses the SSE stream, accumulating text.
  * One-shot per call — start fresh by calling `reset()` first if needed.
@@ -81,29 +109,26 @@ export function useAIStream(): AIStreamHandle {
           buffer += decoder.decode(value, { stream: true });
           let nl;
           while ((nl = buffer.indexOf('\n')) !== -1) {
-            const line = buffer.slice(0, nl).trim();
+            const line = buffer.slice(0, nl);
             buffer = buffer.slice(nl + 1);
-            if (!line.startsWith('data:')) continue;
-            const payload = line.slice(5).trim();
-            if (payload === '[DONE]') {
+            const event = parseSSELine(line);
+            if (event.kind === 'done') {
               setState({ text: accumulated, streaming: false, error: null });
               return;
             }
-            try {
-              const json = JSON.parse(payload) as { text?: string; error?: string };
-              if (json.error !== undefined) {
-                setState({ text: accumulated, streaming: false, error: json.error });
-                return;
-              }
-              if (json.text !== undefined) {
-                accumulated += json.text;
-                setState({ text: accumulated, streaming: true, error: null });
-              }
-            } catch (err) {
-              // SSE stream contained a non-JSON `data:` line. Recoverable
-              // — we just skip it and keep reading subsequent lines —
-              // but log so a malformed upstream becomes visible.
-              log.api('ai/complete SSE line parse failed', err, { payload });
+            if (event.kind === 'error') {
+              setState({ text: accumulated, streaming: false, error: event.error });
+              return;
+            }
+            if (event.kind === 'text') {
+              accumulated += event.text;
+              setState({ text: accumulated, streaming: true, error: null });
+            }
+            // event.kind === 'skip' — non-data line, malformed JSON,
+            // or a data line without a `text` / `error` field. Surface
+            // malformed-JSON cases for diagnostics but keep reading.
+            if (event.kind === 'skip' && line.trim().startsWith('data:')) {
+              log.api('ai/complete SSE line skipped', { line });
             }
           }
         }

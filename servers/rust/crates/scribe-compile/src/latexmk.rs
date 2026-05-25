@@ -325,3 +325,86 @@ fn strip_tex_ext(name: &str) -> String {
 // uses one of the LatexmkConfig fields directly.
 #[allow(dead_code)]
 type _Workdir = PathBuf;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn latex_engine_binary_names_match_distros() {
+        // These map 1:1 to TeX Live / MiKTeX executable names on $PATH.
+        // If they drift, the worker fails with "command not found" on
+        // every compile.
+        assert_eq!(LatexEngine::PdfLatex.binary(), "pdflatex");
+        assert_eq!(LatexEngine::XeLatex.binary(), "xelatex");
+        assert_eq!(LatexEngine::LuaLatex.binary(), "lualatex");
+    }
+
+    #[test]
+    fn latex_engine_parse_canonical_names() {
+        assert_eq!(LatexEngine::parse_name("pdflatex"), Some(LatexEngine::PdfLatex));
+        assert_eq!(LatexEngine::parse_name("xelatex"), Some(LatexEngine::XeLatex));
+        assert_eq!(LatexEngine::parse_name("lualatex"), Some(LatexEngine::LuaLatex));
+    }
+
+    #[test]
+    fn latex_engine_parse_short_aliases() {
+        // Shorthand the operator might type in `.env`. Keep these because
+        // documentation has shipped with them and removing one would
+        // silently fall back to the default engine.
+        assert_eq!(LatexEngine::parse_name("pdf"), Some(LatexEngine::PdfLatex));
+        assert_eq!(LatexEngine::parse_name("xe"), Some(LatexEngine::XeLatex));
+        assert_eq!(LatexEngine::parse_name("pdfxe"), Some(LatexEngine::XeLatex));
+        assert_eq!(LatexEngine::parse_name("lua"), Some(LatexEngine::LuaLatex));
+        assert_eq!(LatexEngine::parse_name("pdflua"), Some(LatexEngine::LuaLatex));
+    }
+
+    #[test]
+    fn latex_engine_parse_normalises_whitespace_and_case() {
+        for input in ["  PDFLATEX  ", "PdfLatex", "\tPDFLATEX\n"] {
+            assert_eq!(
+                LatexEngine::parse_name(input),
+                Some(LatexEngine::PdfLatex),
+                "'{input}' should normalise to PdfLatex"
+            );
+        }
+    }
+
+    #[test]
+    fn latex_engine_parse_rejects_unknown() {
+        for input in ["", "tectonic", "latex", "context"] {
+            assert_eq!(LatexEngine::parse_name(input), None, "'{input}' must not parse");
+        }
+    }
+
+    #[test]
+    fn latex_engine_default_is_pdflatex() {
+        // Matches Overleaf's default selection. Any other choice would
+        // surprise users coming from there.
+        assert_eq!(LatexEngine::default(), LatexEngine::PdfLatex);
+    }
+
+    #[test]
+    fn latexmk_config_default_uses_pdflatex_and_two_minute_timeout() {
+        let config = LatexmkConfig::default();
+        assert_eq!(config.engine, LatexEngine::PdfLatex);
+        assert_eq!(config.timeout, Duration::from_secs(120));
+        assert_eq!(config.binary, "latexmk");
+    }
+
+    #[test]
+    fn strip_tex_ext_round_trips_known_inputs() {
+        // Strips the extension when present, leaves the basename alone
+        // otherwise. Preserves original case (LaTeX paths on macOS are
+        // case-preserving and `\input{Main}` resolves to `Main.tex` only
+        // if we don't lowercase the stem).
+        assert_eq!(strip_tex_ext("main.tex"), "main");
+        assert_eq!(strip_tex_ext("Main.TEX"), "Main");
+        assert_eq!(strip_tex_ext("sections/intro.tex"), "sections/intro");
+        // No extension → identity.
+        assert_eq!(strip_tex_ext("main"), "main");
+        assert_eq!(strip_tex_ext("readme.md"), "readme.md");
+        // Empty stem is unusual but should not panic.
+        assert_eq!(strip_tex_ext(".tex"), "");
+    }
+}

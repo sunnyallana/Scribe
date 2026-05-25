@@ -108,3 +108,64 @@ pub struct InviteDetails {
 pub struct AcceptInviteResponse {
     pub project_id: ProjectId,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn member_role_parse_round_trip() {
+        // Every variant must round-trip through `as_str()` → `parse()`.
+        for role in [
+            MemberRole::Owner,
+            MemberRole::Editor,
+            MemberRole::Commenter,
+            MemberRole::Viewer,
+        ] {
+            assert_eq!(MemberRole::parse(role.as_str()), Some(role));
+        }
+    }
+
+    #[test]
+    fn member_role_parse_rejects_unknown() {
+        assert_eq!(MemberRole::parse(""), None);
+        assert_eq!(MemberRole::parse("OWNER"), None); // case-sensitive
+        assert_eq!(MemberRole::parse("admin"), None);
+        assert_eq!(MemberRole::parse(" editor "), None); // no trim
+    }
+
+    #[test]
+    fn member_role_serde_lowercase() {
+        // The `#[serde(rename_all = "lowercase")]` contract is what the
+        // client expects; pin it down so a future refactor that drops
+        // the attribute breaks here.
+        let json = serde_json::to_string(&MemberRole::Owner).unwrap();
+        assert_eq!(json, "\"owner\"");
+        let parsed: MemberRole = serde_json::from_str("\"viewer\"").unwrap();
+        assert_eq!(parsed, MemberRole::Viewer);
+    }
+
+    #[test]
+    fn invite_role_default_is_editor() {
+        // The SPA's invite form defaults to "editor" if the user doesn't
+        // pick — this is what makes that default safe on the server too.
+        assert_eq!(InviteRole::default(), InviteRole::Editor);
+    }
+
+    #[test]
+    fn invite_role_as_str_matches_serde() {
+        for role in [InviteRole::Editor, InviteRole::Commenter, InviteRole::Viewer] {
+            let json = serde_json::to_string(&role).unwrap();
+            // JSON value is quoted — `as_str` is the unquoted form.
+            assert_eq!(json, format!("\"{}\"", role.as_str()));
+        }
+    }
+
+    #[test]
+    fn invite_role_serde_owner_rejected() {
+        // Owners can't be granted via invite (only the project creator
+        // is an owner). Verify the deserializer rejects "owner".
+        let result: Result<InviteRole, _> = serde_json::from_str("\"owner\"");
+        assert!(result.is_err(), "InviteRole must not accept 'owner'");
+    }
+}

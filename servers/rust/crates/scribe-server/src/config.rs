@@ -342,3 +342,93 @@ fn apply_feature_env_overrides(features: &mut FeatureFlags) {
         features.debug_logging = v;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn app_env_parse_loose_handles_aliases() {
+        // The `dev` / `prod` / `test` aliases are documented in
+        // `.env.example`; users rely on them.
+        for input in ["development", "DEV", "  dev  "] {
+            assert_eq!(AppEnv::from_str_loose(input), Some(AppEnv::Development));
+        }
+        for input in ["production", "prod", "PROD"] {
+            assert_eq!(AppEnv::from_str_loose(input), Some(AppEnv::Production));
+        }
+        for input in ["testing", "test", "Test"] {
+            assert_eq!(AppEnv::from_str_loose(input), Some(AppEnv::Testing));
+        }
+    }
+
+    #[test]
+    fn app_env_parse_loose_rejects_unknown() {
+        assert_eq!(AppEnv::from_str_loose(""), None);
+        assert_eq!(AppEnv::from_str_loose("staging"), None);
+        assert_eq!(AppEnv::from_str_loose("qa"), None);
+    }
+
+    #[test]
+    fn app_env_is_prod_only_for_production() {
+        assert!(AppEnv::Production.is_prod());
+        assert!(!AppEnv::Development.is_prod());
+        assert!(!AppEnv::Testing.is_prod());
+    }
+
+    #[test]
+    fn app_env_default_is_development() {
+        // Servers that boot without `SCRIBE_ENV` set should default to
+        // the safest-during-iteration profile (caching off, debug on,
+        // rate limiting off).
+        assert_eq!(AppEnv::default(), AppEnv::Development);
+    }
+
+    #[test]
+    fn feature_flags_dev_profile_disables_cache_enables_debug() {
+        // The "first thing to rule out when save isn't reflecting" rule
+        // — pin it down so a future refactor doesn't silently flip the
+        // dev cache on.
+        let dev = FeatureFlags::for_env(AppEnv::Development);
+        assert!(!dev.cache_enabled);
+        assert!(!dev.client_cache_headers);
+        assert!(dev.debug_logging);
+        assert!(!dev.rate_limiting);
+        assert!(dev.compile_worker);
+    }
+
+    #[test]
+    fn feature_flags_prod_profile_is_locked_down() {
+        let prod = FeatureFlags::for_env(AppEnv::Production);
+        assert!(prod.cache_enabled);
+        assert!(prod.client_cache_headers);
+        assert!(prod.rate_limiting);
+        assert!(prod.compile_worker);
+        // Verbose debug logging in prod would leak request bodies into
+        // logs. Stay off.
+        assert!(!prod.debug_logging);
+    }
+
+    #[test]
+    fn feature_flags_testing_profile_disables_worker() {
+        // CI integration tests don't have tectonic on PATH and don't
+        // want a long-poll BLPOP holding open a Redis connection.
+        let test = FeatureFlags::for_env(AppEnv::Testing);
+        assert!(!test.compile_worker);
+        assert!(!test.cache_enabled);
+        assert!(!test.rate_limiting);
+        assert!(!test.metrics_endpoint);
+    }
+
+    #[test]
+    fn feature_flags_default_matches_development() {
+        // The Serde `#[serde(default)]` contract on FeatureFlags relies
+        // on Default == for_env(Development). If that drifts, a config
+        // file that omits a flag would suddenly inherit prod values.
+        let default_flags = FeatureFlags::default();
+        let dev_flags = FeatureFlags::for_env(AppEnv::Development);
+        assert_eq!(default_flags.cache_enabled, dev_flags.cache_enabled);
+        assert_eq!(default_flags.debug_logging, dev_flags.debug_logging);
+        assert_eq!(default_flags.rate_limiting, dev_flags.rate_limiting);
+    }
+}

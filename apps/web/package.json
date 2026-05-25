@@ -12,6 +12,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "preview": "vite preview --port 4173 --strictPort",
+    "e2e": "playwright test",
+    "e2e:install": "playwright install chromium",
+    "e2e:headed": "playwright test --headed",
+    "e2e:ui": "playwright test --ui",
     "clean": "rimraf dist .turbo .vite"
   },
   "dependencies": {
@@ -22,9 +26,9 @@
     "@scribe/ui": "workspace:*",
     "@scribe/yjs-provider": "workspace:*",
     "@supabase/supabase-js": "^2.47.10",
+    "@tanstack/react-query": "^5.62.7",
     "@tauri-apps/api": "^2.1.0",
     "@tauri-apps/plugin-fs": "^2.0.0",
-    "@tanstack/react-query": "^5.62.7",
     "date-fns": "^4.1.0",
     "diff-match-patch": "^1.0.5",
     "fflate": "^0.8.3",
@@ -43,6 +47,7 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@types/diff-match-patch": "^1.0.36",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
