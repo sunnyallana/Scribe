@@ -73,9 +73,9 @@ part of the [`servers/rust/`](../../servers/rust/README.md) workspace.
 
 ### Additional prerequisites (on top of the web list)
 
-| Need                                | Why                                                                                                                       |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Platform-specific Tauri toolchain   | <https://v2.tauri.app/start/prerequisites/>: webview2 (Windows), webkit2gtk (Linux), Xcode (macOS)                        |
+| Need                                | Why                                                                                                                      |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Platform-specific Tauri toolchain   | <https://v2.tauri.app/start/prerequisites/>: webview2 (Windows), webkit2gtk (Linux), Xcode (macOS)                       |
 | **MSVC Build Tools** (Windows only) | Required by `cargo build` against `*-msvc` targets. Install via Visual Studio Installer → "Desktop development with C++" |
 
 Optional but recommended on Windows: **MiKTeX** + **Strawberry Perl**

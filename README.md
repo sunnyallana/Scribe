@@ -68,16 +68,16 @@ Four layers, in flow order:
 
 Per-folder READMEs cover everything specific to each piece. Top-level README stays as a landing page only.
 
-| Where                                            | What                                                                 |
-| ------------------------------------------------ | -------------------------------------------------------------------- |
-| [`apps/web`](./apps/web/README.md)               | React + CodeMirror 6 SPA: the editor itself, runs in any browser     |
-| [`apps/desktop`](./apps/desktop/README.md)       | Tauri 2 native shell: offline-first SQLite mirror, bundled tectonic  |
-| [`servers/rust`](./servers/rust/README.md)       | Axum API hub: REST, Yjs realtime, compile queue, AI proxy            |
-| [`scripts`](./scripts/README.md)                 | Cross-platform setup + run scripts (Linux / macOS / Windows)         |
-| [`docs/self-hosting.md`](./docs/self-hosting.md) | Docker compose recipe + reverse-proxy / TLS / backup notes           |
-| [`docs/env-vars.md`](./docs/env-vars.md)         | Every env var with the exact source for its value                    |
-| [`PLAN.md`](./PLAN.md)                           | Phase-by-phase roadmap, status, and design decisions                 |
-| [`CONTRIBUTING.md`](./CONTRIBUTING.md)           | How to file issues, send patches, and run the test suite             |
+| Where                                            | What                                                                |
+| ------------------------------------------------ | ------------------------------------------------------------------- |
+| [`apps/web`](./apps/web/README.md)               | React + CodeMirror 6 SPA: the editor itself, runs in any browser    |
+| [`apps/desktop`](./apps/desktop/README.md)       | Tauri 2 native shell: offline-first SQLite mirror, bundled tectonic |
+| [`servers/rust`](./servers/rust/README.md)       | Axum API hub: REST, Yjs realtime, compile queue, AI proxy           |
+| [`scripts`](./scripts/README.md)                 | Cross-platform setup + run scripts (Linux / macOS / Windows)        |
+| [`docs/self-hosting.md`](./docs/self-hosting.md) | Docker compose recipe + reverse-proxy / TLS / backup notes          |
+| [`docs/env-vars.md`](./docs/env-vars.md)         | Every env var with the exact source for its value                   |
+| [`PLAN.md`](./PLAN.md)                           | Phase-by-phase roadmap, status, and design decisions                |
+| [`CONTRIBUTING.md`](./CONTRIBUTING.md)           | How to file issues, send patches, and run the test suite            |
 
 ## Tech stack
 
