@@ -162,7 +162,9 @@ The check-marks I care about most: a single binary you can `cargo run`, an insta
 ## Architecture
 
 <p align="center">
-  <img src="docs/architecture.svg" alt="Scribe system architecture: Desktop (Tauri) and Browser clients on top, Rust Axum API in the middle with REST / Yjs realtime / compile pipeline / AI proxy sub-services, Supabase Postgres + Storage + Redis + External AI providers as the data tier, and a Desktop-local zone with SQLite mirror + bundled tectonic + workdirs + sync engine for offline operation." width="100%" />
+  <img src="docs/architecture.png" alt="Scribe application architecture overview: Tauri 2 desktop and React + CodeMirror 6 browser SPA share a single codebase and talk to a central Rust API hub (Axum, JWT, Tower) that exposes REST routes, a Yjs realtime channel, a Redis-backed compile pipeline, and an AI proxy. The data tier holds Supabase (Postgres + RLS + Object Storage + Auth), Redis (job queue + pub/sub), and external AI providers (OpenAI, Anthropic, Gemini, Ollama, LM Studio, any OpenAI-compatible endpoint). A separate desktop-local cluster powers offline-first operation with a SQLite mirror, a 48 MB bundled tectonic binary, per-project workdirs, and a sync engine with three-way conflict resolution." width="100%" />
+  <br />
+  <sub><i>Clients, Rust API hub, data tier, and the desktop-local offline-first cluster — the four zones that make Scribe work in the browser, on the desktop, and offline from the same codebase.</i></sub>
 </p>
 
 Four layers, in flow order:
