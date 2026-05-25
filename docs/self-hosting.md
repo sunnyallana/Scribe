@@ -279,7 +279,7 @@ change. Switch to Docker for shared deployments.
 
 If you want everything in one binary with no Docker at all, the prebuilt server
 binary from a GitHub release plus a systemd unit file will get you there. See
-[`docs/architecture.svg`](./architecture.svg) for the layered view; the system unit
+[`docs/architecture.png`](./architecture.png) for the layered view; the system unit
 file is a 10-line wrapper around the binary with `EnvironmentFile=/etc/scribe.env`.
 
 ---
