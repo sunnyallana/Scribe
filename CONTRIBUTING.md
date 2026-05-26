@@ -140,7 +140,7 @@ view.state.field so Yjs rebroadcasts no-op against it.
 ## Security
 
 Found something exploitable? Don't open a public issue. Email
-**sunny.shaban@astera.com** with the details and a CVE-style description; I'll
+**reach@sunnyshabanali.me** with the details and a CVE-style description; I'll
 get back within a few days.
 
 For the standard threat model (auth, AI key encryption, RLS posture), see
