@@ -30,7 +30,30 @@ struct ChatRequest<'a> {
 #[derive(Serialize)]
 struct RequestMessage<'a> {
     role: &'a str,
-    content: &'a str,
+    content: MessageContent<'a>,
+}
+
+/// Either a plain string (text path, byte-identical to the previous
+/// `&str` form) or an array of content parts when an image is attached.
+#[derive(Serialize)]
+#[serde(untagged)]
+enum MessageContent<'a> {
+    Text(&'a str),
+    Parts(Vec<ContentPart<'a>>),
+}
+
+#[derive(Serialize)]
+#[serde(tag = "type")]
+enum ContentPart<'a> {
+    #[serde(rename = "text")]
+    Text { text: &'a str },
+    #[serde(rename = "image_url")]
+    ImageUrl { image_url: ImageUrl },
+}
+
+#[derive(Serialize)]
+struct ImageUrl {
+    url: String,
 }
 
 #[derive(Deserialize)]
@@ -64,20 +87,41 @@ fn base_url(req: &CompleteRequest) -> Result<String, AdapterError> {
 }
 
 fn build_request(req: &CompleteRequest) -> ChatRequest<'_> {
+    let mut messages: Vec<RequestMessage<'_>> = req
+        .messages
+        .iter()
+        .map(|m| RequestMessage {
+            role: match m.role {
+                ChatRole::User => "user",
+                ChatRole::Assistant => "assistant",
+                ChatRole::System => "system",
+            },
+            content: MessageContent::Text(&m.content),
+        })
+        .collect();
+    // Attach the image (if any) to the most recent user message using the
+    // OpenAI multimodal `image_url` part with an inline data URL.
+    if let Some(img) = req.image.as_ref() {
+        if let Some(msg) = messages.iter_mut().rev().find(|m| m.role == "user") {
+            let text = match msg.content {
+                MessageContent::Text(t) => t,
+                MessageContent::Parts(_) => "",
+            };
+            let mut parts: Vec<ContentPart<'_>> = Vec::new();
+            if !text.is_empty() {
+                parts.push(ContentPart::Text { text });
+            }
+            parts.push(ContentPart::ImageUrl {
+                image_url: ImageUrl {
+                    url: format!("data:{};base64,{}", img.media_type, img.data),
+                },
+            });
+            msg.content = MessageContent::Parts(parts);
+        }
+    }
     ChatRequest {
         model: &req.model,
-        messages: req
-            .messages
-            .iter()
-            .map(|m| RequestMessage {
-                role: match m.role {
-                    ChatRole::User => "user",
-                    ChatRole::Assistant => "assistant",
-                    ChatRole::System => "system",
-                },
-                content: &m.content,
-            })
-            .collect(),
+        messages,
         stream: true,
         temperature: req.temperature.clamp(0.0, 2.0),
         max_tokens: req.max_tokens,
@@ -202,5 +246,52 @@ where
         if !leftover.is_empty() {
             yield Ok(leftover.to_string());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use scribe_shared::{ChatMessage, ImageInput};
+
+    fn request(messages: Vec<ChatMessage>, image: Option<ImageInput>) -> CompleteRequest {
+        CompleteRequest {
+            provider: AIProvider::Openai,
+            model: "gpt-test".into(),
+            base_url: None,
+            api_key: "k".into(),
+            messages,
+            image,
+            temperature: 0.0,
+            max_tokens: Some(16),
+        }
+    }
+
+    #[test]
+    fn text_only_message_serialises_content_as_a_bare_string() {
+        let req = request(
+            vec![ChatMessage { role: ChatRole::User, content: "hi".into() }],
+            None,
+        );
+        let json = serde_json::to_value(build_request(&req)).unwrap();
+        assert_eq!(json["messages"][0]["content"], serde_json::json!("hi"));
+    }
+
+    #[test]
+    fn image_attaches_as_an_image_url_data_url_on_last_user_message() {
+        let req = request(
+            vec![
+                ChatMessage { role: ChatRole::System, content: "sys".into() },
+                ChatMessage { role: ChatRole::User, content: "read it".into() },
+            ],
+            Some(ImageInput { media_type: "image/png".into(), data: "QUJD".into() }),
+        );
+        let json = serde_json::to_value(build_request(&req)).unwrap();
+        let content = &json["messages"][1]["content"];
+        assert!(content.is_array(), "content should be a parts array, got {content}");
+        assert_eq!(content[0]["type"], "text");
+        assert_eq!(content[0]["text"], "read it");
+        assert_eq!(content[1]["type"], "image_url");
+        assert_eq!(content[1]["image_url"]["url"], "data:image/png;base64,QUJD");
     }
 }

@@ -34,7 +34,34 @@ struct MessagesRequest<'a> {
 #[derive(Serialize)]
 struct RequestMessage<'a> {
     role: &'a str,
-    content: &'a str,
+    content: MessageContent<'a>,
+}
+
+/// User-message content is either a plain string (text-only path, which
+/// serialises byte-identically to the previous `&str` form) or an array
+/// of typed blocks when an image is attached.
+#[derive(Serialize)]
+#[serde(untagged)]
+enum MessageContent<'a> {
+    Text(&'a str),
+    Blocks(Vec<ContentBlock<'a>>),
+}
+
+#[derive(Serialize)]
+#[serde(tag = "type")]
+enum ContentBlock<'a> {
+    #[serde(rename = "text")]
+    Text { text: &'a str },
+    #[serde(rename = "image")]
+    Image { source: ImageSource<'a> },
+}
+
+#[derive(Serialize)]
+struct ImageSource<'a> {
+    #[serde(rename = "type")]
+    kind: &'static str,
+    media_type: &'a str,
+    data: &'a str,
 }
 
 #[derive(Deserialize)]
@@ -78,10 +105,35 @@ fn build_request<'a>(req: &'a CompleteRequest) -> MessagesRequest<'a> {
                 // messages are rare in our prompts.)
                 system = Some(m.content.as_str());
             }
-            ChatRole::User => messages.push(RequestMessage { role: "user", content: &m.content }),
-            ChatRole::Assistant => {
-                messages.push(RequestMessage { role: "assistant", content: &m.content })
+            ChatRole::User => messages.push(RequestMessage {
+                role: "user",
+                content: MessageContent::Text(&m.content),
+            }),
+            ChatRole::Assistant => messages.push(RequestMessage {
+                role: "assistant",
+                content: MessageContent::Text(&m.content),
+            }),
+        }
+    }
+    // Attach the image (if any) to the most recent user message as a
+    // content-block array. Claude wants the image block before the text.
+    if let Some(img) = req.image.as_ref() {
+        if let Some(msg) = messages.iter_mut().rev().find(|m| m.role == "user") {
+            let text = match msg.content {
+                MessageContent::Text(t) => t,
+                MessageContent::Blocks(_) => "",
+            };
+            let mut blocks = vec![ContentBlock::Image {
+                source: ImageSource {
+                    kind: "base64",
+                    media_type: &img.media_type,
+                    data: &img.data,
+                },
+            }];
+            if !text.is_empty() {
+                blocks.push(ContentBlock::Text { text });
             }
+            msg.content = MessageContent::Blocks(blocks);
         }
     }
     MessagesRequest {
@@ -191,5 +243,54 @@ where
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use scribe_shared::{AIProvider, ChatMessage, ImageInput};
+
+    fn request(messages: Vec<ChatMessage>, image: Option<ImageInput>) -> CompleteRequest {
+        CompleteRequest {
+            provider: AIProvider::Anthropic,
+            model: "claude-test".into(),
+            base_url: None,
+            api_key: "k".into(),
+            messages,
+            image,
+            temperature: 0.0,
+            max_tokens: Some(16),
+        }
+    }
+
+    #[test]
+    fn text_only_message_serialises_content_as_a_bare_string() {
+        let req = request(
+            vec![ChatMessage { role: ChatRole::User, content: "hello".into() }],
+            None,
+        );
+        let json = serde_json::to_value(build_request(&req)).unwrap();
+        assert_eq!(json["messages"][0]["content"], serde_json::json!("hello"));
+    }
+
+    #[test]
+    fn image_attaches_as_blocks_on_last_user_message() {
+        let req = request(
+            vec![
+                ChatMessage { role: ChatRole::System, content: "sys".into() },
+                ChatMessage { role: ChatRole::User, content: "do it".into() },
+            ],
+            Some(ImageInput { media_type: "image/png".into(), data: "QUJD".into() }),
+        );
+        let json = serde_json::to_value(build_request(&req)).unwrap();
+        let content = &json["messages"][0]["content"];
+        assert!(content.is_array(), "content should be a block array, got {content}");
+        assert_eq!(content[0]["type"], "image");
+        assert_eq!(content[0]["source"]["type"], "base64");
+        assert_eq!(content[0]["source"]["media_type"], "image/png");
+        assert_eq!(content[0]["source"]["data"], "QUJD");
+        assert_eq!(content[1]["type"], "text");
+        assert_eq!(content[1]["text"], "do it");
     }
 }

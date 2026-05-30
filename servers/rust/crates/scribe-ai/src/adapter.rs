@@ -14,7 +14,7 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::BoxStream;
-use scribe_shared::{AIProvider, ChatMessage};
+use scribe_shared::{AIProvider, ChatMessage, ImageInput};
 use thiserror::Error;
 
 pub use crate::providers::{anthropic, gemini, openai};
@@ -40,6 +40,9 @@ pub struct CompleteRequest {
     pub base_url: Option<String>,
     pub api_key: String,
     pub messages: Vec<ChatMessage>,
+    /// Optional inline image, attached to the last user message by
+    /// vision-capable adapters. `None` for the text-only path.
+    pub image: Option<ImageInput>,
     /// Sampling temperature. 0–2 in OpenAI; clamped per-provider.
     pub temperature: f32,
     /// Max output tokens. None ⇒ adapter default.
@@ -65,6 +68,7 @@ impl CompleteRequest {
             base_url,
             api_key,
             messages,
+            image: None,
             temperature: 0.4,
             max_tokens: None,
         }

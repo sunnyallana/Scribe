@@ -33,8 +33,22 @@ struct Content<'a> {
 }
 
 #[derive(Serialize)]
-struct Part<'a> {
-    text: &'a str,
+#[serde(untagged)]
+enum Part<'a> {
+    Text {
+        text: &'a str,
+    },
+    InlineData {
+        #[serde(rename = "inline_data")]
+        inline_data: InlineData<'a>,
+    },
+}
+
+#[derive(Serialize)]
+struct InlineData<'a> {
+    #[serde(rename = "mime_type")]
+    mime_type: &'a str,
+    data: &'a str,
 }
 
 #[derive(Serialize)]
@@ -84,19 +98,31 @@ fn build_request<'a>(req: &'a CompleteRequest) -> GenerateRequest<'a> {
             ChatRole::System => system = Some(m.content.as_str()),
             ChatRole::User => contents.push(Content {
                 role: "user",
-                parts: vec![Part { text: &m.content }],
+                parts: vec![Part::Text { text: &m.content }],
             }),
             ChatRole::Assistant => contents.push(Content {
                 role: "model",
-                parts: vec![Part { text: &m.content }],
+                parts: vec![Part::Text { text: &m.content }],
             }),
+        }
+    }
+    // Attach the image (if any) as an extra inline-data part on the most
+    // recent user turn.
+    if let Some(img) = req.image.as_ref() {
+        if let Some(content) = contents.iter_mut().rev().find(|c| c.role == "user") {
+            content.parts.push(Part::InlineData {
+                inline_data: InlineData {
+                    mime_type: &img.media_type,
+                    data: &img.data,
+                },
+            });
         }
     }
     GenerateRequest {
         contents,
         system_instruction: system.map(|text| Content {
             role: "system",
-            parts: vec![Part { text }],
+            parts: vec![Part::Text { text }],
         }),
         generation_config: GenerationConfig {
             temperature: req.temperature.clamp(0.0, 1.0),
@@ -201,5 +227,51 @@ where
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use scribe_shared::{AIProvider, ChatMessage, ImageInput};
+
+    fn request(messages: Vec<ChatMessage>, image: Option<ImageInput>) -> CompleteRequest {
+        CompleteRequest {
+            provider: AIProvider::Gemini,
+            model: "gemini-test".into(),
+            base_url: None,
+            api_key: "k".into(),
+            messages,
+            image,
+            temperature: 0.0,
+            max_tokens: Some(16),
+        }
+    }
+
+    #[test]
+    fn text_only_user_turn_has_a_single_text_part() {
+        let req = request(
+            vec![ChatMessage { role: ChatRole::User, content: "hi".into() }],
+            None,
+        );
+        let json = serde_json::to_value(build_request(&req)).unwrap();
+        assert_eq!(json["contents"][0]["parts"][0]["text"], "hi");
+        assert!(json["contents"][0]["parts"][1].is_null());
+    }
+
+    #[test]
+    fn image_appends_an_inline_data_part_to_last_user_turn() {
+        let req = request(
+            vec![
+                ChatMessage { role: ChatRole::System, content: "sys".into() },
+                ChatMessage { role: ChatRole::User, content: "read it".into() },
+            ],
+            Some(ImageInput { media_type: "image/png".into(), data: "QUJD".into() }),
+        );
+        let json = serde_json::to_value(build_request(&req)).unwrap();
+        let parts = &json["contents"][0]["parts"];
+        assert_eq!(parts[0]["text"], "read it");
+        assert_eq!(parts[1]["inline_data"]["mime_type"], "image/png");
+        assert_eq!(parts[1]["inline_data"]["data"], "QUJD");
     }
 }

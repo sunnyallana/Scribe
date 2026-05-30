@@ -14,8 +14,8 @@ use chrono::Utc;
 use futures::stream::BoxStream;
 use scribe_ai::{adapter_for, system_prompt, AdapterError, CompleteRequest, CompletionChunk, CryptoBox};
 use scribe_shared::{
-    mask_api_key, AICompleteInput, AIConfigPublic, AIConfigStored, AIPingResult, AIProvider,
-    ApiError, ApiResult, ChatMessage, ChatRole, ErrorCode, UpdateAIConfigInput, UserId,
+    mask_api_key, AICompleteInput, AIConfigPublic, AIConfigStored, AIFeature, AIPingResult,
+    AIProvider, ApiError, ApiResult, ChatMessage, ChatRole, ErrorCode, UpdateAIConfigInput, UserId,
 };
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -110,6 +110,7 @@ impl AIService {
             base_url: stored.base_url.clone(),
             api_key,
             messages: Vec::new(),
+            image: None,
             temperature: 0.0,
             max_tokens: Some(1),
         };
@@ -157,7 +158,23 @@ impl AIService {
         messages.extend(history.into_iter().skip(history_skip));
         if !input.selection.is_empty() {
             messages.push(ChatMessage { role: ChatRole::User, content: input.selection });
+        } else if input.image.is_some() {
+            // Vision features (e.g. handwriting OCR) may carry no text
+            // selection. The adapters attach the image to the last user
+            // message, so synthesise a minimal instruction to hang it on.
+            messages.push(ChatMessage {
+                role: ChatRole::User,
+                content: "Transcribe the mathematics in this image into a single LaTeX expression."
+                    .to_string(),
+            });
         }
+
+        // OCR wants determinism and only needs a short reply; the other
+        // features keep the conversational defaults.
+        let (temperature, max_tokens) = match input.feature {
+            AIFeature::RecognizeEquation => (0.0, Some(512)),
+            _ => (0.4, Some(2048)),
+        };
 
         let req = CompleteRequest {
             provider: stored.provider,
@@ -165,8 +182,9 @@ impl AIService {
             base_url: stored.base_url,
             api_key,
             messages,
-            temperature: 0.4,
-            max_tokens: Some(2048),
+            image: input.image,
+            temperature,
+            max_tokens,
         };
         let adapter = adapter_for(stored.provider);
         adapter

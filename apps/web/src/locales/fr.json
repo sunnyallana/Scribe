@@ -2,6 +2,24 @@
   "appName": "Scribe",
   "appTagline": "Édition LaTeX collaborative pour tous",
 
+  "handwriting": {
+    "title": "Manuscrit vers LaTeX",
+    "description": "Dessinez ou importez une équation manuscrite et convertissez-la en LaTeX avec votre modèle d'IA configuré.",
+    "tabDraw": "Dessiner",
+    "tabUpload": "Importer",
+    "clear": "Effacer",
+    "undo": "Annuler",
+    "uploadCta": "Choisir une image",
+    "uploadHint": "Importez, déposez ou collez l'image d'une équation manuscrite.",
+    "replace": "Remplacer l'image",
+    "convert": "Convertir en LaTeX",
+    "converting": "Conversion…",
+    "resultLabel": "LaTeX reconnu",
+    "resultPlaceholder": "Le LaTeX reconnu apparaît ici. Vous pouvez le modifier avant de l'insérer.",
+    "insert": "Insérer dans l'éditeur",
+    "empty": "Dessinez ou importez d'abord une équation."
+  },
+
   "theme": {
     "label": "Thème",
     "light": "Clair",

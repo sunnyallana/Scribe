@@ -354,6 +354,24 @@
     "empty": "No symbols match your search."
   },
 
+  "handwriting": {
+    "title": "Handwriting to LaTeX",
+    "description": "Draw or upload a handwritten equation and convert it to LaTeX with your configured AI model.",
+    "tabDraw": "Draw",
+    "tabUpload": "Upload",
+    "clear": "Clear",
+    "undo": "Undo",
+    "uploadCta": "Choose an image",
+    "uploadHint": "Upload, drop, or paste an image of a handwritten equation.",
+    "replace": "Replace image",
+    "convert": "Convert to LaTeX",
+    "converting": "Converting…",
+    "resultLabel": "Recognized LaTeX",
+    "resultPlaceholder": "The recognized LaTeX appears here. You can edit it before inserting.",
+    "insert": "Insert into editor",
+    "empty": "Draw or upload an equation first."
+  },
+
   "status": {
     "lineCol": "Ln {{line}}, Col {{column}}",
     "saving": "Saving…",

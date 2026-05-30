@@ -17,7 +17,7 @@ pub mod versions;
 
 pub use ai::{
     mask_api_key, AICompleteInput, AIConfigPublic, AIConfigStored, AIFeature, AIPingResult,
-    AIProvider, ChatMessage, ChatRole, UpdateAIConfigInput,
+    AIProvider, ChatMessage, ChatRole, ImageInput, UpdateAIConfigInput,
 };
 pub use comments::{Comment, CreateCommentInput, UpdateCommentInput};
 pub use compiles::{

@@ -17,6 +17,7 @@ export const aiFeatureSchema = z.enum([
   'summarize',
   'translate',
   'generate-equation',
+  'recognize-equation',
   'explain-command',
   'complete-sentence',
   'caption',
@@ -47,6 +48,14 @@ export const updateAIConfigInputSchema = z.object({
 });
 export type UpdateAIConfigInput = z.infer<typeof updateAIConfigInputSchema>;
 
+/** A single inline image for vision features (e.g. handwriting OCR).
+ *  `data` is base64 of the raw image bytes (no `data:` URL prefix). */
+export const aiImageInputSchema = z.object({
+  mediaType: z.string().min(1).max(100),
+  data: z.string().min(1),
+});
+export type AIImageInput = z.infer<typeof aiImageInputSchema>;
+
 export const aiCompleteInputSchema = z.object({
   feature: aiFeatureSchema,
   /** The user's selected text (or full doc if nothing selected). */
@@ -63,6 +72,8 @@ export const aiCompleteInputSchema = z.object({
     )
     .max(40)
     .optional(),
+  /** Vision features only: a single attached image. */
+  image: aiImageInputSchema.optional(),
 });
 export type AICompleteInput = z.infer<typeof aiCompleteInputSchema>;
 
