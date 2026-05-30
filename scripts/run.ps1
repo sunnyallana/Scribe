@@ -38,13 +38,18 @@ if (Listening 6379) {
   Write-Host "✓ Redis already running on :6379" -ForegroundColor Green
 } else {
   # Try the path the setup script installed to, then PATH lookups.
+  # Outer `@(...)` keeps the result an array even when Where-Object
+  # returns one match; otherwise PowerShell unwraps it to a string and
+  # `$candidates[0]` returns the first character of the path ("C").
   $candidates = @(
-    "$env:USERPROFILE\scribe-tools\redis-5.0.14.1\redis-server.exe",
-    (Get-Command redis-server -ErrorAction SilentlyContinue).Source,
-    (Get-Command memurai -ErrorAction SilentlyContinue).Source
-  ) | Where-Object { $_ -and (Test-Path $_) }
+    @(
+      "$env:USERPROFILE\scribe-tools\redis-5.0.14.1\redis-server.exe",
+      (Get-Command redis-server -ErrorAction SilentlyContinue).Source,
+      (Get-Command memurai -ErrorAction SilentlyContinue).Source
+    ) | Where-Object { $_ -and (Test-Path $_) }
+  )
 
-  if (-not $candidates) {
+  if ($candidates.Count -eq 0) {
     Fail "Redis isn't running and no redis-server.exe / memurai.exe found. Run .\scripts\setup.ps1 first."
   }
   $redisBin = $candidates[0]
