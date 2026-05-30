@@ -28,6 +28,7 @@ import {
   Loader2,
   MessageSquare,
   MoreHorizontal,
+  PenLine,
   Play,
   Replace as ReplaceIcon,
   Search,
@@ -48,6 +49,7 @@ import { EditorTabs } from '../../components/Editor/EditorTabs';
 import { LatexEditor, type LatexEditorImperativeHandle } from '../../components/Editor/LatexEditor';
 import { PresenceAvatars } from '../../components/Editor/PresenceAvatars';
 import { ErrorBoundary } from '../../components/ErrorBoundary/ErrorBoundary';
+import { HandwritingToLatex } from '../../components/HandwritingToLatex/HandwritingToLatex';
 import { ImageViewer } from '../../components/ImageViewer/ImageViewer';
 import { Splitter } from '../../components/Layout/Splitter';
 import { MathPalette } from '../../components/MathPalette/MathPalette';
@@ -197,6 +199,7 @@ export function ProjectWorkspace({
   const [cursorCol, setCursorCol] = useState<number>(1);
   const [rightPanel, setRightPanel] = useState<RightPanelId>(null);
   const [aiPaletteOpen, setAIPaletteOpen] = useState(false);
+  const [handwritingOpen, setHandwritingOpen] = useState(false);
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
   const previewPanelRef = useRef<ImperativePanelHandle>(null);
   const [previewCollapsed, setPreviewCollapsed] = useState(false);
@@ -1411,6 +1414,18 @@ export function ProjectWorkspace({
           <Button
             variant="ghost"
             size="icon"
+            aria-label={t('handwriting.title')}
+            className="h-7 w-7"
+            onClick={() => {
+              setHandwritingOpen(true);
+            }}
+            title={t('handwriting.title')}
+          >
+            <PenLine className="h-3.5 w-3.5" aria-hidden="true" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             aria-label={t('command.title')}
             className="h-7 w-7"
             onClick={() => {
@@ -1653,6 +1668,11 @@ export function ProjectWorkspace({
         open={aiPaletteOpen}
         onOpenChange={setAIPaletteOpen}
         selection={aiSelection}
+        onInsert={handleAIInsert}
+      />
+      <HandwritingToLatex
+        open={handwritingOpen}
+        onOpenChange={setHandwritingOpen}
         onInsert={handleAIInsert}
       />
       <CommandPalette

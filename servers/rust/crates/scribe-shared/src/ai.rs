@@ -65,6 +65,9 @@ pub enum AIFeature {
     Summarize,
     Translate,
     GenerateEquation,
+    /// Handwriting / image to LaTeX OCR. Requires a vision-capable model
+    /// and an attached `image` on the request.
+    RecognizeEquation,
     ExplainCommand,
     CompleteSentence,
     Caption,
@@ -136,6 +139,20 @@ pub struct AICompleteInput {
     pub options: Option<HashMap<String, String>>,
     #[serde(default)]
     pub history: Option<Vec<ChatMessage>>,
+    /// Optional image for vision features (e.g. handwriting OCR). Only
+    /// honoured by vision-capable models; ignored by the text path.
+    #[serde(default)]
+    pub image: Option<ImageInput>,
+}
+
+/// A single inline image attached to an AI request. `data` is the raw
+/// base64 of the image bytes (no `data:` URL prefix); `media_type` is the
+/// MIME type such as `image/png`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageInput {
+    pub media_type: String,
+    pub data: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

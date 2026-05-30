@@ -2,6 +2,24 @@
   "appName": "Scribe",
   "appTagline": "Gemeinsames LaTeX-Editieren für alle",
 
+  "handwriting": {
+    "title": "Handschrift zu LaTeX",
+    "description": "Zeichne oder lade eine handschriftliche Gleichung hoch und wandle sie mit deinem konfigurierten KI-Modell in LaTeX um.",
+    "tabDraw": "Zeichnen",
+    "tabUpload": "Hochladen",
+    "clear": "Löschen",
+    "undo": "Rückgängig",
+    "uploadCta": "Bild auswählen",
+    "uploadHint": "Lade das Bild einer handschriftlichen Gleichung hoch, ziehe es hierher oder füge es ein.",
+    "replace": "Bild ersetzen",
+    "convert": "In LaTeX umwandeln",
+    "converting": "Wird umgewandelt…",
+    "resultLabel": "Erkanntes LaTeX",
+    "resultPlaceholder": "Das erkannte LaTeX erscheint hier. Du kannst es vor dem Einfügen bearbeiten.",
+    "insert": "In den Editor einfügen",
+    "empty": "Zeichne oder lade zuerst eine Gleichung."
+  },
+
   "theme": {
     "label": "Design",
     "light": "Hell",

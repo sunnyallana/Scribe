@@ -74,6 +74,12 @@ export function buildPrompt({
       );
     }
 
+    case 'recognize-equation':
+      return basePrompt(
+        'Transcribe the handwritten mathematics in the attached image into a single LaTeX expression. Output only the LaTeX source: no delimiters, no prose.',
+        'Transcribe the handwritten equation to LaTeX.',
+      );
+
     case 'explain-command': {
       const command = options.command ?? selection.trim();
       return basePrompt(

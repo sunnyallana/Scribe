@@ -37,6 +37,13 @@ pub fn system_prompt(feature: AIFeature) -> &'static str {
             "You are a LaTeX equation generator. Given the user's description, \
              output ONLY the LaTeX equation source (no $ delimiters, no commentary)."
         }
+        AIFeature::RecognizeEquation => {
+            "You are a handwriting-to-LaTeX OCR engine. The user message includes \
+             an image of one handwritten mathematical expression. Transcribe it \
+             into a single valid LaTeX math expression. Reply with ONLY the LaTeX \
+             source: no $ or \\[ \\] delimiters, no surrounding prose, no markdown \
+             fences, and no commentary."
+        }
         AIFeature::ExplainCommand => {
             "Explain the provided LaTeX command or environment in 1–2 plain \
              sentences. Mention the most common pitfalls."

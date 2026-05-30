@@ -2,6 +2,24 @@
   "appName": "Scribe",
   "appTagline": "Edición colaborativa de LaTeX para todos",
 
+  "handwriting": {
+    "title": "Manuscrito a LaTeX",
+    "description": "Dibuja o sube una ecuación manuscrita y conviértela a LaTeX con tu modelo de IA configurado.",
+    "tabDraw": "Dibujar",
+    "tabUpload": "Subir",
+    "clear": "Borrar",
+    "undo": "Deshacer",
+    "uploadCta": "Elegir una imagen",
+    "uploadHint": "Sube, arrastra o pega la imagen de una ecuación manuscrita.",
+    "replace": "Reemplazar imagen",
+    "convert": "Convertir a LaTeX",
+    "converting": "Convirtiendo…",
+    "resultLabel": "LaTeX reconocido",
+    "resultPlaceholder": "El LaTeX reconocido aparece aquí. Puedes editarlo antes de insertarlo.",
+    "insert": "Insertar en el editor",
+    "empty": "Primero dibuja o sube una ecuación."
+  },
+
   "theme": {
     "label": "Tema",
     "light": "Claro",
