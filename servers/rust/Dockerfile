@@ -2,7 +2,7 @@
 
 # -------- 1. Plan: collect dep info for cargo-chef so we can cache the
 #                   slow `cargo build` step across rebuilds. --------
-FROM rust:1.80-bookworm AS chef
+FROM rust:1.82-bookworm AS chef
 WORKDIR /app
 RUN cargo install cargo-chef --locked
 
@@ -34,7 +34,7 @@ COPY packages packages
 RUN corepack enable && CI=true pnpm install --frozen-lockfile
 RUN pnpm --filter @scribe/web build
 
-# -------- 4. Runtime image: distroless for smallest attack surface. --------
+# -------- 4. Runtime image: debian-slim, kept minimal (glibc, matches build base). --------
 #            Tectonic is pulled in as a static binary; we copy it into
 #            /usr/local/bin so the worker's PATH lookup finds it.
 FROM debian:bookworm-slim AS runtime
