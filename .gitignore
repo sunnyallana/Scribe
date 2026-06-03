@@ -21,6 +21,9 @@ lerna-debug.log*
 .env
 .env.local
 .env.*.local
+# Timestamped backups written by scripts/setup-env.mjs — they carry the
+# same secrets as .env and must never be committable.
+.env.bak-*
 !.env.example
 
 # Editors
@@ -86,6 +89,7 @@ servers/rust/target/
 # debug scripts that landed in the repo during a debug session.
 dump.rdb
 servers/rust/redis.pid
+servers/rust/runtime.pid
 servers/rust/runtime.out.log
 servers/rust/runtime.err.log
 servers/rust/redis.out.log

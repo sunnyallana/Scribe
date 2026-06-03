@@ -1,6 +1,6 @@
 # Scripts
 
-Operational tooling for Scribe. Top level holds the six user-facing
+Operational tooling for Scribe. Top level holds the seven user-facing
 scripts; everything else is grouped under three subfolders.
 
 ```
@@ -8,6 +8,7 @@ scripts/
 ├── README.md              ← you are here
 ├── setup.sh               ← one-shot install (Linux + macOS)
 ├── setup.ps1              ← one-shot install (Windows)
+├── setup-env.mjs          ← interactive .env wizard (validates keys, finds your DB host)
 ├── run.sh                 ← start Redis + API + Vite SPA together
 ├── run.ps1                ← start Redis + API + Vite SPA together (Windows)
 ├── run-desktop.sh         ← start Redis + API + Tauri desktop together
@@ -62,13 +63,37 @@ Output is prefixed `[api]` / `[tauri]`. First launch links the Rust shell from s
 
 ## `.env`
 
-`setup` copies `.env.example` → `.env` on first run and warns. Before `run` works, you need to fill in at minimum:
+The interactive wizard asks for the four values only you can provide and
+derives, validates, and writes everything else:
+
+```bash
+node scripts/setup-env.mjs
+```
+
+You'll be prompted for the Supabase **project URL**, **publishable/anon
+key**, **secret/service_role key**, and **database password** (reset it
+under Settings → Database if unknown — the dashboard never displays it).
+The wizard validates each key against your live project, sweeps the
+regional poolers to discover the right `DATABASE_URL` host (the direct
+`db.<ref>` endpoint is IPv6-only), reads your JWKS to decide whether
+`SUPABASE_JWT_SECRET` is even needed (ES256/RS256 projects: no),
+generates `AI_KEY_ENCRYPTION_KEY` locally, auto-detects tectonic, and
+mirrors the `VITE_*` pair. Existing `.env` files are backed up first.
+Both key generations work: new `sb_publishable_…`/`sb_secret_…` API keys
+and legacy `eyJ…` JWTs.
+
+To fill things in by hand instead: `setup` copies `.env.example` → `.env`
+on first run and warns. Before `run` works, you need at minimum:
 
 - `DATABASE_URL` — Supabase Postgres connection string (session pooler, port 5432).
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`.
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (same values).
 - `REDIS_URL=redis://127.0.0.1:6379` (already in `.env.example`).
 - Optional: `TECTONIC_BIN`, `CHKTEX_BIN`, `AI_KEY_ENCRYPTION_KEY` (`openssl rand -base64 32`).
+
+Windows path values (`TECTONIC_BIN` etc.) must use **forward slashes** —
+dotenv parsers treat backslashes in unquoted values as escape characters
+and silently drop the line.
 
 ## Distro-specific notes
 

@@ -45,8 +45,11 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-r
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 
-# Auth
-jsonwebtoken = "10"
+# Auth. `rust_crypto` selects the pure-Rust CryptoProvider backend —
+# jsonwebtoken 10's defaults ship *no* backend, and the first ES256
+# verify panics at runtime with "Could not automatically determine the
+# process-level CryptoProvider" unless exactly one is enabled.
+jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 
 # HTTP client. Enable `gzip` + `brotli` so Supabase Storage responses
 # with Content-Encoding land decompressed in our buffers — without it

@@ -13,7 +13,8 @@ thiserror.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 axum = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
 
 [features]
 default = ["axum"]
-axum = ["dep:axum"]
+axum = ["dep:axum", "dep:tracing"]

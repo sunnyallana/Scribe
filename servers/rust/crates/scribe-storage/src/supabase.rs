@@ -16,7 +16,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use reqwest::{Client, StatusCode};
 use scribe_shared::{ApiError, ApiResult, ErrorCode};
 use serde::{Deserialize, Serialize};
@@ -61,6 +61,12 @@ pub struct SupabaseStorage {
     base_url: String,
     /// Cached `Authorization: Bearer …` header value (service-role JWT).
     auth: HeaderValue,
+    /// Cached `apikey` header value. Legacy JWT service keys work with
+    /// the Bearer header alone, but the newer `sb_secret_…` API keys
+    /// aren't JWTs — the gateway rejects them with "Invalid Compact
+    /// JWS" unless the key also rides in `apikey` (supabase-js always
+    /// sends both).
+    apikey: HeaderValue,
 }
 
 impl SupabaseStorage {
@@ -68,6 +74,9 @@ impl SupabaseStorage {
         let mut auth = HeaderValue::from_str(&format!("Bearer {service_role_key}"))
             .map_err(|err| ApiError::internal(format!("invalid service role key: {err}")))?;
         auth.set_sensitive(true);
+        let mut apikey = HeaderValue::from_str(service_role_key)
+            .map_err(|err| ApiError::internal(format!("invalid service role key: {err}")))?;
+        apikey.set_sensitive(true);
 
         // Keep the connection pool warm so concurrent download/upload
         // bursts (e.g. 23 project files × HTTPS RTT) multiplex over a
@@ -90,6 +99,7 @@ impl SupabaseStorage {
             http,
             base_url: supabase_url.trim_end_matches('/').to_string(),
             auth,
+            apikey,
         })
     }
 
@@ -108,6 +118,7 @@ impl SupabaseStorage {
     fn base_headers(&self) -> HeaderMap {
         let mut h = HeaderMap::new();
         h.insert(AUTHORIZATION, self.auth.clone());
+        h.insert(HeaderName::from_static("apikey"), self.apikey.clone());
         h
     }
 }

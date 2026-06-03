@@ -94,6 +94,12 @@ mod axum_impl {
         fn into_response(self) -> Response {
             let status = StatusCode::from_u16(self.code.http_status())
                 .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+            // 5xx bodies go to the client but would otherwise leave no
+            // server-side trace — TraceLayer only logs the status code.
+            // Log them here so production 500s are diagnosable from logs.
+            if status.is_server_error() {
+                tracing::error!(code = ?self.code, message = %self.message, "api error");
+            }
             let body = ApiErrorBody { code: self.code, message: self.message };
             (status, Json(body)).into_response()
         }
