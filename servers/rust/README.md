@@ -8,10 +8,10 @@ runtime, no container choreography to get started.
 ## What's in it for self-hosters
 
 - **One binary**: `cargo run -p scribe-server` is the whole backend.
-- **One-shot setup scripts**: `./scripts/setup.sh` (Linux apt / dnf /
-  pacman + macOS Homebrew) or `.\scripts\setup.ps1` (Windows + winget)
+- **One-shot setup scripts**: `./scripts/linux-macos/setup.sh` (Linux apt / dnf /
+  pacman + macOS Homebrew) or `.\scripts\windows\setup.ps1` (Windows + winget)
   install every runtime dep and pre-build the workspace.
-  `./scripts/run.sh` / `.\scripts\run.ps1` brings up Redis + API + SPA
+  `./scripts/linux-macos/run.sh` / `.\scripts\run.ps1` brings up Redis + API + SPA
   with prefixed log streams.
 - **Switchable compile engine with fallback**: `tectonic` (single
   static binary, auto-fetched packages, ~4 s warm) or `latexmk`-style

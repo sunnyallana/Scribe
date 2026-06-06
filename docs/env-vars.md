@@ -13,22 +13,22 @@ will start; everything else has a sensible default.
 
 ## Quick map
 
-| Variable                                     | Where to get it                                                                                              | Required?                                 |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
-| `DATABASE_URL`                               | Supabase → Project Settings → Database → Connection string → **Session pooler (5432)**                       | yes                                       |
-| `SUPABASE_URL`                               | Supabase → Project Settings → API → **Project URL**                                                          | yes                                       |
-| `SUPABASE_ANON_KEY`                          | Supabase → Project Settings → API → **anon / public** key                                                    | yes                                       |
-| `SUPABASE_SERVICE_ROLE_KEY`                  | Supabase → Project Settings → API → **service_role** key                                                     | yes                                       |
-| `SUPABASE_JWT_SECRET`                        | Supabase → Project Settings → API → **JWT Secret** (legacy "JWT Settings" tab on the old dashboard)          | yes                                       |
-| `VITE_SUPABASE_URL`                          | same value as `SUPABASE_URL`                                                                                 | yes                                       |
-| `VITE_SUPABASE_ANON_KEY`                     | same value as `SUPABASE_ANON_KEY`                                                                            | yes                                       |
-| `VITE_API_URL`                               | URL the SPA should hit; `http://localhost:3000` for dev, your reverse-proxy origin in prod                   | yes                                       |
-| `REDIS_URL`                                  | Your Redis instance; `redis://127.0.0.1:6379` for a local Docker / native install                            | yes (compile queue won't start otherwise) |
-| `AI_KEY_ENCRYPTION_KEY`                      | `openssl rand -base64 32` (or `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`) | yes if any user enables AI                |
-| `SMTP_*`                                     | Your SMTP relay (Resend, Postmark, Mailgun, Gmail App Password, …)                                           | optional — falls back to invites-by-link  |
-| `COMPILE_ENGINE` / `COMPILE_FALLBACK_ENGINE` | `tectonic` or `latexmk`                                                                                      | optional, defaults to `tectonic`          |
-| `TECTONIC_BIN` / `LATEXMK_BIN`               | Absolute path to the binary if not on `$PATH`                                                                | optional                                  |
-| `CHKTEX_BIN`                                 | Path to `chktex` (ships with TeX Live / MiKTeX)                                                              | optional, off when unset                  |
+| Variable                                     | Where to get it                                                                                                 | Required?                                 |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `DATABASE_URL`                               | Supabase → Project Settings → Database → Connection string → **Session pooler (5432)**                          | yes                                       |
+| `SUPABASE_URL`                               | Supabase → Project Settings → API → **Project URL**                                                             | yes                                       |
+| `SUPABASE_ANON_KEY`                          | Supabase → Project Settings → API Keys → **publishable** key (`sb_publishable_…`; legacy `anon` JWT also works) | yes                                       |
+| `SUPABASE_SERVICE_ROLE_KEY`                  | Supabase → Project Settings → API Keys → **secret** key (`sb_secret_…`; legacy `service_role` JWT also works)   | yes                                       |
+| `SUPABASE_JWT_SECRET`                        | Supabase → Project Settings → API → **JWT Secret** — only exists on legacy HS256 projects                       | only for legacy HS256 projects (see §3)   |
+| `VITE_SUPABASE_URL`                          | same value as `SUPABASE_URL`                                                                                    | yes                                       |
+| `VITE_SUPABASE_ANON_KEY`                     | same value as `SUPABASE_ANON_KEY`                                                                               | yes                                       |
+| `VITE_API_URL`                               | URL the SPA should hit; `http://localhost:3000` for dev, your reverse-proxy origin in prod                      | yes                                       |
+| `REDIS_URL`                                  | Your Redis instance; `redis://127.0.0.1:6379` for a local Docker / native install                               | yes (compile queue won't start otherwise) |
+| `AI_KEY_ENCRYPTION_KEY`                      | `openssl rand -base64 32` (or `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`)    | yes if any user enables AI                |
+| `SMTP_*`                                     | Your SMTP relay (Resend, Postmark, Mailgun, Gmail App Password, …)                                              | optional — falls back to invites-by-link  |
+| `COMPILE_ENGINE` / `COMPILE_FALLBACK_ENGINE` | `tectonic` or `latexmk`                                                                                         | optional, defaults to `tectonic`          |
+| `TECTONIC_BIN` / `LATEXMK_BIN`               | Absolute path to the binary if not on `$PATH`                                                                   | optional                                  |
+| `CHKTEX_BIN`                                 | Path to `chktex` (ships with TeX Live / MiKTeX)                                                                 | optional, off when unset                  |
 
 ---
 
@@ -42,21 +42,25 @@ finish provisioning before grabbing keys.
 
 ### 2. Get the API keys
 
-**Settings → API**. Copy:
+**Settings → API Keys**. New projects show the current key format; both formats work:
 
 - **Project URL** → `SUPABASE_URL` _and_ `VITE_SUPABASE_URL`
-- **Project API keys → anon public** → `SUPABASE_ANON_KEY` _and_ `VITE_SUPABASE_ANON_KEY`
-- **Project API keys → service_role** → `SUPABASE_SERVICE_ROLE_KEY`
+- **Publishable key** (`sb_publishable_…`; legacy **anon public** JWT on older projects)
+  → `SUPABASE_ANON_KEY` _and_ `VITE_SUPABASE_ANON_KEY`
+- **Secret key** (`sb_secret_…`; legacy **service_role** JWT on older projects)
+  → `SUPABASE_SERVICE_ROLE_KEY`
 
-The `service_role` key bypasses RLS. Treat it like a root password — it goes on the
+The secret key bypasses RLS. Treat it like a root password — it goes on the
 server only, never to the browser.
 
-### 3. Get the JWT secret
+### 3. Get the JWT secret (legacy projects only)
 
-Same **Settings → API** page, scroll to **JWT Settings → JWT Secret** (Supabase's new
-dashboard buries it under the legacy block). Copy it into `SUPABASE_JWT_SECRET`. The
-server uses it to verify access tokens locally; without it every request would have to
-round-trip to `/auth/v1/user`.
+**New Supabase projects sign access tokens with ES256 and you can leave
+`SUPABASE_JWT_SECRET` empty** — the server verifies tokens via the project's public
+JWKS endpoint automatically. Only older projects that still sign with HS256 need the
+secret: same **Settings → API** page, **JWT Settings → JWT Secret**, copied into
+`SUPABASE_JWT_SECRET`. (Either way verification happens locally; no per-request
+round-trip to `/auth/v1/user`.)
 
 ### 4. Get the database URL
 
@@ -65,17 +69,25 @@ not the direct connection or the transaction pooler — sqlx's prepared statemen
 a session-mode pooler to behave. The URL looks like:
 
 ```
-postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+postgresql://postgres.<project-ref>:<password>@aws-1-<region>.pooler.supabase.com:5432/postgres
 ```
 
-Paste it into `DATABASE_URL`. URL-encode any `@` / `:` / `%` in the password.
+(`aws-0-` or `aws-1-` depending on when the project was created — copy whatever the
+dashboard shows.) Paste it into `DATABASE_URL`. URL-encode any `@` / `:` / `%` in the
+password. Tip: `node scripts/setup-env.mjs` discovers the right pooler host for you
+from just the password.
 
 ### 5. Run the migrations
 
+The Supabase CLI ships as a devDependency, so call it through `pnpm exec`:
+
 ```bash
-pnpm supabase:start     # if you're on the local stack
-supabase db push        # or apply manually against a hosted project
+pnpm exec supabase login                              # one-time, opens the browser
+pnpm exec supabase link --project-ref <project-ref>   # asks for the database password
+pnpm exec supabase db push                            # applies supabase/migrations/
 ```
+
+On the local Docker stack, `pnpm supabase:start` applies them automatically.
 
 Both `psql` against `DATABASE_URL` and `supabase migration up` work for hosted
 projects. Either way, the migrations in [`supabase/migrations/`](../supabase/migrations)
@@ -176,7 +188,7 @@ Scribe finds compile engines via `$PATH` by default; override the location with
 | `chktex`                            | Same TeX Live / MiKTeX install. Optional but recommended.                                                                           |
 | `pandoc`                            | <https://pandoc.org/installing.html>. Optional, only needed for the Markdown / DOCX export.                                         |
 
-`scripts/setup.sh` / `scripts/setup.ps1` install all of these on a fresh box for
+`scripts/linux-macos/setup.sh` / `scripts/windows/setup.ps1` install all of these on a fresh box for
 their respective OS; see [`scripts/README.md`](../scripts/README.md).
 
 ---

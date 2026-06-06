@@ -15,11 +15,11 @@
 # project-level dependencies.
 #
 # Idempotent: re-running skips anything already present.
-# Usage:  ./scripts/setup.sh
-#         ./scripts/setup.sh --skip-rust       (if you already have rustup)
-#         ./scripts/setup.sh --no-optional     (skip pandoc + chktex)
-#         ./scripts/setup.sh --no-desktop      (skip Tauri / desktop libs)
-#         ./scripts/setup.sh --skip-build      (skip the final cargo build pre-warm)
+# Usage:  ./scripts/linux-macos/setup.sh
+#         ./scripts/linux-macos/setup.sh --skip-rust       (if you already have rustup)
+#         ./scripts/linux-macos/setup.sh --no-optional     (skip pandoc + chktex)
+#         ./scripts/linux-macos/setup.sh --no-desktop      (skip Tauri / desktop libs)
+#         ./scripts/linux-macos/setup.sh --skip-build      (skip the final cargo build pre-warm)
 
 set -euo pipefail
 
@@ -59,7 +59,7 @@ esac
 info "Detected OS: ${BOLD}$OS${RESET}"
 
 # Project root = parent of this script's directory.
-REPO_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
+REPO_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../.." && pwd )"
 cd "$REPO_ROOT"
 info "Project root: $REPO_ROOT"
 
@@ -316,7 +316,8 @@ if [[ ! -f "$REPO_ROOT/.env" ]]; then
   if [[ -f "$REPO_ROOT/.env.example" ]]; then
     info "No .env found — copying from .env.example"
     cp "$REPO_ROOT/.env.example" "$REPO_ROOT/.env"
-    warn "Edit .env and fill in your SUPABASE_* keys + DATABASE_URL before running the API."
+    warn "Fill in your SUPABASE_* keys + DATABASE_URL before running the API."
+    warn "Easiest way: node scripts/setup-env.mjs — prompts for each value and validates it live."
   else
     warn "No .env or .env.example present. The API will start in degraded mode."
   fi
@@ -329,10 +330,16 @@ info "Installing JS workspace dependencies (pnpm install)…"
 CI=true pnpm install
 
 if [[ "$SKIP_BUILD" == "0" ]]; then
+  # The @scribe/* workspace packages resolve through their built dist/
+  # outputs; without this, the first `run` dies in Vite's dep-scan with
+  # "Failed to resolve entry for package @scribe/ui". Unconditional (not
+  # just-if-missing) so a re-run also refreshes stale dists after a pull.
+  info "Pre-building JS workspace packages (pnpm build)…"
+  CI=true pnpm --filter "@scribe/web^..." build
   info "Pre-building Rust workspace (cargo build, this can take a few minutes on first run)…"
   cargo build --manifest-path servers/rust/Cargo.toml --workspace --quiet
 else
-  skip "Skipping cargo pre-build (--skip-build)"
+  skip "Skipping pre-build (--skip-build)"
 fi
 
 # ---------- .env sanity check ----------------------------------------------
@@ -374,12 +381,18 @@ EOF
 fi
 
 cat <<EOF
-  • Apply Supabase migrations against your project:
-      ${BOLD}supabase db push${RESET}      (or: pnpm supabase:start for the local stack)
+  • Fill .env interactively (validates keys, finds your database host):
+      ${BOLD}node scripts/setup-env.mjs${RESET}
+  • Apply Supabase migrations against your project (CLI ships as a devDependency):
+      ${BOLD}pnpm exec supabase login${RESET}
+      ${BOLD}pnpm exec supabase link --project-ref <your-project-ref>${RESET}
+      ${BOLD}pnpm exec supabase db push${RESET}      (or: pnpm supabase:start for the local Docker stack)
+  • Create your first login (fresh projects can't self-register without SMTP):
+      ${BOLD}node scripts/seed-user.mjs${RESET}
   • Browser dev:
-      ${BOLD}./scripts/run.sh${RESET}              (Redis + Rust API + Vite SPA)
+      ${BOLD}./scripts/linux-macos/run.sh${RESET}              (Redis + Rust API + Vite SPA)
   • Native desktop dev:
-      ${BOLD}./scripts/run-desktop.sh${RESET}      (Redis + Rust API + Tauri shell)
+      ${BOLD}./scripts/linux-macos/run-desktop.sh${RESET}      (Redis + Rust API + Tauri shell)
 
 Optional knobs (add to .env):
   • TECTONIC_BIN=$(command -v tectonic 2>/dev/null || echo "/path/to/tectonic")

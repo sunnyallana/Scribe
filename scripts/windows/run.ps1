@@ -23,7 +23,7 @@ function Info($m) { Write-Host "▶ $m" -ForegroundColor Green }
 function Warn($m) { Write-Host "! $m" -ForegroundColor Yellow }
 function Fail($m) { Write-Host "✗ $m" -ForegroundColor Red; exit 1 }
 
-$RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
+$RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 Set-Location $RepoRoot
 
 function Listening($port) {
@@ -50,7 +50,7 @@ if (Listening 6379) {
   )
 
   if ($candidates.Count -eq 0) {
-    Fail "Redis isn't running and no redis-server.exe / memurai.exe found. Run .\scripts\setup.ps1 first."
+    Fail "Redis isn't running and no redis-server.exe / memurai.exe found. Run .\scripts\windows\setup.ps1 first."
   }
   $redisBin = $candidates[0]
   Info "Starting Redis ($redisBin)..."
@@ -68,6 +68,21 @@ if (Listening 6379) {
   $deadline = (Get-Date).AddSeconds(8)
   while ((Get-Date) -lt $deadline -and -not (Listening 6379)) { Start-Sleep -Milliseconds 200 }
   if (-not (Listening 6379)) { Fail "Redis failed to start. See runtime.redis.log" }
+}
+
+# ---- Workspace packages ----------------------------------------------------
+# The @scribe/* workspace packages resolve through their built dist/
+# outputs (package.json `main` points at dist/index.js). A fresh clone or
+# a `pnpm clean` leaves those missing, and Vite's dep-scan dies with
+# "Failed to resolve entry for package @scribe/ui". One topological build
+# of the web app's dependencies fixes it; skipped when already present.
+$pkgNames = 'shared', 'ui', 'compiler-client', 'yjs-provider', 'editor'
+$pkgMissing = @($pkgNames | Where-Object { -not (Test-Path (Join-Path $RepoRoot "packages\$_\dist\index.js")) })
+if ($pkgMissing.Count -gt 0) {
+  Info "Building workspace packages (missing dist: $($pkgMissing -join ', '))..."
+  $env:CI = 'true'
+  & pnpm --filter "@scribe/web^..." build
+  if ($LASTEXITCODE -ne 0) { Fail "Workspace package build failed" }
 }
 
 # ---- Spawn API + SPA as background jobs ----------------------------------

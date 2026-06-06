@@ -15,24 +15,24 @@ on:
   push:
     branches: [master, main, rust-port]
     paths:
-      - 'scripts/setup.sh'
-      - 'scripts/setup.ps1'
-      - 'scripts/run.sh'
-      - 'scripts/run.ps1'
-      - 'scripts/run-desktop.sh'
-      - 'scripts/run-desktop.ps1'
+      - 'scripts/linux-macos/setup.sh'
+      - 'scripts/windows/setup.ps1'
+      - 'scripts/linux-macos/run.sh'
+      - 'scripts/windows/run.ps1'
+      - 'scripts/linux-macos/run-desktop.sh'
+      - 'scripts/windows/run-desktop.ps1'
       - '.github/workflows/scripts.yml'
       - '.nvmrc'
       - 'package.json'
   pull_request:
     branches: [master, main]
     paths:
-      - 'scripts/setup.sh'
-      - 'scripts/setup.ps1'
-      - 'scripts/run.sh'
-      - 'scripts/run.ps1'
-      - 'scripts/run-desktop.sh'
-      - 'scripts/run-desktop.ps1'
+      - 'scripts/linux-macos/setup.sh'
+      - 'scripts/windows/setup.ps1'
+      - 'scripts/linux-macos/run.sh'
+      - 'scripts/windows/run.ps1'
+      - 'scripts/linux-macos/run-desktop.sh'
+      - 'scripts/windows/run-desktop.ps1'
       - '.github/workflows/scripts.yml'
   # Allow manual runs from the Actions tab when iterating on the
   # scripts themselves.
@@ -99,8 +99,8 @@ jobs:
           # CDN so curl --tlsv1.2 doesn't complain in minimal images.
           DEBIAN_FRONTEND: noninteractive
         run: |
-          chmod +x scripts/setup.sh
-          ./scripts/setup.sh --no-optional --skip-build
+          chmod +x scripts/linux-macos/setup.sh
+          ./scripts/linux-macos/setup.sh --no-optional --skip-build
 
       - name: Assert installed binaries
         run: |
@@ -130,10 +130,10 @@ jobs:
 
       - name: Run setup.sh (no-optional, no-desktop, skip-build)
         run: |
-          chmod +x scripts/setup.sh
+          chmod +x scripts/linux-macos/setup.sh
           # `--no-desktop` skips Xcode-CLT install on the runner (it's
           # pre-installed and the prompt would hang in headless mode).
-          ./scripts/setup.sh --no-optional --no-desktop --skip-build
+          ./scripts/linux-macos/setup.sh --no-optional --no-desktop --skip-build
 
       - name: Assert installed binaries
         run: |
@@ -164,7 +164,7 @@ jobs:
           # pre-installed on windows-latest and the winget runs would
           # take 5–10 minutes for no gain. To exercise those branches,
           # drop -NoDesktop and bump the job timeout.
-          .\scripts\setup.ps1 -NoOptional -NoDesktop -SkipBuild
+          .\scripts\windows\setup.ps1 -NoOptional -NoDesktop -SkipBuild
 
       - name: Assert installed binaries
         shell: pwsh
@@ -202,7 +202,7 @@ jobs:
       - name: shellcheck
         run: |
           sudo apt-get update -qq && sudo apt-get install -y shellcheck
-          shellcheck -x scripts/setup.sh scripts/run.sh scripts/run-desktop.sh
+          shellcheck -x scripts/linux-macos/setup.sh scripts/linux-macos/run.sh scripts/linux-macos/run-desktop.sh
 
       - name: PSScriptAnalyzer (Windows scripts)
         shell: pwsh
@@ -220,7 +220,7 @@ jobs:
           # string, not a string[] — passing an array fails with
           # "Cannot convert 'System.Object[]' to 'System.String'".
           # Loop over the files instead and aggregate.
-          $files = @('scripts/setup.ps1', 'scripts/run.ps1', 'scripts/run-desktop.ps1')
+          $files = @('scripts/windows/setup.ps1', 'scripts/windows/run.ps1', 'scripts/windows/run-desktop.ps1')
           $results = foreach ($file in $files) {
             Invoke-ScriptAnalyzer -Path $file `
               -Severity Error, Warning `

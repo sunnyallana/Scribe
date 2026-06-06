@@ -15,11 +15,11 @@
 # Idempotent: re-running skips anything already present.
 #
 # Usage:
-#   .\scripts\setup.ps1
-#   .\scripts\setup.ps1 -SkipRust          # if rustup is already installed
-#   .\scripts\setup.ps1 -NoOptional        # skip pandoc + chktex
-#   .\scripts\setup.ps1 -NoDesktop         # skip MSVC + WebView2 (web-only)
-#   .\scripts\setup.ps1 -SkipBuild         # skip the final cargo build pre-warm
+#   .\scripts\windows\setup.ps1
+#   .\scripts\windows\setup.ps1 -SkipRust          # if rustup is already installed
+#   .\scripts\windows\setup.ps1 -NoOptional        # skip pandoc + chktex
+#   .\scripts\windows\setup.ps1 -NoDesktop         # skip MSVC + WebView2 (web-only)
+#   .\scripts\windows\setup.ps1 -SkipBuild         # skip the final cargo build pre-warm
 #
 # Requires Windows 10+ with winget. If winget isn't installed, run
 # `App Installer` from the Microsoft Store first.
@@ -65,8 +65,8 @@ function Update-Path {
   $env:Path = "$machine;$user"
 }
 
-# Project root = parent of this script's directory.
-$RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
+# Project root = two levels up (scripts\windows\ -> repo root).
+$RepoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 Set-Location $RepoRoot
 Info "Project root: $RepoRoot"
 
@@ -247,7 +247,8 @@ if (-not (Test-Path $envFile)) {
   if (Test-Path $envExample) {
     Info "No .env found - copying from .env.example"
     Copy-Item $envExample $envFile
-    Warn "Edit .env and fill in SUPABASE_* keys + DATABASE_URL before running the API."
+    Warn "Fill in SUPABASE_* keys + DATABASE_URL before running the API."
+    Warn "Easiest way: node scripts\setup-env.mjs - prompts for each value and validates it live."
   } else {
     Warn "No .env or .env.example present. The API will start in degraded mode."
   }
@@ -260,11 +261,18 @@ $env:CI = 'true'
 if ($LASTEXITCODE -ne 0) { Fail "pnpm install failed" }
 
 if (-not $SkipBuild) {
+  # The @scribe/* workspace packages resolve through their built dist/
+  # outputs; without this, the first `run` dies in Vite's dep-scan with
+  # "Failed to resolve entry for package @scribe/ui". Unconditional (not
+  # just-if-missing) so a re-run also refreshes stale dists after a pull.
+  Info "Pre-building JS workspace packages (pnpm build)..."
+  & pnpm --filter "@scribe/web^..." build
+  if ($LASTEXITCODE -ne 0) { Fail "workspace package build failed" }
   Info "Pre-building Rust workspace (cargo build, slow on first run)..."
   & cargo build --manifest-path "servers\rust\Cargo.toml" --workspace --quiet
   if ($LASTEXITCODE -ne 0) { Fail "cargo build failed" }
 } else {
-  Skip "Skipping cargo pre-build (-SkipBuild)"
+  Skip "Skipping pre-build (-SkipBuild)"
 }
 
 # ---- .env sanity check ----------------------------------------------------
@@ -294,18 +302,24 @@ if ($envMissing.Count -gt 0) {
   Write-Host "      $($envMissing -join ' ')" -ForegroundColor Yellow
   Write-Host "    See docs/env-vars.md for where to obtain each value." -ForegroundColor Yellow
 }
-Write-Host "  - Apply Supabase migrations against your project:"
-Write-Host "      supabase db push       (or: pnpm supabase:start for the local stack)" -ForegroundColor White
+Write-Host "  - Fill .env interactively (validates keys, finds your database host):"
+Write-Host "      node scripts\setup-env.mjs" -ForegroundColor White
+Write-Host "  - Apply Supabase migrations against your project (CLI ships as a devDependency):"
+Write-Host "      pnpm exec supabase login" -ForegroundColor White
+Write-Host "      pnpm exec supabase link --project-ref <your-project-ref>" -ForegroundColor White
+Write-Host "      pnpm exec supabase db push       (or: pnpm supabase:start for the local Docker stack)" -ForegroundColor White
+Write-Host "  - Create your first login (fresh projects can't self-register without SMTP):"
+Write-Host "      node scripts\seed-user.mjs" -ForegroundColor White
 Write-Host "  - Browser dev:"
-Write-Host "      .\scripts\run.ps1               (Redis + Rust API + Vite SPA)" -ForegroundColor White
+Write-Host "      .\scripts\windows\run.ps1               (Redis + Rust API + Vite SPA)" -ForegroundColor White
 Write-Host "  - Native desktop dev:"
-Write-Host "      .\scripts\run-desktop.ps1       (Redis + Rust API + Tauri shell)" -ForegroundColor White
+Write-Host "      .\scripts\windows\run-desktop.ps1       (Redis + Rust API + Tauri shell)" -ForegroundColor White
 Write-Host ""
 Write-Host "Optional knobs (add to .env):"
 if (Test-Cmd 'tectonic') {
   Write-Host "  TECTONIC_BIN=$((Get-Command tectonic).Source)"
 } else {
-  Write-Host "  TECTONIC_BIN=$env:USERPROFILE\scribe-tools\tectonic-0.16.0\tectonic.exe"
+  Write-Host "  TECTONIC_BIN=C:/Users/$env:USERNAME/scribe-tools/tectonic-0.16.0/tectonic.exe   (use forward slashes in .env; keep version in sync with `$tecVer above)"
 }
 if (Test-Cmd 'chktex') {
   Write-Host "  CHKTEX_BIN=$((Get-Command chktex).Source)"

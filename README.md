@@ -24,6 +24,36 @@ Real-time multi-author. Offline-first. Self-hostable in a single Rust binary.
 
 ---
 
+## Quick start
+
+```bash
+# 1. Install the toolchain + build everything (Node, Rust, Redis, tectonic)
+./scripts/linux-macos/setup.sh                                         # Linux / macOS
+powershell -ExecutionPolicy Bypass -File scripts\windows\setup.ps1     # Windows
+
+# 2. Create a free Supabase project, then let the wizard fill in .env
+#    (say yes to the browser option: log into the dashboard and it captures
+#    the keys itself — every value validated live, DB host auto-discovered)
+node scripts/setup-env.mjs
+
+# 3. Apply the database migrations to that project
+pnpm exec supabase login
+pnpm exec supabase link --project-ref <your-project-ref>
+pnpm exec supabase db push
+
+# 4. Create your first login (fresh projects can't self-register without SMTP)
+node scripts/seed-user.mjs
+
+# 5. Run it — Redis + Rust API + web app
+./scripts/linux-macos/run.sh                                           # Linux / macOS
+powershell -ExecutionPolicy Bypass -File scripts\windows\run.ps1       # Windows
+```
+
+Open <http://localhost:5173>, log in with the account from step 4, and
+you're writing LaTeX. Full walkthrough in
+[`scripts/README.md`](./scripts/README.md); every variable explained in
+[`docs/env-vars.md`](./docs/env-vars.md).
+
 ## Why it exists
 
 Collaborative LaTeX writing runs into the same persistent problems regardless of which tools a team reaches for, and most workflows leave at least one of them unsolved.

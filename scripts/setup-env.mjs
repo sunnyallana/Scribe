@@ -63,10 +63,17 @@ const info = (m) => console.log(`${cyan('▶')} ${m}`);
 // when stdin is a pipe (CI / scripted runs). Input that arrives in one
 // chunk with several lines (paste, pipe) is buffered across calls.
 let pendingInput = '';
+let stdinEnded = false;
 
 function ask(question, { mask = false, def } = {}) {
   return new Promise((resolve) => {
     const stdin = process.stdin;
+    if (stdinEnded && !pendingInput) {
+      // Piped input ran out mid-wizard — bail instead of looping forever.
+      process.stdout.write('\n');
+      fail('stdin ended before all prompts were answered.');
+      process.exit(1);
+    }
     const stdout = process.stdout;
     const suffix = def !== undefined && def !== '' ? dim(` [${def}]`) : '';
     stdout.write(`${question}${suffix}: `);
@@ -126,6 +133,7 @@ function ask(question, { mask = false, def } = {}) {
       }
     };
     const onEnd = () => {
+      stdinEnded = true;
       cleanup();
       finish(buf);
     };
@@ -316,8 +324,12 @@ async function countPublicTables(cfg, password) {
 function findTectonic() {
   const tools = join(homedir(), 'scribe-tools');
   if (!existsSync(tools)) return null;
-  for (const entry of readdirSync(tools)) {
-    if (!entry.startsWith('tectonic-') || entry === 'tectonic-cache') continue;
+  // Newest version first — multiple tectonic-x.y.z dirs can coexist when
+  // setup's pinned version changed between runs.
+  const candidates = readdirSync(tools)
+    .filter((d) => d.startsWith('tectonic-') && d !== 'tectonic-cache')
+    .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+  for (const entry of candidates) {
     for (const exe of ['tectonic.exe', 'tectonic']) {
       const p = join(tools, entry, exe);
       if (existsSync(p)) return p;
@@ -383,10 +395,41 @@ async function main() {
   let text = await readFile(examplePath, 'utf8');
   const summary = [];
 
+  // ---- 0. optional: capture credentials straight from the dashboard ----
+  // Opens a real browser; you log in; the wizard reads the project list
+  // and API keys through the dashboard's own platform API (and can reset
+  // the database password). Anything captured is still validated below
+  // exactly like a hand-typed value. Skipped when stdin isn't a TTY.
+  let pre = {};
+  if (process.stdin.isTTY) {
+    const wantBrowser = await askYesNo(
+      'Capture credentials automatically by logging into the Supabase dashboard in a browser?',
+      true,
+    );
+    if (wantBrowser) {
+      try {
+        const { captureFromDashboard } = await import('./setup-env-browser.mjs');
+        pre = (await captureFromDashboard({ ask, askYesNo, info, warn, ok })) ?? {};
+      } catch (e) {
+        warn(`Browser capture unavailable (${e?.message ?? e}).`);
+        pre = {};
+      }
+      if (pre.error) {
+        warn(`${pre.error} Falling back to manual entry.`);
+        pre = {};
+      }
+    }
+  }
+
   // ---- 1. project URL ----
   let baseUrl = '';
   let projectRef = null;
-  for (;;) {
+  if (pre.baseUrl) {
+    baseUrl = pre.baseUrl;
+    projectRef = pre.ref ?? null;
+    ok(`Project URL: ${baseUrl}`);
+  }
+  while (!baseUrl) {
     const raw = await ask('Supabase project URL (or just the project ref)');
     let v = raw.trim().replace(/\/+$/, '');
     if (!v) {
@@ -406,16 +449,19 @@ async function main() {
   }
 
   // ---- 2. publishable / anon key ----
-  let anonKey = '';
+  let anonKey = (pre.anonKey ?? '').trim();
   for (;;) {
-    anonKey = (await ask('Publishable (or legacy anon) key')).trim();
+    if (!anonKey) anonKey = (await ask('Publishable (or legacy anon) key')).trim();
     if (!anonKey) {
       warn('A value is required.');
       continue;
     }
     if (!/^(sb_publishable_|eyJ)/.test(anonKey)) {
       warn('Expected a key starting with `sb_publishable_` or `eyJ` (legacy anon JWT).');
-      if (!(await askYesNo('Use it anyway?', false))) continue;
+      if (!(await askYesNo('Use it anyway?', false))) {
+        anonKey = '';
+        continue;
+      }
     }
     try {
       const version = await checkAuthHealth(baseUrl, anonKey);
@@ -424,6 +470,7 @@ async function main() {
     } catch (e) {
       fail(`Could not validate against ${baseUrl}/auth/v1/health — ${e.message ?? e}`);
       if (await askYesNo('Accept without validation (e.g. you are offline)?', false)) break;
+      anonKey = '';
     }
   }
 
@@ -451,16 +498,21 @@ async function main() {
   }
 
   // ---- 3. secret / service_role key ----
-  let secretKey = '';
+  let secretKey = (pre.secretKey ?? '').trim();
   for (;;) {
-    secretKey = (await ask('Secret (or legacy service_role) key', { mask: true })).trim();
+    if (!secretKey) {
+      secretKey = (await ask('Secret (or legacy service_role) key', { mask: true })).trim();
+    }
     if (!secretKey) {
       warn('A value is required.');
       continue;
     }
     if (!/^(sb_secret_|eyJ)/.test(secretKey)) {
       warn('Expected a key starting with `sb_secret_` or `eyJ` (legacy service_role JWT).');
-      if (!(await askYesNo('Use it anyway?', false))) continue;
+      if (!(await askYesNo('Use it anyway?', false))) {
+        secretKey = '';
+        continue;
+      }
     }
     try {
       const buckets = await listBuckets(baseUrl, secretKey);
@@ -469,26 +521,37 @@ async function main() {
       const missing = EXPECTED_BUCKETS.filter((b) => !names.has(b));
       if (missing.length) {
         warn(`Missing Scribe buckets: ${missing.join(', ')}.`);
-        warn(
-          'Apply supabase/migrations/ to this project (see scripts/migrations/) before first use.',
-        );
+        warn('Apply the migrations before first use:');
+        warn('  pnpm exec supabase link --project-ref <your-ref> && pnpm exec supabase db push');
       }
       break;
     } catch (e) {
       fail(`Storage check failed — ${e.message ?? e}`);
       if (await askYesNo('Accept without validation?', false)) break;
+      secretKey = '';
     }
   }
 
   // ---- 4. database password → DATABASE_URL ----
   let databaseUrl = '';
+  // Whether migrations have already been applied (public tables exist).
+  // Seeding a login depends on the handle_new_user() trigger, which the
+  // migrations create — so we only seed once the schema is present.
+  let schemaReady = false;
   if (!projectRef) {
     warn('No project ref — paste the full connection string instead.');
     databaseUrl = (await ask('DATABASE_URL (blank to skip; server then runs without DB)')).trim();
   } else {
     let knownHosts = null; // once a host recognises the tenant, only retry that one
+    let captureRetries = 0;
     for (;;) {
-      const password = await ask('Database password', { mask: true });
+      let password = (pre.dbPassword ?? '').trim();
+      const fromCapture = Boolean(password);
+      if (fromCapture) {
+        info('Using the database password set during dashboard capture.');
+      } else {
+        password = await ask('Database password', { mask: true });
+      }
       if (!password) {
         if (
           await askYesNo('Leave DATABASE_URL empty (API boots, but only /api/health works)?', false)
@@ -517,9 +580,13 @@ async function main() {
         try {
           const tables = await countPublicTables(winner, password);
           if (tables === 0) {
-            warn('Database schema is empty — apply supabase/migrations/ before first use.');
+            warn('Database schema is empty — apply the migrations before first use:');
+            warn(
+              '  pnpm exec supabase link --project-ref <your-ref> && pnpm exec supabase db push',
+            );
           } else {
             ok(`Schema present (${tables} public tables)`);
+            schemaReady = true;
           }
         } catch {
           /* sanity check only */
@@ -528,6 +595,13 @@ async function main() {
       }
       if (authFailed.length) {
         knownHosts = authFailed; // region found; only the password is wrong
+        if (fromCapture && captureRetries < 4) {
+          captureRetries += 1;
+          warn(`Freshly-reset password not propagated yet — retrying in 8s (${captureRetries}/4)…`);
+          await new Promise((resolve) => setTimeout(resolve, 8_000));
+          continue; // pre.dbPassword still set → same password retried
+        }
+        pre.dbPassword = null; // exhausted retries (or hand-typed) → prompt
         warn(`Your project is behind ${authFailed[0].host}, but the password was rejected.`);
         warn(
           'If you reset it seconds ago, poolers can lag ~10–30s — retry. Otherwise re-enter it.',
@@ -581,6 +655,50 @@ async function main() {
 
   await writeFile(envPath, text, 'utf8');
 
+  // ---- seed a first login -----------------------------------------------------
+  // Fresh projects have email confirmation on and no SMTP, so signing up
+  // through the UI never completes — the user would be stuck on the login
+  // page. Offer to create a ready-to-use account via the admin API.
+  //
+  // Only when the schema is already migrated: account creation fires the
+  // handle_new_user() trigger that writes the public.users profile row, and
+  // that trigger ships in the migrations. Before `db push` it wouldn't
+  // exist, so we defer rather than create a profile-less user.
+  let seededUser = null;
+  if (secretKey && !schemaReady) {
+    info('Skipping first-login creation until the database is migrated.');
+    info('After `pnpm exec supabase db push`, run: node scripts/seed-user.mjs');
+  } else if (secretKey && schemaReady && process.stdin.isTTY) {
+    if (await askYesNo('Create a first login now so you can sign in immediately?', true)) {
+      const { seedUser, validateCredentials } = await import('./seed-user.mjs');
+      for (;;) {
+        const email = (await ask('  Email')).trim();
+        const password = await ask('  Password (min 6 chars)', { mask: true });
+        const invalid = validateCredentials(email, password);
+        if (invalid) {
+          warn(`  ${invalid}`);
+          if (!(await askYesNo('  Try again?', true))) break;
+          continue;
+        }
+        const r = await seedUser({ baseUrl, serviceKey: secretKey, email, password });
+        if (r.ok) {
+          ok(`User ${email} created (email pre-confirmed) — log in with it right away.`);
+          seededUser = email;
+          break;
+        }
+        if (r.alreadyExists) {
+          warn(`  ${email} already exists — log in with it, or use another address.`);
+          seededUser = email;
+          break;
+        }
+        warn(`  Could not create user (HTTP ${r.status}). ${r.error ?? ''}`);
+        if (!(await askYesNo('  Try again?', true))) break;
+      }
+    } else {
+      info('Skipped. Create one later with: node scripts/seed-user.mjs');
+    }
+  }
+
   // ---- summary ----
   summary.push(['SUPABASE_URL', baseUrl]);
   summary.push(['SUPABASE_ANON_KEY / VITE_*', 'set (validated against auth)']);
@@ -596,12 +714,31 @@ async function main() {
     aiKey ? 'generated' : yellow('skipped — /api/ai will 503'),
   ]);
   summary.push(['TECTONIC_BIN', tectonic ? fwd(tectonic) : 'tectonic (PATH lookup)']);
+  summary.push([
+    'First login',
+    seededUser ? `${seededUser} (ready)` : yellow('none — run scripts/seed-user.mjs or sign up'),
+  ]);
 
   console.log(`\n${bold('Written:')} ${envPath}\n`);
   for (const [k, v] of summary) console.log(`  ${k.padEnd(28)} ${v}`);
   console.log(`\n${bold('Next:')}`);
-  console.log('  Windows       .\\scripts\\run.ps1');
-  console.log('  Linux/macOS   ./scripts/run.sh');
+  if (!schemaReady) {
+    console.log('  1. Apply migrations:  pnpm exec supabase db push');
+    console.log('  2. Create a login:    node scripts/seed-user.mjs');
+    console.log('  3. Run the app:');
+  } else if (!seededUser) {
+    console.log('  - Create a login:  node scripts/seed-user.mjs');
+    console.log('  - Run the app:');
+  } else {
+    console.log('  Run the app:');
+  }
+  console.log('      Windows       .\\scripts\\windows\\run.ps1');
+  console.log(
+    dim(
+      '                    (or: powershell -ExecutionPolicy Bypass -File scripts\\windows\\run.ps1)',
+    ),
+  );
+  console.log('      Linux/macOS   ./scripts/linux-macos/run.sh');
   console.log('');
   process.exit(0);
 }

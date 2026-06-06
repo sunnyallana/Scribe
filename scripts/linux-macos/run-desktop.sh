@@ -18,7 +18,7 @@ set -euo pipefail
 BOLD=$(printf '\033[1m'); GREEN=$(printf '\033[32m'); YELLOW=$(printf '\033[33m')
 CYAN=$(printf '\033[36m'); MAGENTA=$(printf '\033[35m'); RESET=$(printf '\033[0m')
 
-REPO_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
+REPO_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../.." && pwd )"
 cd "$REPO_ROOT"
 
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -30,7 +30,7 @@ if listening 6379; then
   printf "%s✓%s Redis already running on :6379\n" "$GREEN" "$RESET"
 else
   if ! have redis-server; then
-    printf "Redis not installed. Run %s./scripts/setup.sh%s first.\n" "$BOLD" "$RESET" >&2
+    printf "Redis not installed. Run %s./scripts/linux-macos/setup.sh%s first.\n" "$BOLD" "$RESET" >&2
     exit 1
   fi
   printf "%s▶%s Starting Redis…\n" "$GREEN" "$RESET"
@@ -64,6 +64,20 @@ if listening 5173; then
   printf "Port 5173 is already in use. Stop the other Vite dev server (or run.sh) before running run-desktop.\n" >&2
   maybe_kill "$REDIS_PID"
   exit 1
+fi
+
+# ---- Workspace packages ------------------------------------------------------
+# Tauri's `beforeDevCommand` spawns the web SPA, whose @scribe/* deps
+# resolve through their built dist/ outputs. A fresh clone or `pnpm clean`
+# leaves those missing and Vite's dep-scan dies with "Failed to resolve
+# entry for package @scribe/ui". Build once when any are missing.
+pkg_missing=""
+for p in shared ui compiler-client yjs-provider editor; do
+  [ -f "$REPO_ROOT/packages/$p/dist/index.js" ] || pkg_missing="$pkg_missing $p"
+done
+if [ -n "$pkg_missing" ]; then
+  printf "%s▶%s Building workspace packages (missing dist:%s)…\n" "$GREEN" "$RESET" "$pkg_missing"
+  CI=true pnpm --filter "@scribe/web^..." build
 fi
 
 # ---- prefix helper ---------------------------------------------------------

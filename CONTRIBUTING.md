@@ -11,8 +11,8 @@ recur, no regressions in the pipeline gates."
 ```bash
 git clone https://github.com/sunnyallana/Scribe.git
 cd Scribe
-./scripts/setup.sh        # or .\scripts\setup.ps1 on Windows
-./scripts/run.sh          # boots Redis + API + SPA
+./scripts/linux-macos/setup.sh        # or .\scripts\setup.ps1 on Windows
+./scripts/linux-macos/run.sh          # boots Redis + API + SPA
 ```
 
 Edit code. Open a PR. Pipeline gates run on every push; they must stay green.
