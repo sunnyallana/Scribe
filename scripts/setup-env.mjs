@@ -192,18 +192,41 @@ const EXPECTED_BUCKETS = [
 // answers "password authentication failed" therefore proves the region
 // is right and only the password is wrong.
 const REGIONS = [
-  'ap-south-1', 'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
-  'eu-west-1', 'eu-west-2', 'eu-west-3', 'eu-central-1', 'eu-central-2',
-  'eu-north-1', 'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1',
-  'ap-northeast-2', 'ca-central-1', 'sa-east-1',
+  'ap-south-1',
+  'us-east-1',
+  'us-east-2',
+  'us-west-1',
+  'us-west-2',
+  'eu-west-1',
+  'eu-west-2',
+  'eu-west-3',
+  'eu-central-1',
+  'eu-central-2',
+  'eu-north-1',
+  'ap-southeast-1',
+  'ap-southeast-2',
+  'ap-northeast-1',
+  'ap-northeast-2',
+  'ca-central-1',
+  'sa-east-1',
 ];
 
 function dbCandidates(ref) {
   return [
     { host: `db.${ref}.supabase.co`, port: 5432, user: 'postgres', label: 'direct' },
     ...REGIONS.flatMap((r) => [
-      { host: `aws-1-${r}.pooler.supabase.com`, port: 5432, user: `postgres.${ref}`, label: `aws-1-${r}` },
-      { host: `aws-0-${r}.pooler.supabase.com`, port: 5432, user: `postgres.${ref}`, label: `aws-0-${r}` },
+      {
+        host: `aws-1-${r}.pooler.supabase.com`,
+        port: 5432,
+        user: `postgres.${ref}`,
+        label: `aws-1-${r}`,
+      },
+      {
+        host: `aws-0-${r}.pooler.supabase.com`,
+        port: 5432,
+        user: `postgres.${ref}`,
+        label: `aws-0-${r}`,
+      },
     ]),
   ];
 }
@@ -224,7 +247,11 @@ async function tryDbHost(cfg, password) {
     await client.end();
     return { ...cfg, status: 'connected' };
   } catch (e) {
-    try { await client.end(); } catch { /* already dead */ }
+    try {
+      await client.end();
+    } catch {
+      /* already dead */
+    }
     const msg = String(e.message ?? e);
     if (msg.includes('password authentication failed') || e.code === '28P01') {
       return { ...cfg, status: 'auth-failed' };
@@ -258,8 +285,12 @@ async function probeDb(candidates, password, { quiet = false } = {}) {
 
 async function countPublicTables(cfg, password) {
   const client = new Client({
-    host: cfg.host, port: cfg.port, user: cfg.user, password,
-    database: 'postgres', ssl: { rejectUnauthorized: false },
+    host: cfg.host,
+    port: cfg.port,
+    user: cfg.user,
+    password,
+    database: 'postgres',
+    ssl: { rejectUnauthorized: false },
     connectionTimeoutMillis: 8_000,
   });
   client.on('error', () => {});
@@ -270,7 +301,11 @@ async function countPublicTables(cfg, password) {
     );
     return rows[0].n;
   } finally {
-    try { await client.end(); } catch { /* ignore */ }
+    try {
+      await client.end();
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -320,7 +355,9 @@ async function main() {
   console.log('  2. The publishable / anon key     (Settings → API Keys)');
   console.log('  3. The secret / service_role key  (Settings → API Keys)');
   console.log('  4. The database password          (Settings → Database — reset it if unknown;');
-  console.log(`     ${dim('the dashboard never displays it, and `[YOUR-PASSWORD]` in the connect')}`);
+  console.log(
+    `     ${dim('the dashboard never displays it, and `[YOUR-PASSWORD]` in the connect')}`,
+  );
   console.log(`     ${dim('string is a placeholder, not the value)')}`);
   console.log('');
 
@@ -330,7 +367,10 @@ async function main() {
   }
 
   if (existsSync(envPath)) {
-    const overwrite = await askYesNo(`.env already exists at ${envPath}. Replace it (a backup is kept)?`, false);
+    const overwrite = await askYesNo(
+      `.env already exists at ${envPath}. Replace it (a backup is kept)?`,
+      false,
+    );
     if (!overwrite) {
       info('Keeping the existing .env. Nothing written.');
       process.exit(0);
@@ -349,7 +389,10 @@ async function main() {
   for (;;) {
     const raw = await ask('Supabase project URL (or just the project ref)');
     let v = raw.trim().replace(/\/+$/, '');
-    if (!v) { warn('A value is required.'); continue; }
+    if (!v) {
+      warn('A value is required.');
+      continue;
+    }
     if (/^[a-z0-9]{18,24}$/.test(v)) v = `https://${v}.supabase.co`;
     if (!/^https?:\/\//.test(v)) v = `https://${v}`;
     const m = v.match(/^https:\/\/([a-z0-9]{18,24})\.supabase\.co$/);
@@ -366,7 +409,10 @@ async function main() {
   let anonKey = '';
   for (;;) {
     anonKey = (await ask('Publishable (or legacy anon) key')).trim();
-    if (!anonKey) { warn('A value is required.'); continue; }
+    if (!anonKey) {
+      warn('A value is required.');
+      continue;
+    }
     if (!/^(sb_publishable_|eyJ)/.test(anonKey)) {
       warn('Expected a key starting with `sb_publishable_` or `eyJ` (legacy anon JWT).');
       if (!(await askYesNo('Use it anyway?', false))) continue;
@@ -390,18 +436,28 @@ async function main() {
       ok(`Project signs JWTs with ${algs} — verified via JWKS, no SUPABASE_JWT_SECRET needed`);
     } else {
       warn('No JWKS published — this project uses legacy HS256 signing.');
-      jwtSecret = (await ask('JWT secret (Settings → API → JWT Settings; blank to skip)', { mask: true })).trim();
-      if (!jwtSecret) warn('Skipped: the API will not be able to verify logins until you set SUPABASE_JWT_SECRET.');
+      jwtSecret = (
+        await ask('JWT secret (Settings → API → JWT Settings; blank to skip)', { mask: true })
+      ).trim();
+      if (!jwtSecret)
+        warn(
+          'Skipped: the API will not be able to verify logins until you set SUPABASE_JWT_SECRET.',
+        );
     }
   } catch {
-    warn('Could not read JWKS; leaving SUPABASE_JWT_SECRET empty. Set it manually if logins fail to verify.');
+    warn(
+      'Could not read JWKS; leaving SUPABASE_JWT_SECRET empty. Set it manually if logins fail to verify.',
+    );
   }
 
   // ---- 3. secret / service_role key ----
   let secretKey = '';
   for (;;) {
     secretKey = (await ask('Secret (or legacy service_role) key', { mask: true })).trim();
-    if (!secretKey) { warn('A value is required.'); continue; }
+    if (!secretKey) {
+      warn('A value is required.');
+      continue;
+    }
     if (!/^(sb_secret_|eyJ)/.test(secretKey)) {
       warn('Expected a key starting with `sb_secret_` or `eyJ` (legacy service_role JWT).');
       if (!(await askYesNo('Use it anyway?', false))) continue;
@@ -413,7 +469,9 @@ async function main() {
       const missing = EXPECTED_BUCKETS.filter((b) => !names.has(b));
       if (missing.length) {
         warn(`Missing Scribe buckets: ${missing.join(', ')}.`);
-        warn('Apply supabase/migrations/ to this project (see scripts/migrations/) before first use.');
+        warn(
+          'Apply supabase/migrations/ to this project (see scripts/migrations/) before first use.',
+        );
       }
       break;
     } catch (e) {
@@ -432,15 +490,27 @@ async function main() {
     for (;;) {
       const password = await ask('Database password', { mask: true });
       if (!password) {
-        if (await askYesNo('Leave DATABASE_URL empty (API boots, but only /api/health works)?', false)) break;
+        if (
+          await askYesNo('Leave DATABASE_URL empty (API boots, but only /api/health works)?', false)
+        )
+          break;
         continue;
       }
       if (password.includes('[YOUR-PASSWORD]') || password === 'YOUR-PASSWORD') {
-        warn('That is the dashboard placeholder, not the password. Reset it under Settings → Database if unknown.');
+        warn(
+          'That is the dashboard placeholder, not the password. Reset it under Settings → Database if unknown.',
+        );
         continue;
       }
-      info(knownHosts ? 'Re-checking your project\'s pooler…' : 'Probing Supabase regions for your project (≤ ~30s)…');
-      const { winner, authFailed } = await probeDb(knownHosts ?? dbCandidates(projectRef), password);
+      info(
+        knownHosts
+          ? "Re-checking your project's pooler…"
+          : 'Probing Supabase regions for your project (≤ ~30s)…',
+      );
+      const { winner, authFailed } = await probeDb(
+        knownHosts ?? dbCandidates(projectRef),
+        password,
+      );
       if (winner) {
         databaseUrl = `postgresql://${encodeURIComponent(winner.user)}:${encodeURIComponent(password)}@${winner.host}:${winner.port}/postgres`;
         ok(`Connected via ${winner.label} (${winner.host}:${winner.port})`);
@@ -451,13 +521,17 @@ async function main() {
           } else {
             ok(`Schema present (${tables} public tables)`);
           }
-        } catch { /* sanity check only */ }
+        } catch {
+          /* sanity check only */
+        }
         break;
       }
       if (authFailed.length) {
         knownHosts = authFailed; // region found; only the password is wrong
         warn(`Your project is behind ${authFailed[0].host}, but the password was rejected.`);
-        warn('If you reset it seconds ago, poolers can lag ~10–30s — retry. Otherwise re-enter it.');
+        warn(
+          'If you reset it seconds ago, poolers can lag ~10–30s — retry. Otherwise re-enter it.',
+        );
         continue;
       }
       fail('No Postgres endpoint reachable (network/VPN issue, or the project is paused).');
@@ -470,7 +544,9 @@ async function main() {
 
   // ---- AI key (generated locally) ----
   let aiKey = '';
-  if (await askYesNo('Generate AI_KEY_ENCRYPTION_KEY now (needed for the AI assist routes)?', true)) {
+  if (
+    await askYesNo('Generate AI_KEY_ENCRYPTION_KEY now (needed for the AI assist routes)?', true)
+  ) {
     aiKey = randomBytes(32).toString('base64');
     ok('Generated locally (32 random bytes, base64) — it never leaves this machine');
   }
@@ -499,10 +575,7 @@ async function main() {
   if (tectonic) {
     text = setKey(text, 'TECTONIC_BIN', fwd(tectonic));
     if (existsSync(cacheDir)) {
-      text = text.replace(
-        /^TECTONIC_BIN=.*$/m,
-        (m) => `${m}\nTECTONIC_CACHE_DIR=${fwd(cacheDir)}`,
-      );
+      text = text.replace(/^TECTONIC_BIN=.*$/m, (m) => `${m}\nTECTONIC_CACHE_DIR=${fwd(cacheDir)}`);
     }
   }
 
@@ -513,9 +586,15 @@ async function main() {
   summary.push(['SUPABASE_ANON_KEY / VITE_*', 'set (validated against auth)']);
   summary.push(['SUPABASE_SERVICE_ROLE_KEY', 'set (validated against storage)']);
   summary.push(['SUPABASE_JWT_SECRET', jwtSecret ? 'set (legacy HS256)' : 'not needed (JWKS)']);
-  summary.push(['DATABASE_URL', databaseUrl ? 'set (connection verified)' : yellow('skipped — DB routes will 503')]);
+  summary.push([
+    'DATABASE_URL',
+    databaseUrl ? 'set (connection verified)' : yellow('skipped — DB routes will 503'),
+  ]);
   summary.push(['REDIS_URL', redisUrl]);
-  summary.push(['AI_KEY_ENCRYPTION_KEY', aiKey ? 'generated' : yellow('skipped — /api/ai will 503')]);
+  summary.push([
+    'AI_KEY_ENCRYPTION_KEY',
+    aiKey ? 'generated' : yellow('skipped — /api/ai will 503'),
+  ]);
   summary.push(['TECTONIC_BIN', tectonic ? fwd(tectonic) : 'tectonic (PATH lookup)']);
 
   console.log(`\n${bold('Written:')} ${envPath}\n`);
